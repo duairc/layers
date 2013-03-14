@@ -29,7 +29,7 @@ description:
   list of packages: @transformers@, @mtl@, @mmtl@, @transformers-base@,
   @monad-control@, @lifted-base@, @monad-peel@, @MonadCatchIO-transformers@,
   @MonadCatchIO-mtl@, @exception-transformers@, @monad-abort-fd@ and probably
-  more too. There have been many attempts to either improve upoin or work
+  more too. There have been many attempts to either improve upon or work
   around the deficiencies of the existing type class machinery for monad
   transformer stacks, but we believe @layers@ is the most complete of any of
   these so far.
