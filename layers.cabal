@@ -1,0 +1,73 @@
+name:           layers
+version:        0.1
+synopsis:       Modular type class machinery for monad transformer stacks.
+license:        BSD3
+license-file:   LICENSE
+author:         Shane O'Brien
+maintainer:     shane@duairc.com
+stability:      Experimental
+category:       Control
+cabal-version:  >= 1.6
+homepage:       http://github.com/duairc/layers
+bug-reports:    http://github.com/duairc/layers/issues
+build-type:     Simple
+description:
+  The @layers@ package provides the type class machinery needed to make monads
+  built out of stacks of monad transformers easy to use. It introduces the
+  concept of monad layers, which are a generalisation of monad transformers.
+  The type class machinery provided by and the design patterns suggested by
+  @layers@ allow for much more modularity than is possible with the existing
+  type class machinery and design patterns. With @layers@ it is possible to
+  use arbitrary monad interfaces (monad interfaces are what we call the sort
+  of type classes that you see in the @mtl@ and similar packages) with
+  arbtirary monad transformers (by monad transformers here, we are
+  specifically to monad constructors, such as the ones defined in
+  @transformers@), without ever having to explicitly define how to lift
+  specific interfaces through specific transformers.
+  .
+  @layers@ improves upon and/or replaces, in part or in whole, the following
+  list of packages: @transformers@, @mtl@, @mmtl@, @transformers-base@,
+  @monad-control@, @lifted-base@, @monad-peel@, @MonadCatchIO-transformers@,
+  @MonadCatchIO-mtl@, @exception-transformers@, @monad-abort-fd@ and probably
+  more too. There have been many attempts to either improve upoin or work
+  around the deficiencies of the existing type class machinery for monad
+  transformer stacks, but we believe @layers@ is the most complete of any of
+  these so far.
+  .
+  A comprehensive overview of the motivation behind @layers@ and an
+  explanation of the design decisions taken is given in
+  "Documentation.Layers.Overview". It is /highly recommended/ that you read
+  this if you are considering using this package. The core type classes of the
+  package are defined in "Control.Monad.Layer" (this can be thought of as
+  equivalent to or a replacement of "Control.Monad.Trans.Class" from
+  @transformers@). The rest of the modules in this package export monad
+  interfaces, in the "Control.Monad.Interface" hierarchy, including
+  replacements for all of the monad interfaces of the @mtl@ package.
+
+extra-source-files:
+  CONTRIBUTORS
+
+Library
+  hs-source-dirs:
+    src
+
+  exposed-modules:
+    Documentation.Layers.Overview
+    Control.Monad.Layer
+    Control.Monad.Interface.Cont
+    Control.Monad.Interface.Exception
+    Control.Monad.Interface.Fork
+    Control.Monad.Interface.Mask
+    Control.Monad.Interface.MutVar
+    Control.Monad.Interface.Reader
+    Control.Monad.Interface.RWS
+    Control.Monad.Interface.State
+    Control.Monad.Interface.Try
+    Control.Monad.Interface.Writer
+
+  build-depends:
+    base > 4.5 && < 5,
+    transformers > 0.2 && < 0.4
+
+  ghc-options:
+    -Wall
