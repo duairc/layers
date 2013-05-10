@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverlappingInstances #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -160,7 +160,7 @@ instance (MonadLayer m, MonadMask (Inner m)) => MonadMask m where
     getMaskingState = layer getMaskingState
     {-# INLINE getMaskingState #-}
     setMaskingState s m = layer getMaskingState >>= \s' ->
-        layerInvmap (setMaskingState s) (setMaskingState s') m
+        layerInvmap (setMaskingState s, setMaskingState s') m
     {-# INLINE setMaskingState #-}
 
 

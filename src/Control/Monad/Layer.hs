@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE RankNTypes #-}
@@ -10,29 +11,40 @@
 
 This module is the core of the @layers@ package. It exports:
 
-    1. The type classes 'MonadLayer', 'MonadLayerFunctor' and
+    1. The type synonyms 'Iso', 'Auto', 'Homo' and 'Endo', for morphisms in
+    the category of monads.
+
+    2. The type classes 'MonadLayer', 'MonadLayerFunctor' and
     'MonadLayerControl' and instances of these classes for the transformers in
     the @transformers@ package.
 
-    2. The type classes 'MonadTrans', 'MonadTransFunctor' and
+    3. The type classes 'MonadTrans', 'MonadTransFunctor' and
     'MonadTransControl' and instances of these classes for the transformers in
     the @transformers@ package.
 
-    3. The type classes 'MonadLift', 'MonadLiftFunctor' and
+    4. The type classes 'MonadLift', 'MonadLiftFunctor' and
     'MonadLiftControl'.
 
-    4. Two sets of helper functions inspired by similarly named functions in
+    5. Two sets of helper functions inspired by similarly named functions in
     the @monad-control@ package: one for instances of @MonadLayerControl@ and
     the other for instances of @MonadLiftControl@. These operations are:
     'controlLayer', 'layerOp', 'layerOp_' and 'layerDiscard' and 'control',
     'liftOp', 'liftOp_' and 'liftDiscard' respectively.
 
+    6. The helper function 'asMonadTypeOf'.
+
 -}
 
 module Control.Monad.Layer
     (
+      -- * Morphisms in the category of monads
+      Iso
+    , Auto
+    , Homo
+    , Endo
+
       -- * The @MonadLayer@ family
-      MonadLayer (type Inner, layer, layerInvmap)
+    , MonadLayer (type Inner, layer, layerInvmap)
     , MonadLayerFunctor (layerMap)
     , MonadLayerControl (type LayerState, zero, restore, layerControl)
 
@@ -62,6 +74,8 @@ module Control.Monad.Layer
     , liftOp
     , liftOp_
     , liftDiscard
+
+    , asMonadTypeOf
     )
 where
 
@@ -85,6 +99,21 @@ import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
 
+
+------------------------------------------------------------------------------
+type Homo m n = forall a. m a -> n a
+
+
+------------------------------------------------------------------------------
+type Endo m = Homo m m
+
+
+------------------------------------------------------------------------------
+type Iso m n = (Homo m n, Homo n m)
+
+
+------------------------------------------------------------------------------
+type Auto m = Iso m m
 
 
 ------------------------------------------------------------------------------
@@ -127,11 +156,7 @@ class (Monad m, Monad (Inner m)) => MonadLayer m where
     --
     --     [Composition]
     --         @layerInvmap f g . layerInvmap f' g' = layerInvmap (f . f') (g' . g)@
-    layerInvmap
-        :: (forall b. Inner m b -> Inner m b) -- ^ f
-        -> (forall b. Inner m b -> Inner m b) -- ^ g
-        -> m a
-        -> m a
+    layerInvmap :: Auto (Inner m) -> Endo m
 
 
 ------------------------------------------------------------------------------
@@ -150,7 +175,7 @@ class MonadLayer m => MonadLayerFunctor m where
     --
     --     [Composition]
     --         @layerMap f . layerMap g = layerMap (f . g)@
-    layerMap :: (forall b. Inner m b -> Inner m b) -> m a -> m a
+    layerMap :: Endo (Inner m) -> Endo m
 
 
 ------------------------------------------------------------------------------
@@ -221,10 +246,8 @@ class (MonadLayer m, m ~ Outer m (Inner m)) => MonadTrans m where
     -- type class because the transformation it produces is a homomorphism
     -- rather than just an endomorphism.
     transInvmap :: (MonadTrans n, Outer n ~ Outer m)
-        => (forall b. Inner m b -> Inner n b)
-        -> (forall b. Inner n b -> Inner m b)
-        -> m a
-        -> n a
+        => Iso (Inner m) (Inner n)
+        -> Homo m n
 
 
 ------------------------------------------------------------------------------
@@ -247,9 +270,8 @@ class (MonadLayerFunctor m, MonadTrans m) => MonadTransFunctor m where
     -- 'MonadLayerFunctor' type class because the transformation it produces
     -- is a homomorphism rather than just an endomorphism.
     transMap :: (MonadTrans n, Outer n ~ Outer m)
-        => (forall b. Inner m b -> Inner n b)
-        -> m a
-        -> n a
+        => Homo (Inner m) (Inner n)
+        -> Homo m n
 
 
 ------------------------------------------------------------------------------
@@ -279,14 +301,14 @@ instance Monad m => MonadLayer (ContT r m) where
     type Inner (ContT r m) = m
     layer = ContT . (>>=)
     {-# INLINE layer #-}
-    layerInvmap f g (ContT m) = ContT $ f . m . (g .)
+    layerInvmap (f, g) (ContT m) = ContT $ f . m . (g .)
     {-# INLINE layerInvmap #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (ContT r m) where
     type Outer (ContT r m) = ContT r
-    transInvmap f g (ContT m) = ContT $ f . m . (g .)
+    transInvmap (f, g) (ContT m) = ContT $ f . m . (g .)
     {-# INLINE transInvmap #-}
 
 
@@ -295,7 +317,7 @@ instance (Error e, Monad m) => MonadLayer (ErrorT e m) where
     type Inner (ErrorT e m) = m
     layer = ErrorT . liftM Right
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -319,7 +341,7 @@ instance (Error e, Monad m) => MonadLayerControl (ErrorT e m) where
 ------------------------------------------------------------------------------
 instance (Error e, Monad m) => MonadTrans (ErrorT e m) where
     type Outer (ErrorT e m) = ErrorT e
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -340,7 +362,7 @@ instance Monad m => MonadLayer (IdentityT m) where
     type Inner (IdentityT m) = m
     layer = IdentityT
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -362,7 +384,7 @@ instance Monad m => MonadLayerControl (IdentityT m) where
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (IdentityT m) where
     type Outer (IdentityT m) = IdentityT
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -383,7 +405,7 @@ instance Monad m => MonadLayer (ListT m) where
     type Inner (ListT m) = m
     layer = ListT . liftM (:[])
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -407,7 +429,7 @@ instance Monad m => MonadLayerControl (ListT m) where
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (ListT m) where
     type Outer (ListT m) = ListT
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -428,7 +450,7 @@ instance Monad m => MonadLayer (MaybeT m) where
     type Inner (MaybeT m) = m
     layer = MaybeT . liftM Just
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -452,7 +474,7 @@ instance Monad m => MonadLayerControl (MaybeT m) where
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (MaybeT m) where
     type Outer (MaybeT m) = MaybeT
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -473,7 +495,7 @@ instance Monad m => MonadLayer (ReaderT r m) where
     type Inner (ReaderT r m) = m
     layer = ReaderT . const
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -495,7 +517,7 @@ instance Monad m => MonadLayerControl (ReaderT r m) where
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (ReaderT r m) where
     type Outer (ReaderT r m) = ReaderT r
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -516,7 +538,7 @@ instance (Monad m, Monoid w) => MonadLayer (L.RWST r w s m) where
     type Inner (L.RWST r w s m) = m
     layer m = L.RWST $ \_ s -> liftM (\a -> (a, s, mempty)) m
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -546,7 +568,7 @@ instance (Monad m, Monoid w) => MonadTransControl (L.RWST r w s m) where
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadTrans (L.RWST r w s m) where
     type Outer (L.RWST r w s m) = L.RWST r w s
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -561,7 +583,7 @@ instance (Monad m, Monoid w) => MonadLayer (RWST r w s m) where
     type Inner (RWST r w s m) = m
     layer m = RWST $ \_ s -> liftM (\a -> (a, s, mempty)) m
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -584,7 +606,7 @@ instance (Monad m, Monoid w) => MonadLayerControl (RWST r w s m) where
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadTrans (RWST r w s m) where
     type Outer (RWST r w s m) = RWST r w s
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -606,7 +628,7 @@ instance Monad m => MonadLayer (L.StateT s m) where
     type Inner (L.StateT s m) = m
     layer m = L.StateT $ \s -> liftM (\a -> (a, s)) m
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -629,7 +651,7 @@ instance Monad m => MonadLayerControl (L.StateT s m) where
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (L.StateT s m) where
     type Outer (L.StateT s m) = L.StateT s
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -651,7 +673,7 @@ instance Monad m => MonadLayer (StateT s m) where
     type Inner (StateT s m) = m
     layer m = StateT $ \s -> liftM (\a -> (a, s)) m
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -674,7 +696,7 @@ instance Monad m => MonadLayerControl (StateT s m) where
 ------------------------------------------------------------------------------
 instance Monad m => MonadTrans (StateT s m) where
     type Outer (StateT s m) = StateT s
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -696,7 +718,7 @@ instance (Monad m, Monoid w) => MonadLayer (L.WriterT w m) where
     type Inner (L.WriterT w m) = m
     layer = L.WriterT . liftM (\a -> (a, mempty))
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -718,7 +740,7 @@ instance (Monad m, Monoid w) => MonadLayerControl (L.WriterT w m) where
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadTrans (L.WriterT w m) where
     type Outer (L.WriterT w m) = L.WriterT w
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -739,7 +761,7 @@ instance (Monad m, Monoid w) => MonadLayer (WriterT w m) where
     type Inner (WriterT w m) = m
     layer = WriterT . liftM (\a -> (a, mempty))
     {-# INLINE layer #-}
-    layerInvmap = const . layerMap
+    layerInvmap = transInvmap
     {-# INLINE layerInvmap #-}
 
 
@@ -761,7 +783,7 @@ instance (Monad m, Monoid w) => MonadLayerControl (WriterT w m) where
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadTrans (WriterT w m) where
     type Outer (WriterT w m) = WriterT w
-    transInvmap = const . transMap
+    transInvmap (f, _) = transMap f
     {-# INLINE transInvmap #-}
 
 
@@ -818,8 +840,7 @@ class (Monad i, Monad m) => MonadLift i m where
     -- stack, while @liftInvmap@ can lift from /any/ monad anywhere in the
     -- stack (including @m@ itself). (@layerInvmap@ is used to implement
     -- @liftInvmap@)
-    liftInvmap
-        :: (forall b. i b -> i b) -> (forall b. i b -> i b) -> m a -> m a
+    liftInvmap :: Auto i -> Endo m
 
 
 ------------------------------------------------------------------------------
@@ -842,7 +863,7 @@ class MonadLift i m => MonadLiftFunctor i m where
     -- lifts from the monad directly beneath the top of the stack, while
     -- @liftMap@ can lift from /any/ monad anywhere in the stack (including
     -- @m@ itself). (@layerMap@ is used to implement @liftMap@)
-    liftMap :: (forall b. i b -> i b) -> m a -> m a
+    liftMap :: Endo i -> Endo m
 
 
 ------------------------------------------------------------------------------
@@ -870,7 +891,7 @@ class MonadLiftFunctor i m => MonadLiftControl i m where
 instance Monad m => MonadLift m m where
     lift = id
     {-# INLINE lift #-}
-    liftInvmap f _ = f
+    liftInvmap (f, _) = f
     {-# INLINE liftInvmap #-}
 
 
@@ -878,7 +899,7 @@ instance Monad m => MonadLift m m where
 instance (MonadLayer m, MonadLift i (Inner m)) => MonadLift i m where
     lift = layer . lift
     {-# INLINE lift #-}
-    liftInvmap f g = layerInvmap (liftInvmap f g) (liftInvmap g f)
+    liftInvmap (f, g) = layerInvmap (liftInvmap (f, g), liftInvmap (g, f))
     {-# INLINABLE liftInvmap #-}
 
 
@@ -1028,3 +1049,15 @@ liftOp_ f = \m -> control $ \run -> f $ run m
 liftDiscard :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard f = \m -> liftControl $ \run -> f $ liftM (const ()) $ run m
 {-# INLINE liftDiscard #-}
+
+
+------------------------------------------------------------------------------
+-- | 'asMonadTypeOf' is a useful helper function when GHC gets confused by all
+-- the overlapping instances. It can be used as follows:
+--
+-- > do
+-- >     op' <- asMonadTypeOf op
+-- >     op
+asMonadTypeOf :: Monad m => m a -> m (m a)
+asMonadTypeOf = return
+{-# INLINE asMonadTypeOf #-}

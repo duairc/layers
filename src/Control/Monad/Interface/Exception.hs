@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,16 +14,16 @@
 
 This module exports:
 
-    1. The 'MonadException' type class and its operations 'throw' and 'catch'.
+    1. The 'MonadCatch' type class and its operations 'throw' and 'catch'.
 
-    2. Instances of 'MonadException' for 'IO', 'Either', 'STM' and the
+    2. Instances of 'MonadCatch' for 'IO', 'Either', 'STM' and the
     'ErrorT' monad transformer from the @transformers@ package.
 
     3. An orphan instance of 'Error' for the 'SomeException' type: this is a
-    necessary hack in order to make 'ErrorT' an instance of 'MonadException'.
+    necessary hack in order to make 'ErrorT' an instance of 'MonadCatch'.
 
-    3. A universal pass-through instance of 'MonadException' for any existing
-    @MonadException@ wrapped by a 'MonadLayerControl'.
+    3. A universal pass-through instance of 'MonadCatch' for any existing
+    @MonadCatch@ wrapped by a 'MonadLayerControl'.
 
     4. The utility operations 'catches', 'catchJust', 'handle', 'handleJust',
     'try' and 'tryJust'.
@@ -30,8 +31,11 @@ This module exports:
 -}
 
 module Control.Monad.Interface.Exception
-    ( -- * The @MonadException@ class
-      MonadException (throw, catch)
+    ( -- * The @MonadCatch@ class
+      -- $split
+      MonadThrow (throw)
+    , MonadCatch (catch)
+    , MonadException
     , catches
     , Handler (Handler)
     , catchJust
@@ -51,9 +55,7 @@ import           Control.Exception
                      , throwIO
                      )
 import qualified Control.Exception as E (catch)
-import           Control.Monad (liftM)
-import           Control.Monad.Instances ()
-import           Data.Function (fix)
+import           Control.Monad (liftM, mzero)
 import           GHC.Conc.Sync (STM, catchSTM, throwSTM)
 
 
@@ -62,6 +64,8 @@ import           Control.Monad.Trans.Error
                      ( Error (noMsg, strMsg)
                      , ErrorT (ErrorT)
                      )
+import           Control.Monad.Trans.List (ListT)
+import           Control.Monad.Trans.Maybe (MaybeT)
 import           Data.Functor.Product (Product (Pair))
 
 
@@ -74,15 +78,106 @@ import           Control.Monad.Layer
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadException' type class represents the class of monads which can
--- 'throw' and 'catch' exceptions. This includes 'IO'-based monads as well as
--- 'Either'-like monads.
+-- $split
+--
+-- The 'MonadCatch' monad interface is split up into two parts:
+-- 'MonadThrow' and 'MonadCatch', the latter of which is a subclass of the
+-- former. The reason they are split up is that there are more monads that can
+-- provide 'MonadThrow' than 'MonadCatch'. This is partially because
+-- @MonadThrow@'s universal pass-through instance can pass through any
+-- 'MonadLayer', while @MonadCatch@ requires @MonadLayerControl@. But even
+-- ignoring that, there are more monads that can provide @MonadThrow@ than
+-- @MonadCatch@ in the first place. The monads which implement @MonadCatch@
+-- are basically 'IO' and the 'Either'-like monads: these are the monads where
+-- failure is possible and the failure state contains some sort of 'Exception'
+-- value which can be observed. However, @MonadThrow@ can reasonably be
+-- implemented by any monad which can fail. In the case of monads which
+-- implement @MonadCatch@, @MonadThrow@'s 'throw' operation will \"store\" the
+-- 'Exception' value its given in the monad's failure \"state\". For other
+-- monads which can fail, @throw@ simply fails, and can be recovered from by
+-- other means: for example, using the 'Control.Monad.MonadPlus' interface.
+
+
+------------------------------------------------------------------------------
+-- | The 'MonadThrow' type class represents the class of monads which can
+-- fail, and, if possible, can store an 'Exception' value in their failure
+-- \"state\" somehow.
+--
+-- Minimal complete definition: instance head only.
+class Monad m => MonadThrow m where
+    -- | Fail with a given exception.
+    throw :: Exception e => e -> m a
+    throw = fail . show
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance MonadThrow ([]) where
+    throw = const mzero
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance MonadThrow Maybe where
+    throw = const mzero
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance e ~ SomeException => MonadThrow (Either e) where
+    throw = Left . toException
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance MonadThrow IO where
+    throw = throwIO
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance MonadThrow STM where
+    throw = throwSTM
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadThrow (ListT m) where
+    throw = const mzero
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadThrow (MaybeT m) where
+    throw = const mzero
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance (e ~ SomeException, Monad m) => MonadThrow (ErrorT e m) where
+    throw = ErrorT . return . Left . toException
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+instance (MonadThrow f, MonadThrow g) => MonadThrow (Product f g) where
+    throw e = Pair (throw e) (throw e)
+
+
+------------------------------------------------------------------------------
+instance (MonadLayer m, MonadThrow (Inner m)) => MonadThrow m where
+    throw = layer . throw
+    {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+-- | The 'MonadCatch' type class represents the subclass of monads which can
+-- fail with an exception ('MonadThrow') which can recover from that failure
+-- by 'catch'ing specific 'Exception' values. This includes 'IO'-based monads
+-- as well as 'Either'-like monads.
 --
 -- Minimal complete definition: 'throw', 'catch'.
-class Monad m => MonadException m where
-    -- | Throw an exception that can be caught by the monad @m@.
-    throw :: Exception e => e -> m a
-
+class MonadThrow m => MonadCatch m where
     -- | This is the simplest of the exception-catching functions. It takes a
     -- single argument, runs it, and if an exception is raised the \"handler\"
     -- is executed, with the value of the exception passed as an argument.
@@ -98,7 +193,7 @@ class Monad m => MonadException m where
     -- "Control.Exception" for an explanation of the problems with doing so.
     --
     -- For catching exceptions in pure (non-IO) expressions, see the function
-    -- evaluate.
+    -- 'Control.Exception.evaluate'.
     --
     -- Note that due to Haskell's unspecified evaluation order, an expression
     -- may throw one of several possible exceptions: consider the expression
@@ -117,33 +212,25 @@ class Monad m => MonadException m where
 
 
 ------------------------------------------------------------------------------
-instance e ~ SomeException => MonadException (Either e) where
-    throw = Left . toException
-    {-# INLINE throw #-}
+instance e ~ SomeException => MonadCatch (Either e) where
     catch m h = either (\e -> maybe (Left e) h (fromException e)) Right m
     {-# INLINE catch #-}
 
 
 ------------------------------------------------------------------------------
-instance MonadException IO where
-    throw = throwIO
-    {-# INLINE throw #-}
+instance MonadCatch IO where
     catch = E.catch
     {-# INLINE catch #-}
 
 
 ------------------------------------------------------------------------------
-instance MonadException STM where
-    throw = throwSTM
-    {-# INLINE throw #-}
+instance MonadCatch STM where
     catch = catchSTM
     {-# INLINE catch #-}
 
 
 ------------------------------------------------------------------------------
-instance (e ~ SomeException, Monad m) => MonadException (ErrorT e m) where
-    throw = ErrorT . return . Left . toException
-    {-# INLINE throw #-}
+instance (e ~ SomeException, Monad m) => MonadCatch (ErrorT e m) where
     catch (ErrorT m) h = ErrorT $ m >>= either
         (\e -> maybe
             (return $ Left e)
@@ -154,23 +241,21 @@ instance (e ~ SomeException, Monad m) => MonadException (ErrorT e m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadException f, MonadException g) =>
-    MonadException (Product f g)
-  where
-    throw e = Pair (throw e) (throw e)
+instance (MonadCatch f, MonadCatch g) => MonadCatch (Product f g) where
     catch (Pair f g) h = Pair
         (catch f (\e -> let Pair f' _ = h e in f'))
         (catch g (\e -> let Pair _ g' = h e in g'))
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayerControl m, MonadException (Inner m)) =>
-    MonadException m
-  where
-    throw = layer . throw
-    {-# INLINE throw #-}
+instance (MonadLayerControl m, MonadCatch (Inner m)) => MonadCatch m where
     catch m h = controlLayer (\run -> catch (run m) (run . h))
     {-# INLINE catch #-}
+
+
+------------------------------------------------------------------------------
+-- | A synonym for 'MonadCatch'.
+type MonadException = MonadCatch
 
 
 ------------------------------------------------------------------------------
@@ -190,7 +275,7 @@ instance (MonadLayerControl m, MonadException (Inner m)) =>
 --
 -- > f = expr `catches` [Handler (\ (ex :: ArithException) -> handleArith ex),
 -- >                     Handler (\ (ex :: IOException)    -> handleIO    ex)]
-catches :: MonadException m => m a -> [Handler m a] -> m a
+catches :: MonadCatch m => m a -> [Handler m a] -> m a
 catches m handlers = m `catch` go handlers
   where
     go [] e = throw e
@@ -219,7 +304,7 @@ data Handler m a = forall e. Exception e => Handler (e -> m a)
 -- Any other exceptions which are not matched by the predicate are re-raised,
 -- and may be caught by an enclosing 'catch', 'catchJust', etc.
 catchJust
-    :: (MonadException m, Exception e)
+    :: (MonadCatch m, Exception e)
     => (e -> Maybe b)
     -> m a
     -> (b -> m a)
@@ -234,7 +319,7 @@ catchJust p a handler = catch a (\e -> maybe (throw e) handler (p e))
 --
 -- >   do handle (\NonTermination -> exitWith (ExitFailure 1)) $
 -- >      ...
-handle :: (MonadException m, Exception e) => (e -> m a) -> m a -> m a
+handle :: (MonadCatch m, Exception e) => (e -> m a) -> m a -> m a
 handle = flip catch
 {-# INLINE handle #-}
 
@@ -243,7 +328,7 @@ handle = flip catch
 -- | A version of 'catchJust' with the arguments swapped around (see
 -- 'handle').
 handleJust
-    :: (MonadException m, Exception e)
+    :: (MonadCatch m, Exception e)
     => (e -> Maybe b)
     -> (b -> m a)
     -> m a
@@ -260,7 +345,7 @@ handleJust = flip . catchJust
 -- handler.
 --
 -- > try a = catch (Right `liftM` a) (return . Left)
-try :: (MonadException m, Exception e) => m a -> m (Either e a)
+try :: (MonadCatch m, Exception e) => m a -> m (Either e a)
 try = handle (return . Left) . liftM Right
 {-# INLINE try #-}
 
@@ -270,7 +355,7 @@ try = handle (return . Left) . liftM Right
 -- exceptions are caught (c.f. 'catchJust').  If the exception does not match
 -- the predicate, it is re-thrown.
 tryJust
-    :: (MonadException m, Exception e)
+    :: (MonadCatch m, Exception e)
     => (e -> Maybe b)
     -> m a
     -> m (Either b a)
@@ -281,9 +366,9 @@ tryJust p = handleJust p (return . Left) . liftM Right
 ------------------------------------------------------------------------------
 -- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
 -- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus a
--- 'MonadException' instance to be defined for @ErrorT SomeException@.
+-- 'MonadCatch' instance to be defined for @ErrorT SomeException@.
 instance Error SomeException where
-    noMsg = fix SomeException
+    noMsg = strMsg "mzero"
     {-# INLINE noMsg #-}
     strMsg = SomeException . PatternMatchFail
     {-# INLINE strMsg #-}

@@ -33,7 +33,6 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Monad (liftM)
-import           Control.Monad.Instances ()
 import           Data.Monoid (Monoid (mempty))
 
 
@@ -133,7 +132,7 @@ instance (MonadLayer m, MonadReader r (Inner m)) => MonadReader r m where
     {-# INLINE reader #-}
     ask = layer ask
     {-# INLINE ask #-}
-    local f m = layer ask >>= \r -> layerInvmap (local f) (local (const r)) m
+    local f m = layer ask >>= \r -> layerInvmap (local f, local (const r)) m
     {-# INLINE local #-}
 
 
