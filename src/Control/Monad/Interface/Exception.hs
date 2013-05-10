@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -57,6 +58,9 @@ import           Control.Exception
 import qualified Control.Exception as E (catch)
 import           Control.Monad (liftM, mzero)
 import           GHC.Conc.Sync (STM, catchSTM, throwSTM)
+#if __GLASGOW_HASKELL__ < 706
+import           Prelude hiding (catch)
+#endif
 
 
 -- transformers --------------------------------------------------------------
