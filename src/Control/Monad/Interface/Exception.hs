@@ -1,5 +1,7 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE CPP #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -58,7 +60,7 @@ import           Control.Exception
 import qualified Control.Exception as E (catch)
 import           Control.Monad (liftM, mzero)
 import           GHC.Conc.Sync (STM, catchSTM, throwSTM)
-#if __GLASGOW_HASKELL__ < 706
+#if !MIN_VERSION_base(4, 6, 0)
 import           Prelude hiding (catch)
 #endif
 
@@ -252,14 +254,29 @@ instance (MonadCatch f, MonadCatch g) => MonadCatch (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayerControl m, MonadCatch (Inner m)) => MonadCatch m where
+#if __GLASGOW_HASKELL__ >= 702
+instance (MonadLayerControl m, MonadCatch (Inner m)) =>
+#else
+instance
+    ( MonadLayerControl m
+    , MonadCatch (Inner m)
+    , MonadThrow m
+    ) =>
+#endif
+    MonadCatch m
+  where
     catch m h = controlLayer (\run -> catch (run m) (run . h))
     {-# INLINE catch #-}
 
 
 ------------------------------------------------------------------------------
 -- | A synonym for 'MonadCatch'.
+#if LANGUAGE_ConstraintKinds
 type MonadException = MonadCatch
+#else
+class MonadCatch m => MonadException m
+instance MonadCatch m => MonadException m
+#endif
 
 
 ------------------------------------------------------------------------------

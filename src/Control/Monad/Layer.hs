@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImpredicativeTypes #-}
@@ -48,10 +49,12 @@ module Control.Monad.Layer
     , MonadLayerFunctor (layerMap)
     , MonadLayerControl (type LayerState, zero, restore, layerControl)
 
+#if __GLASGOW_HASKELL__ >= 702
       -- * The @MonadTrans@ family
     , MonadTrans (type Outer, transInvmap)
     , MonadTransFunctor (transMap)
     , MonadTransControl (transControl)
+#endif
 
       -- * The @MonadLift@ family
     , MonadLift (lift, liftInvmap)
@@ -74,8 +77,6 @@ module Control.Monad.Layer
     , liftOp
     , liftOp_
     , liftDiscard
-
-    , asMonadTypeOf
     )
 where
 
@@ -160,6 +161,114 @@ class (Monad m, Monad (Inner m)) => MonadLayer m where
 
 
 ------------------------------------------------------------------------------
+instance Monad m => MonadLayer (ContT r m) where
+    type Inner (ContT r m) = m
+    layer = ContT . (>>=)
+    {-# INLINE layer #-}
+    layerInvmap (f, g) (ContT m) = ContT $ f . m . (g .)
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Error e, Monad m) => MonadLayer (ErrorT e m) where
+    type Inner (ErrorT e m) = m
+    layer = ErrorT . liftM Right
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayer (IdentityT m) where
+    type Inner (IdentityT m) = m
+    layer = IdentityT
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayer (ListT m) where
+    type Inner (ListT m) = m
+    layer = ListT . liftM (:[])
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayer (MaybeT m) where
+    type Inner (MaybeT m) = m
+    layer = MaybeT . liftM Just
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayer (ReaderT r m) where
+    type Inner (ReaderT r m) = m
+    layer = ReaderT . const
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayer (L.RWST r w s m) where
+    type Inner (L.RWST r w s m) = m
+    layer m = L.RWST $ \_ s -> liftM (\a -> (a, s, mempty)) m
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayer (RWST r w s m) where
+    type Inner (RWST r w s m) = m
+    layer m = RWST $ \_ s -> liftM (\a -> (a, s, mempty)) m
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayer (L.StateT s m) where
+    type Inner (L.StateT s m) = m
+    layer m = L.StateT $ \s -> liftM (\a -> (a, s)) m
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayer (StateT s m) where
+    type Inner (StateT s m) = m
+    layer m = StateT $ \s -> liftM (\a -> (a, s)) m
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayer (L.WriterT w m) where
+    type Inner (L.WriterT w m) = m
+    layer = L.WriterT . liftM (\a -> (a, mempty))
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayer (WriterT w m) where
+    type Inner (WriterT w m) = m
+    layer = WriterT . liftM (\a -> (a, mempty))
+    {-# INLINE layer #-}
+    layerInvmap (f, _) = layerMap f
+    {-# INLINE layerInvmap #-}
+
+
+------------------------------------------------------------------------------
 -- | The type class 'MonadLayerFunctor' represents is the subclass of
 -- monad layers that support the 'layerMap' operation, which is more powerful
 -- than the 'layerInvmap' operation of the 'MonadLayer' type class.
@@ -176,6 +285,72 @@ class MonadLayer m => MonadLayerFunctor m where
     --     [Composition]
     --         @layerMap f . layerMap g = layerMap (f . g)@
     layerMap :: Endo (Inner m) -> Endo m
+
+
+------------------------------------------------------------------------------
+instance (Error e, Monad m) => MonadLayerFunctor (ErrorT e m) where
+    layerMap f (ErrorT m) = ErrorT $ f m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerFunctor (IdentityT m) where
+    layerMap f (IdentityT m) = IdentityT $ f m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerFunctor (ListT m) where
+    layerMap f (ListT m) = ListT $ f m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerFunctor (MaybeT m) where
+    layerMap f (MaybeT m) = MaybeT $ f m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerFunctor (ReaderT r m) where
+    layerMap f (ReaderT m) = ReaderT $ f . m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerFunctor (L.RWST r w s m) where
+    layerMap f (L.RWST m) = L.RWST $ (f .) . m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerFunctor (RWST r w s m) where
+    layerMap f (RWST m) = RWST $ (f .) . m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerFunctor (L.StateT s m) where
+    layerMap f (L.StateT m) = L.StateT $ f . m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerFunctor (StateT s m) where
+    layerMap f (StateT m) = StateT $ f . m
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerFunctor (L.WriterT w m) where
+    layerMap f (L.WriterT m) = L.WriterT (f m)
+    {-# INLINE layerMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerFunctor (WriterT w m) where
+    layerMap f (WriterT m) = WriterT (f m)
+    {-# INLINE layerMap #-}
 
 
 ------------------------------------------------------------------------------
@@ -222,6 +397,116 @@ class MonadLayerFunctor m => MonadLayerControl m where
 
 
 ------------------------------------------------------------------------------
+instance (Error e, Monad m) => MonadLayerControl (ErrorT e m) where
+    newtype LayerState (ErrorT e m) a = E {unE :: Either e a}
+    zero = either (const True) (const False) . unE
+    {-# INLINE zero #-}
+    restore = ErrorT . return . unE
+    {-# INLINE restore #-}
+    layerControl f = layer $ f (\(ErrorT m) -> liftM E m)
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerControl (IdentityT m) where
+    newtype LayerState (IdentityT m) a = I {unI :: a}
+    restore = IdentityT . return . unI
+    {-# INLINE restore #-}
+    layerControl f = layer $ f (\(IdentityT m) -> liftM I m)
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerControl (ListT m) where
+    newtype LayerState (ListT m) a = L {unL :: [a]}
+    zero = null . unL
+    {-# INLINE zero #-}
+    restore = ListT . return . unL
+    {-# INLINE restore #-}
+    layerControl f = layer $ f (\(ListT m) -> liftM L m)
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerControl (MaybeT m) where
+    newtype LayerState (MaybeT m) a = M {unM :: Maybe a}
+    zero = isNothing . unM
+    {-# INLINE zero #-}
+    restore = MaybeT . return . unM
+    {-# INLINE restore #-}
+    layerControl f = layer $ f (\(MaybeT m) -> liftM M m)
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerControl (ReaderT r m) where
+    newtype LayerState (ReaderT r m) a = R {unR :: a}
+    restore = return . unR
+    {-# INLINE restore #-}
+    layerControl f = ReaderT $ \r -> f (\(ReaderT m) -> liftM R (m r))
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerControl (L.RWST r w s m) where
+    newtype LayerState (L.RWST r w s m) a = RWSL {unRWSL :: (a, s, w)}
+    restore = L.RWST . const . const . return . unRWSL
+    {-# INLINE restore #-}
+    layerControl f = L.RWST $ \r s -> liftM (\a -> (a, s, mempty)) $
+        f (\(L.RWST m) -> liftM RWSL (m r s))
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerControl (RWST r w s m) where
+    newtype LayerState (RWST r w s m) a = RWS {unRWS :: (a, s, w)}
+    restore = RWST . const . const . return . unRWS
+    {-# INLINE restore #-}
+    layerControl f = RWST $ \r s -> liftM (\a -> (a, s, mempty)) $
+        f (\(RWST m) -> liftM RWS (m r s))
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerControl (L.StateT s m) where
+    newtype LayerState (L.StateT s m) a = SL {unSL :: (a, s)}
+    restore = L.StateT . const . return . unSL
+    {-# INLINE restore #-}
+    layerControl f = L.StateT $ \s -> liftM (\a -> (a, s)) $
+        f (\(L.StateT m) -> liftM SL (m s))
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLayerControl (StateT s m) where
+    newtype LayerState (StateT s m) a = S {unS :: (a, s)}
+    restore = StateT . const . return . unS
+    {-# INLINE restore #-}
+    layerControl f = StateT $ \s -> liftM (\a -> (a, s)) $
+        f (\(StateT m) -> liftM S (m s))
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerControl (L.WriterT w m) where
+    newtype LayerState (L.WriterT w m) a = WL {unWL :: (a, w)}
+    restore = L.WriterT . return . unWL
+    {-# INLINE restore #-}
+    layerControl f = layer $ f (\(L.WriterT m) -> liftM WL m)
+    {-# INLINE layerControl #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadLayerControl (WriterT w m) where
+    newtype LayerState (WriterT w m) a = W {unW :: (a, w)}
+    restore = WriterT . return . unW
+    {-# INLINE restore #-}
+    layerControl f = layer $ f (\(WriterT m) -> liftM W m)
+    {-# INLINE layerControl #-}
+
+
+#if __GLASGOW_HASKELL__ >= 702
+------------------------------------------------------------------------------
 -- | Monad transformers are a subclass of monad layers which are parametric in
 -- their inner monad.
 class (MonadLayer m, m ~ Outer m (Inner m)) => MonadTrans m where
@@ -248,6 +533,156 @@ class (MonadLayer m, m ~ Outer m (Inner m)) => MonadTrans m where
     transInvmap :: (MonadTrans n, Outer n ~ Outer m)
         => Iso (Inner m) (Inner n)
         -> Homo m n
+
+
+------------------------------------------------------------------------------
+instance (Error e, Monad m) => MonadTransFunctor (ErrorT e m) where
+    transMap f (ErrorT m) = ErrorT $ f m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTransFunctor (IdentityT m) where
+    transMap f (IdentityT m) = IdentityT $ f m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTransFunctor (ListT m) where
+    transMap f (ListT m) = ListT $ f m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTransFunctor (MaybeT m) where
+    transMap f (MaybeT m) = MaybeT $ f m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTransFunctor (ReaderT r m) where
+    transMap f (ReaderT m) = ReaderT $ f . m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTransFunctor (L.RWST r w s m) where
+    transMap f (L.RWST m) = L.RWST $ (f .) . m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTransFunctor (RWST r w s m) where
+    transMap f (RWST m) = RWST $ (f .) . m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTransFunctor (L.StateT s m) where
+    transMap f (L.StateT m) = L.StateT $ f . m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTransFunctor (StateT s m) where
+    transMap f (StateT m) = StateT $ f . m
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTransFunctor (L.WriterT w m) where
+    transMap f (L.WriterT m) = L.WriterT (f m)
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTransFunctor (WriterT w m) where
+    transMap f (WriterT m) = WriterT (f m)
+    {-# INLINE transMap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (ContT r m) where
+    type Outer (ContT r m) = ContT r
+    transInvmap (f, g) (ContT m) = ContT $ f . m . (g .)
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Error e, Monad m) => MonadTrans (ErrorT e m) where
+    type Outer (ErrorT e m) = ErrorT e
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (IdentityT m) where
+    type Outer (IdentityT m) = IdentityT
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (ListT m) where
+    type Outer (ListT m) = ListT
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (MaybeT m) where
+    type Outer (MaybeT m) = MaybeT
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (ReaderT r m) where
+    type Outer (ReaderT r m) = ReaderT r
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTrans (L.RWST r w s m) where
+    type Outer (L.RWST r w s m) = L.RWST r w s
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTrans (RWST r w s m) where
+    type Outer (RWST r w s m) = RWST r w s
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (L.StateT s m) where
+    type Outer (L.StateT s m) = L.StateT s
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadTrans (StateT s m) where
+    type Outer (StateT s m) = StateT s
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTrans (L.WriterT w m) where
+    type Outer (L.WriterT w m) = L.WriterT w
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monoid w) => MonadTrans (WriterT w m) where
+    type Outer (WriterT w m) = WriterT w
+    transInvmap (f, _) = transMap f
+    {-# INLINE transInvmap #-}
 
 
 ------------------------------------------------------------------------------
@@ -297,101 +732,9 @@ class (MonadLayerControl m, MonadTransFunctor m) => MonadTransControl m where
 
 
 ------------------------------------------------------------------------------
-instance Monad m => MonadLayer (ContT r m) where
-    type Inner (ContT r m) = m
-    layer = ContT . (>>=)
-    {-# INLINE layer #-}
-    layerInvmap (f, g) (ContT m) = ContT $ f . m . (g .)
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (ContT r m) where
-    type Outer (ContT r m) = ContT r
-    transInvmap (f, g) (ContT m) = ContT $ f . m . (g .)
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Error e, Monad m) => MonadLayer (ErrorT e m) where
-    type Inner (ErrorT e m) = m
-    layer = ErrorT . liftM Right
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Error e, Monad m) => MonadLayerFunctor (ErrorT e m) where
-    layerMap f (ErrorT m) = ErrorT $ f m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance (Error e, Monad m) => MonadLayerControl (ErrorT e m) where
-    newtype LayerState (ErrorT e m) a = E {unE :: Either e a}
-    zero = either (const True) (const False) . unE
-    {-# INLINE zero #-}
-    restore = ErrorT . return . unE
-    {-# INLINE restore #-}
-    layerControl f = layer $ f (\(ErrorT m) -> liftM E m)
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance (Error e, Monad m) => MonadTrans (ErrorT e m) where
-    type Outer (ErrorT e m) = ErrorT e
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Error e, Monad m) => MonadTransFunctor (ErrorT e m) where
-    transMap f (ErrorT m) = ErrorT $ f m
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
 instance (Error e, Monad m) => MonadTransControl (ErrorT e m) where
     transControl f = layer $ f (\(ErrorT m) -> liftM E m)
     {-# INLINE transControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayer (IdentityT m) where
-    type Inner (IdentityT m) = m
-    layer = IdentityT
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerFunctor (IdentityT m) where
-    layerMap f (IdentityT m) = IdentityT $ f m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerControl (IdentityT m) where
-    newtype LayerState (IdentityT m) a = I {unI :: a}
-    restore = IdentityT . return . unI
-    {-# INLINE restore #-}
-    layerControl f = layer $ f (\(IdentityT m) -> liftM I m)
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (IdentityT m) where
-    type Outer (IdentityT m) = IdentityT
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTransFunctor (IdentityT m) where
-    transMap f (IdentityT m) = IdentityT $ f m
-    {-# INLINE transMap #-}
 
 
 ------------------------------------------------------------------------------
@@ -401,87 +744,9 @@ instance Monad m => MonadTransControl (IdentityT m) where
 
 
 ------------------------------------------------------------------------------
-instance Monad m => MonadLayer (ListT m) where
-    type Inner (ListT m) = m
-    layer = ListT . liftM (:[])
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerFunctor (ListT m) where
-    layerMap f (ListT m) = ListT $ f m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerControl (ListT m) where
-    newtype LayerState (ListT m) a = L {unL :: [a]}
-    zero = null . unL
-    {-# INLINE zero #-}
-    restore = ListT . return . unL
-    {-# INLINE restore #-}
-    layerControl f = layer $ f (\(ListT m) -> liftM L m)
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (ListT m) where
-    type Outer (ListT m) = ListT
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTransFunctor (ListT m) where
-    transMap f (ListT m) = ListT $ f m
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
 instance Monad m => MonadTransControl (ListT m) where
     transControl f = layer $ f (\(ListT m) -> liftM L m)
     {-# INLINE transControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayer (MaybeT m) where
-    type Inner (MaybeT m) = m
-    layer = MaybeT . liftM Just
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerFunctor (MaybeT m) where
-    layerMap f (MaybeT m) = MaybeT $ f m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerControl (MaybeT m) where
-    newtype LayerState (MaybeT m) a = M {unM :: Maybe a}
-    zero = isNothing . unM
-    {-# INLINE zero #-}
-    restore = MaybeT . return . unM
-    {-# INLINE restore #-}
-    layerControl f = layer $ f (\(MaybeT m) -> liftM M m)
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (MaybeT m) where
-    type Outer (MaybeT m) = MaybeT
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTransFunctor (MaybeT m) where
-    transMap f (MaybeT m) = MaybeT $ f m
-    {-# INLINE transMap #-}
 
 
 ------------------------------------------------------------------------------
@@ -491,71 +756,9 @@ instance Monad m => MonadTransControl (MaybeT m) where
 
 
 ------------------------------------------------------------------------------
-instance Monad m => MonadLayer (ReaderT r m) where
-    type Inner (ReaderT r m) = m
-    layer = ReaderT . const
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerFunctor (ReaderT r m) where
-    layerMap f (ReaderT m) = ReaderT $ f . m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerControl (ReaderT r m) where
-    newtype LayerState (ReaderT r m) a = R {unR :: a}
-    restore = return . unR
-    {-# INLINE restore #-}
-    layerControl f = ReaderT $ \r -> f (\(ReaderT m) -> liftM R (m r))
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (ReaderT r m) where
-    type Outer (ReaderT r m) = ReaderT r
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTransFunctor (ReaderT r m) where
-    transMap f (ReaderT m) = ReaderT $ f . m
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
 instance Monad m => MonadTransControl (ReaderT r m) where
     transControl f = ReaderT $ \r -> f (\(ReaderT m) -> liftM R (m r))
     {-# INLINE transControl #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayer (L.RWST r w s m) where
-    type Inner (L.RWST r w s m) = m
-    layer m = L.RWST $ \_ s -> liftM (\a -> (a, s, mempty)) m
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerFunctor (L.RWST r w s m) where
-    layerMap f (L.RWST m) = L.RWST $ (f .) . m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerControl (L.RWST r w s m) where
-    newtype LayerState (L.RWST r w s m) a = RWSL {unRWSL :: (a, s, w)}
-    restore = L.RWST . const . const . return . unRWSL
-    {-# INLINE restore #-}
-    layerControl f = L.RWST $ \r s -> liftM (\a -> (a, s, mempty)) $
-        f (\(L.RWST m) -> liftM RWSL (m r s))
-    {-# INLINE layerControl #-}
 
 
 ------------------------------------------------------------------------------
@@ -566,99 +769,10 @@ instance (Monad m, Monoid w) => MonadTransControl (L.RWST r w s m) where
 
 
 ------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTrans (L.RWST r w s m) where
-    type Outer (L.RWST r w s m) = L.RWST r w s
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTransFunctor (L.RWST r w s m) where
-    transMap f (L.RWST m) = L.RWST $ (f .) . m
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayer (RWST r w s m) where
-    type Inner (RWST r w s m) = m
-    layer m = RWST $ \_ s -> liftM (\a -> (a, s, mempty)) m
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerFunctor (RWST r w s m) where
-    layerMap f (RWST m) = RWST $ (f .) . m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerControl (RWST r w s m) where
-    newtype LayerState (RWST r w s m) a = RWS {unRWS :: (a, s, w)}
-    restore = RWST . const . const . return . unRWS
-    {-# INLINE restore #-}
-    layerControl f = RWST $ \r s -> liftM (\a -> (a, s, mempty)) $
-        f (\(RWST m) -> liftM RWS (m r s))
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTrans (RWST r w s m) where
-    type Outer (RWST r w s m) = RWST r w s
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTransFunctor (RWST r w s m) where
-    transMap f (RWST m) = RWST $ (f .) . m
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadTransControl (RWST r w s m) where
     transControl f = RWST $ \r s -> liftM (\a -> (a, s, mempty)) $
         f (\(RWST m) -> liftM RWS (m r s))
     {-# INLINE transControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayer (L.StateT s m) where
-    type Inner (L.StateT s m) = m
-    layer m = L.StateT $ \s -> liftM (\a -> (a, s)) m
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerFunctor (L.StateT s m) where
-    layerMap f (L.StateT m) = L.StateT $ f . m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerControl (L.StateT s m) where
-    newtype LayerState (L.StateT s m) a = SL {unSL :: (a, s)}
-    restore = L.StateT . const . return . unSL
-    {-# INLINE restore #-}
-    layerControl f = L.StateT $ \s -> liftM (\a -> (a, s)) $
-        f (\(L.StateT m) -> liftM SL (m s))
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (L.StateT s m) where
-    type Outer (L.StateT s m) = L.StateT s
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTransFunctor (L.StateT s m) where
-    transMap f (L.StateT m) = L.StateT $ f . m
-    {-# INLINE transMap #-}
 
 
 ------------------------------------------------------------------------------
@@ -669,85 +783,10 @@ instance Monad m => MonadTransControl (L.StateT s m) where
 
 
 ------------------------------------------------------------------------------
-instance Monad m => MonadLayer (StateT s m) where
-    type Inner (StateT s m) = m
-    layer m = StateT $ \s -> liftM (\a -> (a, s)) m
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerFunctor (StateT s m) where
-    layerMap f (StateT m) = StateT $ f . m
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLayerControl (StateT s m) where
-    newtype LayerState (StateT s m) a = S {unS :: (a, s)}
-    restore = StateT . const . return . unS
-    {-# INLINE restore #-}
-    layerControl f = StateT $ \s -> liftM (\a -> (a, s)) $
-        f (\(StateT m) -> liftM S (m s))
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTrans (StateT s m) where
-    type Outer (StateT s m) = StateT s
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadTransFunctor (StateT s m) where
-    transMap f (StateT m) = StateT $ f . m
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
 instance Monad m => MonadTransControl (StateT s m) where
     transControl f = StateT $ \s -> liftM (\a -> (a, s)) $
         f (\(StateT m) -> liftM S (m s))
     {-# INLINE transControl #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayer (L.WriterT w m) where
-    type Inner (L.WriterT w m) = m
-    layer = L.WriterT . liftM (\a -> (a, mempty))
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerFunctor (L.WriterT w m) where
-    layerMap f (L.WriterT m) = L.WriterT (f m)
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerControl (L.WriterT w m) where
-    newtype LayerState (L.WriterT w m) a = WL {unWL :: (a, w)}
-    restore = L.WriterT . return . unWL
-    {-# INLINE restore #-}
-    layerControl f = layer $ f (\(L.WriterT m) -> liftM WL m)
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTrans (L.WriterT w m) where
-    type Outer (L.WriterT w m) = L.WriterT w
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTransFunctor (L.WriterT w m) where
-    transMap f (L.WriterT m) = L.WriterT (f m)
-    {-# INLINE transMap #-}
 
 
 ------------------------------------------------------------------------------
@@ -757,46 +796,10 @@ instance (Monad m, Monoid w) => MonadTransControl (L.WriterT w m) where
 
 
 ------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayer (WriterT w m) where
-    type Inner (WriterT w m) = m
-    layer = WriterT . liftM (\a -> (a, mempty))
-    {-# INLINE layer #-}
-    layerInvmap = transInvmap
-    {-# INLINE layerInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerFunctor (WriterT w m) where
-    layerMap f (WriterT m) = WriterT (f m)
-    {-# INLINE layerMap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadLayerControl (WriterT w m) where
-    newtype LayerState (WriterT w m) a = W {unW :: (a, w)}
-    restore = WriterT . return . unW
-    {-# INLINE restore #-}
-    layerControl f = layer $ f (\(WriterT m) -> liftM W m)
-    {-# INLINE layerControl #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTrans (WriterT w m) where
-    type Outer (WriterT w m) = WriterT w
-    transInvmap (f, _) = transMap f
-    {-# INLINE transInvmap #-}
-
-
-------------------------------------------------------------------------------
-instance (Monad m, Monoid w) => MonadTransFunctor (WriterT w m) where
-    transMap f (WriterT m) = WriterT (f m)
-    {-# INLINE transMap #-}
-
-
-------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadTransControl (WriterT w m) where
     transControl f = layer $ f (\(WriterT m) -> liftM W m)
     {-# INLINE transControl #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -910,7 +913,11 @@ instance Monad m => MonadLiftFunctor m m where
 
 
 ------------------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ >= 702
 instance (MonadLayerFunctor m, MonadLiftFunctor i (Inner m)) =>
+#else
+instance (MonadLayerFunctor m, MonadLift i m, MonadLiftFunctor i (Inner m)) =>
+#endif
     MonadLiftFunctor i m
   where
     liftMap f = layerMap (liftMap f)
@@ -924,7 +931,15 @@ instance Monad m => MonadLiftControl m m where
 
 
 ------------------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ >= 702
 instance (MonadLayerControl m, MonadLiftControl i (Inner m)) =>
+#else
+instance
+    ( MonadLayerControl m
+    , MonadLiftFunctor i m
+    , MonadLiftControl i (Inner m)
+    ) =>
+#endif
     MonadLiftControl i m
   where
     liftControl f = layerControl $ \runLayer -> liftControl $ \run ->
@@ -934,10 +949,12 @@ instance (MonadLayerControl m, MonadLiftControl i (Inner m)) =>
 
 ------------------------------------------------------------------------------
 -- | An often used composition: @'controlLayer' f = 'layerControl' f >>= 'restore'@
+#if __GLASGOW_HASKELL__ >= 704
 controlLayer :: MonadLayerControl m
     => ((forall b. m b -> Inner m (LayerState m b))
         -> Inner m (LayerState m a))
     -> m a
+#endif
 controlLayer f = layerControl f >>= restore
 {-# INLINE controlLayer #-}
 
@@ -1049,15 +1066,3 @@ liftOp_ f = \m -> control $ \run -> f $ run m
 liftDiscard :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard f = \m -> liftControl $ \run -> f $ liftM (const ()) $ run m
 {-# INLINE liftDiscard #-}
-
-
-------------------------------------------------------------------------------
--- | 'asMonadTypeOf' is a useful helper function when GHC gets confused by all
--- the overlapping instances. It can be used as follows:
---
--- > do
--- >     op' <- asMonadTypeOf op
--- >     op
-asMonadTypeOf :: Monad m => m a -> m (m a)
-asMonadTypeOf = return
-{-# INLINE asMonadTypeOf #-}

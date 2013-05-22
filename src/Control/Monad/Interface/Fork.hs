@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -29,7 +30,9 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Concurrent (ThreadId, forkIO)
+#if MIN_VERSION_base(4, 4, 0)
 import qualified Control.Concurrent (forkOn)
+#endif
 import           Control.Exception (MaskingState (Unmasked))
 
 
@@ -101,7 +104,11 @@ class MonadMask m => MonadFork m where
 instance MonadFork IO where
     fork = forkIO
     {-# INLINE fork #-}
+#if MIN_VERSION_base(4, 4, 0)
     forkOn = Control.Concurrent.forkOn
+#else
+    forkOn _ = forkIO
+#endif
     {-# INLINE forkOn #-}
 
 
@@ -114,7 +121,17 @@ instance (MonadFork f, MonadFork g) => MonadFork (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayerControl m, MonadFork (Inner m)) => MonadFork m where
+#if __GLASGOW_HASKELL__ >= 702
+instance (MonadLayerControl m, MonadFork (Inner m)) =>
+#else
+instance
+    ( MonadLayerControl m
+    , MonadFork (Inner m)
+    , MonadMask m
+    ) =>
+#endif
+    MonadFork m
+  where
     fork = layerDiscard fork
     {-# INLINE fork #-}
     forkOn = layerDiscard . forkOn

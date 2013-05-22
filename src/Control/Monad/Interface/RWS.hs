@@ -1,4 +1,12 @@
+{-# LANGUAGE CPP #-}
+#if LANGUAGE_ConstraintKinds >= 704
 {-# LANGUAGE ConstraintKinds #-}
+#else
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
+#endif
 
 {-|
 
@@ -22,6 +30,12 @@ module Control.Monad.Interface.RWS
     )
 where
 
+#ifndef LANGUAGE_ConstraintKinds
+-- base ----------------------------------------------------------------------
+import           Data.Monoid (Monoid)
+#endif
+
+
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Interface.Reader
                      ( MonadReader (reader, ask, local)
@@ -43,4 +57,23 @@ import           Control.Monad.Interface.Writer
 -- | The 'MonadRWS' interface is defined as a type synonym (using
 -- the @ConstraintKinds@ extension) for the combination of 'MonadReader',
 -- 'MonadState' and 'MonadWriter'.
+#if LANGUAGE_ConstraintKinds
 type MonadRWS r w s m = (MonadReader r m, MonadWriter w m, MonadState s m)
+#else
+class
+    ( Monoid w
+    , MonadReader r m
+    , MonadWriter w m
+    , MonadState s m
+    )
+  =>
+    MonadRWS r w s m | m -> r, m -> w, m -> s
+instance
+    ( Monoid w
+    , MonadReader r m
+    , MonadWriter w m
+    , MonadState s m
+    )
+  =>
+    MonadRWS r w s m
+#endif

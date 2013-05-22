@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -145,7 +146,13 @@ instance MonadTry STM where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayerControl m, MonadTry (Inner m)) => MonadTry m where
+#if __GLASGOW_HASKELL__ >= 702
+instance (MonadLayerControl m, MonadTry (Inner m)) =>
+#else
+instance (MonadLayerControl m, MonadMask m, MonadTry (Inner m)) =>
+#endif
+    MonadTry m
+  where
     mtry m = do
         ma <- layerControl (\run -> mtry (run m))
         case ma of
