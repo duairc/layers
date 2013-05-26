@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-#if LANGUAGE_ConstraintKinds >= 704
+#ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #else
 {-# LANGUAGE FlexibleInstances #-}
@@ -57,7 +57,7 @@ import           Control.Monad.Interface.Writer
 -- | The 'MonadRWS' interface is defined as a type synonym (using
 -- the @ConstraintKinds@ extension) for the combination of 'MonadReader',
 -- 'MonadState' and 'MonadWriter'.
-#if LANGUAGE_ConstraintKinds
+#ifdef LANGUAGE_ConstraintKinds
 type MonadRWS r w s m = (MonadReader r m, MonadWriter w m, MonadState s m)
 #else
 class

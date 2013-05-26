@@ -10,35 +10,21 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 {-|
 
 This module exports:
 
-    1. The 'MonadCatch' type class and its operations 'throw' and 'catch'.
+    1. The 'MonadCatch' constraint synonym (a version of 'MonadRecover').
 
-    2. Instances of 'MonadCatch' for 'IO', 'Either', 'STM' and the
-    'ErrorT' monad transformer from the @transformers@ package.
+    2. The 'catch' operation (a version of 'recover').
 
-    3. An orphan instance of 'Error' for the 'SomeException' type: this is a
-    necessary hack in order to make 'ErrorT' an instance of 'MonadCatch'.
-
-    3. A universal pass-through instance of 'MonadCatch' for any existing
-    @MonadCatch@ wrapped by a 'MonadLayerControl'.
-
-    4. The utility operations 'catches', 'catchJust', 'handle', 'handleJust',
+    3. The utility operations 'catches', 'catchJust', 'handle', 'handleJust',
     'try' and 'tryJust'.
 
 -}
 
-module Control.Monad.Interface.Exception
-    ( -- * The @MonadCatch@ class
-      -- $split
-      MonadThrow
-    , MonadCatch
-    , MonadException
-    , throw
+module Control.Monad.Interface.Catch
+    ( MonadCatch
     , catch
     , catches
     , Handler (Handler)
@@ -47,16 +33,13 @@ module Control.Monad.Interface.Exception
     , handleJust
     , try
     , tryJust
-    , Exception (toException, fromException)
-    , SomeException (SomeException)
     )
 where
 
 -- base ----------------------------------------------------------------------
 import           Control.Exception
-                     ( Exception (toException, fromException)
-                     , SomeException (SomeException)
-                     , PatternMatchFail (PatternMatchFail)
+                     ( Exception (fromException)
+                     , SomeException
                      )
 import           Control.Monad (liftM)
 #if !MIN_VERSION_base(4, 6, 0)
@@ -64,32 +47,17 @@ import           Prelude hiding (catch)
 #endif
 
 
--- transformers --------------------------------------------------------------
-import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
-
-
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Interface.Abort (MonadAbort (abort))
 import           Control.Monad.Interface.Recover (MonadRecover (recover))
+import           Control.Monad.Interface.Throw (throw)
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadThrow = MonadAbort SomeException
-#else
-class MonadAbort SomeException m => MonadThrow m
-instance MonadAbort SomeException m => MonadThrow m
-#endif
-
-
-------------------------------------------------------------------------------
-throw :: (Exception e, MonadThrow m) => e -> m a
-throw = abort . toException
-{-# INLINE throw #-}
-
-
-------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
+-- | 'MonadCatch' is an alias of 'MonadRecover' where the failure state type
+-- @e@ is fixed to 'SomeException'. It represents the class of monads which
+-- support some sort of 'Control.Exception.catch'-like operation to recover
+-- from failures caused by a call to 'Control.Monad.Interface.Throw.throw'.
+#ifdef LANGUAGE_ConstraintKinds
 type MonadCatch = MonadRecover SomeException
 #else
 class MonadRecover SomeException m => MonadCatch m
@@ -98,19 +66,36 @@ instance MonadRecover SomeException m => MonadCatch m
 
 
 ------------------------------------------------------------------------------
+-- | This is the simplest of the exception-catching functions. It takes a
+-- single argument, runs it, and if an exception is raised the \"handler\"
+-- is executed, with the value of the exception passed as an argument.
+-- Otherwise, the result is returned as normal. For example:
+--
+-- > catch (readFile f) (\(e :: IOException) -> do
+-- >     hPutStr stderr ("Warning: Couldn't open " ++ f ++ ": " ++ show e)
+-- >     return "")
+--
+-- Note that we have to give a type signature to e, or the program will
+-- not typecheck as the type is ambiguous. While it is possible to catch
+-- exceptions of any type, see the section \"Catching all exceptions\" in
+-- "Control.Exception" for an explanation of the problems with doing so.
+--
+-- Note that due to Haskell's unspecified evaluation order, an expression
+-- may throw one of several possible exceptions: consider the expression
+-- @(error \"urk\") + (1 `div` 0)@. Does the expression throw
+-- @ErrorCall \"urk\"@, or @DivideByZero@?
+--
+-- The answer is \"it might throw either\"; the choice is
+-- non-deterministic. If you are catching any type of exception then you
+-- might catch either. If you are calling catch with type
+-- @m Int -> (ArithException -> m Int) -> m Int@ then the handler may get
+-- run with @DivideByZero@ as an argument, or an @ErrorCall \"urk\"@
+-- exception may be propogated further up. If you call it again, you might
+-- get a the opposite behaviour. This is ok, because 'catch' is a monadic
+-- computation.
 catch :: (Exception e, MonadCatch m) => m a -> (e -> m a) -> m a
-catch m h = recover m (\e -> maybe (abort e) h (fromException e))
+catch m h = recover m (\e -> maybe (throw e) h (fromException e))
 {-# INLINE catch #-}
-
-
-------------------------------------------------------------------------------
--- | A synonym for 'MonadCatch'.
-#if LANGUAGE_ConstraintKinds
-type MonadException = MonadCatch
-#else
-class MonadCatch m => MonadException m
-instance MonadCatch m => MonadException m
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -216,14 +201,3 @@ tryJust
     -> m (Either b a)
 tryJust p = handleJust p (return . Left) . liftM Right
 {-# INLINE tryJust #-}
-
-
-------------------------------------------------------------------------------
--- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
--- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus a
--- 'MonadCatch' instance to be defined for @ErrorT SomeException@.
-instance Error SomeException where
-    noMsg = strMsg "mzero"
-    {-# INLINE noMsg #-}
-    strMsg = SomeException . PatternMatchFail
-    {-# INLINE strMsg #-}

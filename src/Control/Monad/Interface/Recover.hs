@@ -7,6 +7,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 {-|
+
+This module exports:
+
+    1. The type class 'MonadRecover' and its operation 'recover'.
+
+    2. Instances of 'MonadRecover' for every 'MonadPlus' and 'Either'-like
+    monad from the @base@ and @transformers@ packages.
+
+    3. A universal pass-through instance of 'MonadRecover' for any existing
+    'MonadRecover' wrapped by any 'MonadLayerControl'.
+
 -}
 
 module Control.Monad.Interface.Recover
@@ -18,9 +29,9 @@ where
 import          Control.Exception (SomeException, catch)
 import          Control.Monad (mplus)
 import          GHC.Conc.Sync (STM, catchSTM)
-#if !MIN_VERSION_base(4, 6, 0)
-import          Prelude hiding (catch)
-#endif
+-- #if !MIN_VERSION_base(4, 6, 0)
+--import          Prelude hiding (catch)
+-- #endif
 
 
 -- transformers --------------------------------------------------------------
@@ -40,12 +51,18 @@ import          Control.Monad.Interface.Abort (MonadAbort)
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadRecover' type class represents the class of monads which can
--- fail, and, if possible, store a value of type @e@ in doing so.
+-- | The 'MonadRecover' type class represents the subclass of monads which can
+-- fail ('MonadAbort') and recover from that failure.
 --
 -- Minimal complete definition: recover.
 class MonadAbort e m => MonadRecover e m | m -> e where
-    -- | Recover from a given exception.
+    -- | In addition to the 'MonadAbort' \"zero\" law, the following laws hold
+    -- for valid instances of 'MonadRecover';
+    --
+    --     [Left Identity] @recover (abort e) (\e -> m) = m@
+    --     [Right Identity] @recover m abort = m@
+    --     [Associativity] @recover m (\_ -> recover n (\_ -> o)) = recover (recover m (\_ -> n)) (\_ -> o)@
+    --     [Preservation] @recover (abort e) return = return e@
     recover :: m a -> (e -> m a) -> m a
 
 
@@ -105,6 +122,7 @@ instance (MonadRecover e f, MonadRecover e g) => MonadRecover e (Product f g)
     recover (Pair f g) h = Pair
         (recover f (\e -> let Pair f' _ = h e in f'))
         (recover g (\e -> let Pair _ g' = h e in g'))
+    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------

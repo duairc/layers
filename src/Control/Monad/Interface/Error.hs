@@ -52,7 +52,7 @@ import           Control.Monad.Interface.Recover (MonadRecover (recover))
 -- constructor other than @'Either' 'String'@ or @'Either' 'IOError'@. In
 -- these cases you will have to explicitly define instances of the 'Error'
 -- and\/or 'MonadError' classes.
-#if LANGUAGE_ConstraintKinds
+#ifdef LANGUAGE_ConstraintKinds
 type MonadError = MonadRecover
 #else
 class MonadRecover e m => MonadError e m
@@ -64,7 +64,7 @@ instance MonadRecover e m => MonadError e m
 -- | Is used within a monadic computation to begin exception processing.
 throwError :: MonadError e m => e -> m a
 throwError = abort
-{-# INLINE 'throwError' #-}
+{-# INLINE throwError #-}
 
 
 ------------------------------------------------------------------------------
@@ -80,4 +80,4 @@ throwError = abort
 -- Note that @handler@ and the do-block must have the same return type.
 catchError :: MonadError e m => m a -> (e -> m a) -> m a
 catchError = recover
-{-# INLINE 'catchError' #-}
+{-# INLINE catchError #-}
