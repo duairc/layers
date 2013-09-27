@@ -17,7 +17,8 @@ This module exports:
     3. A universal pass-through instance of 'MonadFork' for any existing
     @MonadFork@ wrapped by a 'MonadLayerControl'.
 
-    4. The utility operations 'forkWithUnmask' and 'forkOnWithUnmask'.
+    4. The utility operations 'forkWithUnmask', 'forkOnWithUnmask' and
+    'forkFinally'.
 
 -}
 
@@ -25,6 +26,7 @@ module Control.Monad.Interface.Fork
     ( MonadFork (fork, forkOn)
     , forkWithUnmask
     , forkOnWithUnmask
+    , forkFinally
     )
 where
 
@@ -46,7 +48,12 @@ import           Control.Monad.Layer
                      , MonadLayerControl
                      , layerDiscard
                      )
-import           Control.Monad.Interface.Mask (MonadMask, setMaskingState)
+import           Control.Monad.Interface.Mask
+                     ( MonadMask
+                     , mask
+                     , setMaskingState
+                     )
+import           Control.Monad.Interface.Try (MonadTry, mtry)
 
 
 ------------------------------------------------------------------------------
@@ -169,3 +176,22 @@ forkOnWithUnmask :: MonadFork m
     -> m ThreadId
 forkOnWithUnmask c m = forkOn c $ m (setMaskingState Unmasked)
 {-# INLINE forkOnWithUnmask #-}
+
+
+------------------------------------------------------------------------------
+-- | @fork@ a thread and call the supplied function when the thread is about
+-- to terminate, with an exception or a returned value. The function is called
+-- with asynchronous exceptions masked.
+--
+-- > forkFinally action and_then =
+-- >     mask $ \restore ->
+-- >         fork $ mtry (restore action) >>= and_then
+--
+-- This function is useful for informing the parent when a child terminates,
+-- for example.
+forkFinally :: (MonadTry m, MonadFork m)
+    => m a
+    -> (Either (m a) a -> m ())
+    -> m ThreadId
+forkFinally m sequel = mask $ \restore -> fork $ mtry (restore m) >>= sequel
+{-# INLINE forkFinally #-}
