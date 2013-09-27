@@ -10,23 +10,23 @@
 
 This module exports:
 
-    1. The 'MonadMutVar' type class and its operations 'newRef', 'readRef',
+    1. The 'MonadST' type class and its operations 'newRef', 'readRef',
     'writeRef' and 'atomicModifyRef'.
 
-    2. Instances of 'MonadMutVar' for 'IO', 'STM', strict 'ST' and lazy
+    2. Instances of 'MonadST' for 'IO', 'STM', strict 'ST' and lazy
     'L.ST'.
 
-    3. A universal pass-through instance of 'MonadMutVar' for any existing
-    @MonadMutVar@ wrapped by a 'MonadLayer'.
+    3. A universal pass-through instance of 'MonadST' for any existing
+    @MonadST@ wrapped by a 'MonadLayer'.
 
     4. The utility operations 'atomicModifyRef'', 'atomicWriteRef',
     'modifyRef' and 'modifyRef''.
 
 -}
 
-module Control.Monad.Interface.MutVar
-    ( -- * The @MonadMutVar@ class
-      MonadMutVar (newRef, readRef, writeRef, atomicModifyRef)
+module Control.Monad.Interface.ST
+    ( -- * The @MonadST@ class
+      MonadST (newRef, readRef, writeRef, atomicModifyRef)
     , atomicModifyRef'
     , atomicWriteRef
     , modifyRef
@@ -58,12 +58,13 @@ import           Control.Monad.Layer (MonadLayer (type Inner, layer))
 
 
 ------------------------------------------------------------------------------
--- | The type class 'MonadMutVar' represents the class of monads which support
--- mutable variables. The @ref@ parameter is the type of the mutable variable;
--- e.g., for 'IO', @ref@ is 'IORef'.
+-- | The type class 'MonadST' represents the class of \"'ST'-like\" monads
+-- (i.e., monads which have mutable variables and operations for mutating the
+-- values contained therein). The @ref@ parameter is the type of the mutable
+-- variable; e.g., for 'IO', @ref@ is 'IORef'.
 --
 -- Minimal complete definition: 'newRef', 'readRef', 'writeRef'.
-class Monad m => MonadMutVar ref m | m -> ref where
+class Monad m => MonadST ref m | m -> ref where
     -- | Create a new mutable variable holding the value supplied.
     newRef :: a -> m (ref a)
 
@@ -103,7 +104,7 @@ class Monad m => MonadMutVar ref m | m -> ref where
 
 
 ------------------------------------------------------------------------------
-instance MonadMutVar IORef IO where
+instance MonadST IORef IO where
     newRef = newIORef
     {-# INLINE newRef #-}
     readRef = readIORef
@@ -115,7 +116,7 @@ instance MonadMutVar IORef IO where
 
 
 ------------------------------------------------------------------------------
-instance MonadMutVar (STRef s) (L.ST s) where
+instance MonadST (STRef s) (L.ST s) where
     newRef = L.newSTRef
     {-# INLINE newRef #-}
     readRef = L.readSTRef
@@ -125,7 +126,7 @@ instance MonadMutVar (STRef s) (L.ST s) where
 
 
 ------------------------------------------------------------------------------
-instance MonadMutVar (STRef s) (ST s) where
+instance MonadST (STRef s) (ST s) where
     newRef = newSTRef
     {-# INLINE newRef #-}
     readRef = readSTRef
@@ -135,7 +136,7 @@ instance MonadMutVar (STRef s) (ST s) where
 
 
 ------------------------------------------------------------------------------
-instance MonadMutVar TVar STM where
+instance MonadST TVar STM where
     newRef = newTVar
     {-# INLINE newRef #-}
     readRef = readTVar
@@ -145,8 +146,8 @@ instance MonadMutVar TVar STM where
 
 
 ------------------------------------------------------------------------------
-instance (MonadMutVar ref f, MonadMutVar ref g) =>
-    MonadMutVar ref (Product f g)
+instance (MonadST ref f, MonadST ref g) =>
+    MonadST ref (Product f g)
   where
     newRef a = Pair (newRef a) (newRef a)
     {-# INLINE newRef #-}
@@ -161,7 +162,7 @@ instance (MonadMutVar ref f, MonadMutVar ref g) =>
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer m, MonadMutVar ref (Inner m)) => MonadMutVar ref m where
+instance (MonadLayer m, MonadST ref (Inner m)) => MonadST ref m where
     newRef = layer . newRef
     {-# INLINE newRef #-}
     readRef = layer . readRef
@@ -175,7 +176,7 @@ instance (MonadLayer m, MonadMutVar ref (Inner m)) => MonadMutVar ref m where
 ------------------------------------------------------------------------------
 -- | Strict version of 'atomicModifyRef'. This forces both the value stored in
 -- the mutable variable as well as the value returned.
-atomicModifyRef' :: MonadMutVar ref m => ref a -> (a -> (a, b)) -> m b
+atomicModifyRef' :: MonadST ref m => ref a -> (a -> (a, b)) -> m b
 atomicModifyRef' ref f = do
     b <- atomicModifyRef ref (\x -> let (a, b) = f x in (a, a `seq` b))
     return $! b
@@ -196,14 +197,14 @@ atomicModifyRef' ref f = do
 -- > readRef ref >>= print
 --
 -- To avoid this problem, use 'modifyRef'' instead.
-modifyRef :: MonadMutVar ref m => ref a -> (a -> a) -> m ()
+modifyRef :: MonadST ref m => ref a -> (a -> a) -> m ()
 modifyRef ref f = readRef ref >>= writeRef ref . f
 {-# INLINE modifyRef #-}
 
 
 ------------------------------------------------------------------------------
 -- | Strict version of 'modifyRef'.
-modifyRef' :: MonadMutVar ref m => ref a -> (a -> a) -> m ()
+modifyRef' :: MonadST ref m => ref a -> (a -> a) -> m ()
 modifyRef' ref f = do
     x <- readRef ref
     let x' = f x
@@ -214,7 +215,7 @@ modifyRef' ref f = do
 ------------------------------------------------------------------------------
 -- | Variant of 'writeRef' with the \"barrier to reordering\" property that
 -- 'atomicModifyRef' has. 
-atomicWriteRef :: MonadMutVar ref m => ref a -> a -> m ()
+atomicWriteRef :: MonadST ref m => ref a -> a -> m ()
 atomicWriteRef ref a = do
     x <- atomicModifyRef ref (\_ -> (a, ()))
     x `seq` return ()

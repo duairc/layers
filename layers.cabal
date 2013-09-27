@@ -59,11 +59,11 @@ Library
     Control.Monad.Interface.Catch
     Control.Monad.Interface.Fork
     Control.Monad.Interface.Mask
-    Control.Monad.Interface.MutVar
     Control.Monad.Interface.Reader
     Control.Monad.Interface.Recover
     Control.Monad.Interface.RWS
     Control.Monad.Interface.State
+    Control.Monad.Interface.ST
     Control.Monad.Interface.Throw
     Control.Monad.Interface.Try
     Control.Monad.Interface.Writer
