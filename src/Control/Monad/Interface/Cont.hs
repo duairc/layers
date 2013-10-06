@@ -28,10 +28,12 @@ import           Control.Monad.Trans.Cont (ContT (ContT))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Layer
-                     ( MonadLayer (type Inner, layer)
-                     , MonadLayerControl (restore, layerControl)
-                     )
+import           Control.Monad.Lift
+                    ( MonadTransControl
+                    , lift
+                    , liftControl
+                    , restore
+                    )
 
 
 ------------------------------------------------------------------------------
@@ -80,7 +82,8 @@ instance Monad m => MonadCont (ContT r m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayerControl m, MonadCont (Inner m)) => MonadCont m where
-    callCC f = layerControl (\run -> callCC $ \c -> run . f $ \a ->
-        layer (run (return a) >>= c)) >>= restore
+instance (MonadTransControl t, MonadCont m, Monad (t m)) => MonadCont (t m)
+  where
+    callCC f = liftControl (\run -> callCC $ \c -> run . f $ \a ->
+        lift (run (return a) >>= c)) >>= uncurry restore
     {-# INLINE callCC #-}

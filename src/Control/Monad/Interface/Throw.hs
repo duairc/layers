@@ -7,6 +7,8 @@
 #endif
 {-# LANGUAGE FlexibleContexts #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-|
 
 This module exports:
@@ -24,11 +26,17 @@ module Control.Monad.Interface.Throw
 where
 
 -- base ----------------------------------------------------------------------
-import            Control.Exception (Exception, SomeException, toException)
+import           Control.Exception
+                     ( Exception
+                     , PatternMatchFail (PatternMatchFail)
+                     , SomeException
+                     , toException
+                     )
 
 
 -- layers --------------------------------------------------------------------
-import            Control.Monad.Interface.Abort (MonadAbort, abort)
+import           Control.Monad.Interface.Abort (MonadAbort, abort)
+import           Control.Monad.Trans.Error (Error, noMsg, strMsg)
 
 
 ------------------------------------------------------------------------------
@@ -49,3 +57,14 @@ instance MonadAbort SomeException m => MonadThrow m
 throw :: (Exception e, MonadThrow m) => e -> m a
 throw = abort . toException
 {-# INLINE throw #-}
+
+
+------------------------------------------------------------------------------
+-- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
+-- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus a
+-- 'MonadCatch' instance to be defined for @ErrorT SomeException@.
+instance Error SomeException where
+    noMsg = strMsg "mzero"
+    {-# INLINE noMsg #-}
+    strMsg = toException . PatternMatchFail
+    {-# INLINE strMsg #-}

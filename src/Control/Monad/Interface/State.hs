@@ -45,7 +45,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Layer (MonadLayer (type Inner, layer))
+import           Control.Monad.Lift (MonadTrans, lift)
 
 
 ------------------------------------------------------------------------------
@@ -135,12 +135,13 @@ instance (MonadState s f, MonadState s g) => MonadState s (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer m, MonadState s (Inner m)) => MonadState s m where
-    state = layer . state
+instance (MonadTrans t, MonadState s m, Monad (t m)) => MonadState s (t m)
+  where
+    state = lift . state
     {-# INLINE state #-}
-    get = layer get
+    get = lift get
     {-# INLINE get #-}
-    put = layer . put
+    put = lift . put
     {-# INLINE put #-}
 
 

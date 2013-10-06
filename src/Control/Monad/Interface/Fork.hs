@@ -41,13 +41,9 @@ import           Control.Exception (MaskingState (Unmasked))
 -- transformers --------------------------------------------------------------
 import           Data.Functor.Product (Product (Pair))
 
-
+        
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Layer
-                     ( MonadLayer (type Inner)
-                     , MonadLayerControl
-                     , layerDiscard
-                     )
+import           Control.Monad.Lift (MonadTransControl, liftDiscard)
 import           Control.Monad.Interface.Mask
                      ( MonadMask
                      , mask
@@ -128,20 +124,12 @@ instance (MonadFork f, MonadFork g) => MonadFork (Product f g) where
 
 
 ------------------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 702
-instance (MonadLayerControl m, MonadFork (Inner m)) =>
-#else
-instance
-    ( MonadLayerControl m
-    , MonadFork (Inner m)
-    , MonadMask m
-    ) =>
-#endif
-    MonadFork m
+instance (MonadTransControl t, MonadFork m, MonadMask (t m)) =>
+    MonadFork (t m)
   where
-    fork = layerDiscard fork
+    fork = liftDiscard fork
     {-# INLINE fork #-}
-    forkOn = layerDiscard . forkOn
+    forkOn = liftDiscard . forkOn
     {-# INLINE forkOn #-}
 
 

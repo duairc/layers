@@ -53,7 +53,7 @@ Library
 
   exposed-modules:
     Documentation.Layers.Overview
-    Control.Monad.Layer
+    Control.Monad.Lift
     Control.Monad.Interface.Abort
     Control.Monad.Interface.Cont
     Control.Monad.Interface.Catch
@@ -69,7 +69,8 @@ Library
     Control.Monad.Interface.Writer
 
   build-depends:
-    base >= 4.3 && < 5,
+    base >= 4.2 && < 5,
+    mmorph >= 1.0 && <= 1.1,
     transformers >= 0.2 && < 0.4
 
   if impl(ghc >= 7.4)

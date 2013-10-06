@@ -1,9 +1,9 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverlappingInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -49,9 +49,13 @@ import           Data.Functor.Product (Product (Pair))
 
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Interface.Mask (MonadMask, mask)
-import           Control.Monad.Layer
-                     ( MonadLayer (type Inner, layer)
-                     , MonadLayerControl (zero, restore, layerControl)
+import           Control.Monad.Lift
+                     ( MonadTransControl
+                     , extract
+                     , lift
+                     , peel
+                     , restore
+                     , suspend
                      )
 
 
@@ -146,20 +150,20 @@ instance MonadTry STM where
 
 
 ------------------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 702
-instance (MonadLayerControl m, MonadTry (Inner m)) =>
-#else
-instance (MonadLayerControl m, MonadMask m, MonadTry (Inner m)) =>
-#endif
-    MonadTry m
+data P (t :: (* -> *) -> * -> *) = P
+
+
+------------------------------------------------------------------------------
+instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
   where
     mtry m = do
-        ma <- layerControl (\run -> mtry (run m))
+        state <- suspend
+        ma <- lift . mtry $ peel state m
         case ma of
-            Left m' -> return . Left $ layer m' >>= restore
-            Right a -> if zero a
-                then return . Left $ restore a
-                else liftM Right $ restore a
+            Left m' -> return . Left $ lift m' >>= uncurry restore
+            Right (result, state') -> case extract (P :: P t) result of
+                Nothing -> return . Left $ restore result state'
+                Just _ -> liftM Right $ restore result state'
     {-# INLINE mtry #-}
 
 

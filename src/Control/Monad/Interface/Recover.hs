@@ -29,9 +29,9 @@ where
 import          Control.Exception (SomeException, catch)
 import          Control.Monad (mplus)
 import          GHC.Conc.Sync (STM, catchSTM)
--- #if !MIN_VERSION_base(4, 6, 0)
---import          Prelude hiding (catch)
--- #endif
+#if !MIN_VERSION_base(4, 6, 0)
+import          Prelude hiding (catch)
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -42,11 +42,7 @@ import          Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import          Control.Monad.Layer
-                    ( MonadLayer (type Inner)
-                    , MonadLayerControl
-                    , controlLayer
-                    )
+import          Control.Monad.Lift (MonadTransControl, control)
 import          Control.Monad.Interface.Abort (MonadAbort)
 
 
@@ -126,16 +122,8 @@ instance (MonadRecover e f, MonadRecover e g) => MonadRecover e (Product f g)
 
 
 ------------------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 702
-instance (MonadLayerControl m, MonadRecover e (Inner m)) =>
-#else
-instance
-    ( MonadLayerControl m
-    , MonadRecover e (Inner m)
-    , MonadAbort e m
-    ) =>
-#endif
-    MonadRecover e m
+instance (MonadTransControl t, MonadRecover e m, MonadAbort e (t m)) =>
+    MonadRecover e (t m)
   where
-    recover m h = controlLayer (\run -> recover (run m) (run . h))
+    recover m h = control (\run -> recover (run m) (run . h))
     {-# INLINE recover #-}

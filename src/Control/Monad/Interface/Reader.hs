@@ -44,9 +44,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Layer
-                     ( MonadLayer (type Inner, layer, layerInvmap)
-                     )
+import           Control.Monad.Lift (MonadTrans, MInvariant, lift, hoistiso)
 
 
 ------------------------------------------------------------------------------
@@ -127,12 +125,14 @@ instance (MonadReader r f, MonadReader r g) =>
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer m, MonadReader r (Inner m)) => MonadReader r m where
-    reader = layer . reader
+instance (MonadTrans t, MInvariant t, MonadReader r m, Monad (t m)) =>
+    MonadReader r (t m)
+  where
+    reader = lift . reader
     {-# INLINE reader #-}
-    ask = layer ask
+    ask = lift ask
     {-# INLINE ask #-}
-    local f m = layer ask >>= \r -> layerInvmap (local f, local (const r)) m
+    local f m = lift ask >>= \r -> hoistiso (local f) (local (const r)) m
     {-# INLINE local #-}
 
 

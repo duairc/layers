@@ -4,8 +4,6 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 {-|
 
 This module exports:
@@ -27,33 +25,24 @@ This module exports:
 
 module Control.Monad.Interface.Abort
     ( MonadAbort (abort)
-    , SomeException
     )
 where
 
 -- base ----------------------------------------------------------------------
-import           Control.Exception
-                     ( SomeException
-                     , PatternMatchFail (PatternMatchFail)
-                     , toException
-                     , throwIO
-                     )
+import           Control.Exception (SomeException, throwIO)
 import           Control.Monad (mzero)
 import           GHC.Conc.Sync (STM, throwSTM)
 
 
 -- transformers --------------------------------------------------------------
-import           Control.Monad.Trans.Error
-                     ( ErrorT (ErrorT)
-                     , Error (noMsg, strMsg)
-                     )
+import           Control.Monad.Trans.Error (ErrorT (ErrorT), Error)
 import           Control.Monad.Trans.Maybe (MaybeT)
 import           Control.Monad.Trans.List (ListT)
 import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import          Control.Monad.Layer (MonadLayer (type Inner, layer))
+import          Control.Monad.Lift (MonadTrans, lift)
 
 
 ------------------------------------------------------------------------------
@@ -128,17 +117,7 @@ instance (MonadAbort e f, MonadAbort e g) => MonadAbort e (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer m, MonadAbort e (Inner m)) => MonadAbort e m where
-    abort = layer . abort
+instance (MonadTrans t, MonadAbort e m, Monad (t m)) => MonadAbort e (t m)
+  where
+    abort = lift . abort
     {-# INLINE abort #-}
-
-
-------------------------------------------------------------------------------
--- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
--- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus a
--- 'MonadCatch' instance to be defined for @ErrorT SomeException@.
-instance Error SomeException where
-    noMsg = strMsg "mzero"
-    {-# INLINE noMsg #-}
-    strMsg = toException . PatternMatchFail
-    {-# INLINE strMsg #-}

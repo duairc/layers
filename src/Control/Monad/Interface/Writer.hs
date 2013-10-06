@@ -45,7 +45,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Layer (MonadLayer (type Inner, layer))
+import           Control.Monad.Lift (MonadTrans, lift)
 
 
 ------------------------------------------------------------------------------
@@ -151,14 +151,15 @@ instance (MonadWriter w f, MonadWriter w g) =>
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer m, MonadWriter w (Inner m)) => MonadWriter w m where
-    writer = layer . writer
+instance (MonadTrans t, MonadWriter w m, Monad (t m)) => MonadWriter w (t m)
+  where
+    writer = lift . writer
     {-# INLINE writer #-}
-    tell = layer . tell
+    tell = lift . tell
     {-# INLINE tell #-}
-    listen m = m >>= layer . listen . return
+    listen m = m >>= lift . listen . return
     {-# INLINE listen #-}
-    pass m = m >>= layer . pass . return
+    pass m = m >>= lift . pass . return
     {-# INLINE pass #-}
 
 

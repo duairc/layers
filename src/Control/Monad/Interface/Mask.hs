@@ -62,9 +62,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Layer
-                     ( MonadLayer (type Inner, layer, layerInvmap)
-                     )
+import           Control.Monad.Lift (MonadTrans, MInvariant, lift, hoistiso)
 
 
 ------------------------------------------------------------------------------
@@ -156,11 +154,13 @@ instance MonadMask IO where
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer m, MonadMask (Inner m)) => MonadMask m where
-    getMaskingState = layer getMaskingState
+instance (MonadTrans t, MInvariant t, Monad (t m), MonadMask m) =>
+    MonadMask (t m)
+  where
+    getMaskingState = lift getMaskingState
     {-# INLINE getMaskingState #-}
-    setMaskingState s m = layer getMaskingState >>= \s' ->
-        layerInvmap (setMaskingState s, setMaskingState s') m
+    setMaskingState s m = lift getMaskingState >>= \s' ->
+        hoistiso (setMaskingState s) (setMaskingState s') m
     {-# INLINE setMaskingState #-}
 
 
