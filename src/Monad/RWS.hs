@@ -14,19 +14,19 @@ This module exports:
 
     1. The 'MonadRWS' interface.
 
-    2. The "Control.Monad.Interface.Reader" module.
+    2. The "Monad.Reader" module.
 
-    3. The "Control.Monad.Interface.State" module.
+    3. The "Monad.State" module.
 
-    4. The "Control.Monad.Interface.Writer" module.
+    4. The "Monad.Writer" module.
 
 -}
 
-module Control.Monad.Interface.RWS
+module Monad.RWS
     ( MonadRWS
-    , module Control.Monad.Interface.Reader
-    , module Control.Monad.Interface.State
-    , module Control.Monad.Interface.Writer
+    , module Monad.Reader
+    , module Monad.State
+    , module Monad.Writer
     )
 where
 
@@ -37,16 +37,16 @@ import           Data.Monoid (Monoid)
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Interface.Reader
+import           Monad.Reader
                      ( MonadReader (reader, ask, local)
                      , asks
                      )
-import           Control.Monad.Interface.State
+import           Monad.State
                      ( MonadState (state, get, put)
                      , modify
                      , gets
                      )
-import           Control.Monad.Interface.Writer
+import           Monad.Writer
                      ( MonadWriter (writer, tell, listen, pass)
                      , listens
                      , censor

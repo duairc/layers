@@ -27,7 +27,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Mask
+module Monad.Mask
     ( MonadMask (getMaskingState, setMaskingState)
     , mask
     , mask_
@@ -84,8 +84,8 @@ import           Control.Monad.Lift (MonadTrans, MInvariant, lift, hoistiso)
 -- need to be overridden in the case of 'IO' and monads layered on top of @IO@
 -- (which we have already done), so it costs nothing to add an instance of
 -- @MonadMask@ to a monad. (@MonadMask@ is a prerequisite for implementing
--- 'Control.Monad.Interface.Try.MonadTry', which provides the
--- 'Control.Monad.Interface.Try.bracket' family of functions, which is perhaps
+-- 'Monad.Try.MonadTry', which provides the
+-- 'Monad.Try.bracket' family of functions, which is perhaps
 -- more interesting than @MonadMask@ on its own.)
 --
 -- Minimal complete definition: instance head only.
@@ -192,13 +192,13 @@ instance (MonadTrans t, MInvariant t, Monad (t m), MonadMask m) =>
 -- sure that the library call will not be able to unmask exceptions again. If
 -- you are writing library code and need to use asynchronous exceptions, the
 -- only way is to create a new thread; see
--- 'Control.Monad.Interface.Fork.forkWithUnmask'.
+-- 'Monad.Fork.forkWithUnmask'.
 --
 -- Asynchronous exceptions may still be received while in the masked state if
 -- the masked thread /blocks/ in certain ways; see
 -- "Control.Exception#interruptible".
 --
--- Threads created by 'Control.Monad.Interface.Fork.fork' inherit the masked
+-- Threads created by 'Monad.Fork.fork' inherit the masked
 -- state from the parent; that is, to start a thread in blocked mode, use
 -- @mask_ $ fork ...@.  This is particularly useful if you need to establish
 -- an exception handler in the forked thread before any asynchronous

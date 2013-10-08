@@ -24,7 +24,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.State
+module Monad.State
     ( MonadState (state, get, put)
     , modify
     , gets

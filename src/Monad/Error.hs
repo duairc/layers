@@ -20,7 +20,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Error
+module Monad.Error
     ( Error (noMsg, strMsg)
     , MonadError
     , catchError
@@ -33,8 +33,8 @@ import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Interface.Abort (MonadAbort (abort))
-import           Control.Monad.Interface.Recover (MonadRecover (recover))
+import           Monad.Abort (MonadAbort (abort))
+import           Monad.Recover (MonadRecover (recover))
 
 
 ------------------------------------------------------------------------------

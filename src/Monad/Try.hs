@@ -24,7 +24,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Try
+module Monad.Try
     ( MonadTry (mtry)
     , bracket
     , bracket_
@@ -48,7 +48,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Interface.Mask (MonadMask, mask)
+import           Monad.Mask (MonadMask, mask)
 import           Control.Monad.Lift
                      ( MonadTransControl
                      , extract
@@ -62,9 +62,9 @@ import           Control.Monad.Lift
 ------------------------------------------------------------------------------
 -- | The 'MonadTry' type class provides a single operation 'mtry', which is a
 -- way to observe short-circuiting in monads. The name refers to the fact that
--- @mtry@ is a generalised version of 'Control.Monad.Interface.Exception.try':
+-- @mtry@ is a generalised version of 'Monad.Exception.try':
 -- whereas @try@ guards against the specific case of a
--- 'Control.Monad.Interface.Exception.MonadException' short-circuiting due to
+-- 'Monad.Exception.MonadException' short-circuiting due to
 -- an exception being thrown, it can still short-circuit in other ways: e.g.,
 -- if a @'Control.Monad.Trans.Maybe.MaybeT' 'IO'@ returns
 -- 'Control.Monad.mzero' ('Nothing'). The action returned by 'mtry' is

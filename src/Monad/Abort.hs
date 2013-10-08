@@ -12,7 +12,7 @@ This module exports:
 
     2. Instances of 'MonadAbort' for every 'MonadPlus' and 'Either'-like monad
     from the @base@ and @transformers@ packages.
-    
+
     3. A universal pass-through instance of 'MonadAbort' for any existing
     'MonadAbort' wrapped by any 'MonadLayer'.
 
@@ -23,7 +23,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Abort
+module Monad.Abort
     ( MonadAbort (abort)
     )
 where
@@ -51,7 +51,7 @@ import          Control.Monad.Lift (MonadTrans, lift)
 -- includes every monad permitting a 'Control.Monad.MonadPlus' instance (in
 -- which case the value of type @e@ is simply discarded) as well as
 -- 'Either'-like monads (including 'IO'). The latter class of monads generally
--- permit a 'Control.Monad.Interface.MonadRecover' for resuming failed
+-- permit a 'Monad.MonadRecover' for resuming failed
 -- computations.
 --
 -- Minimal complete definition: abort.

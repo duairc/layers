@@ -23,7 +23,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Catch
+module Monad.Catch
     ( MonadCatch
     , catch
     , catches
@@ -48,15 +48,15 @@ import           Prelude hiding (catch)
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Interface.Recover (MonadRecover (recover))
-import           Control.Monad.Interface.Throw (throw)
+import           Monad.Recover (MonadRecover (recover))
+import           Monad.Throw (throw)
 
 
 ------------------------------------------------------------------------------
 -- | 'MonadCatch' is an alias of 'MonadRecover' where the failure state type
 -- @e@ is fixed to 'SomeException'. It represents the class of monads which
 -- support some sort of 'Control.Exception.catch'-like operation to recover
--- from failures caused by a call to 'Control.Monad.Interface.Throw.throw'.
+-- from failures caused by a call to 'Monad.Throw.throw'.
 #ifdef LANGUAGE_ConstraintKinds
 type MonadCatch = MonadRecover SomeException
 #else

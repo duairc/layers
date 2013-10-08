@@ -25,7 +25,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Reader
+module Monad.Reader
     ( MonadReader (reader, ask, local)
     , asks
     )
@@ -52,7 +52,7 @@ import           Control.Monad.Lift (MonadTrans, MInvariant, lift, hoistiso)
 -- values from a shared environment, pass values from function to function
 -- and execute sub-computations in a modified environment. Using the 
 -- @MonadReader@ interface for such computations is often clearer and easier
--- than using the 'Control.Monad.Interface.State.MonadState' interface.
+-- than using the 'Monad.State.MonadState' interface.
 --
 -- Minimal complete definition: 'local' and one of either 'reader' or 'ask'.
 class Monad m => MonadReader r m | m -> r where

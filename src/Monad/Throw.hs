@@ -19,7 +19,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Throw
+module Monad.Throw
     ( MonadThrow
     , throw
     )
@@ -35,7 +35,7 @@ import           Control.Exception
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Interface.Abort (MonadAbort, abort)
+import           Monad.Abort (MonadAbort, abort)
 import           Control.Monad.Trans.Error (Error, noMsg, strMsg)
 
 

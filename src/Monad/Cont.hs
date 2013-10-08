@@ -18,7 +18,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Cont
+module Monad.Cont
     ( MonadCont (callCC)
     )
 where
@@ -62,9 +62,9 @@ class Monad m => MonadCont m where
     -- mechanism for use with instances of @MonadCont@. Escape continuations
     -- allow to abort the current computation and return a value immediately.
     -- They achieve a similar effect to
-    -- 'Control.Monad.Interface.Exception.throw' and
-    -- 'Control.Monad.Interface.Exception.catch' from the
-    -- 'Control.Monad.Interface.Exception.MonadException' interface.
+    -- 'Monad.Exception.throw' and
+    -- 'Monad.Exception.catch' from the
+    -- 'Monad.Exception.MonadException' interface.
     -- Advantage of this function over calling @return@ is that it makes the
     -- continuation explicit, allowing more flexibility and better control.
     --

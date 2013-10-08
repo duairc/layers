@@ -24,7 +24,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.ST
+module Monad.ST
     ( -- * The @MonadST@ class
       MonadST (newRef, readRef, writeRef, atomicModifyRef)
     , atomicModifyRef'

@@ -20,7 +20,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Recover
+module Monad.Recover
     ( MonadRecover (recover)
     )
 where
@@ -43,7 +43,7 @@ import          Data.Functor.Product (Product (Pair))
 
 -- layers --------------------------------------------------------------------
 import          Control.Monad.Lift (MonadTransControl, control)
-import          Control.Monad.Interface.Abort (MonadAbort)
+import          Monad.Abort (MonadAbort)
 
 
 ------------------------------------------------------------------------------

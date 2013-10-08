@@ -22,7 +22,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Fork
+module Monad.Fork
     ( MonadFork (fork, forkOn)
     , forkWithUnmask
     , forkOnWithUnmask
@@ -44,12 +44,12 @@ import           Data.Functor.Product (Product (Pair))
         
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift (MonadTransControl, liftDiscard)
-import           Control.Monad.Interface.Mask
+import           Monad.Mask
                      ( MonadMask
                      , mask
                      , setMaskingState
                      )
-import           Control.Monad.Interface.Try (MonadTry, mtry)
+import           Monad.Try (MonadTry, mtry)
 
 
 ------------------------------------------------------------------------------
@@ -71,7 +71,7 @@ class MonadMask m => MonadFork m where
     -- @forkOS@.
     --
     -- GHC note: the new thread inherits the masked state of the parent (see
-    -- 'Control.Monad.Interface.Mask.mask').
+    -- 'Monad.Mask.mask').
     --
     -- The newly created thread has an exception handler that discards the
     -- exceptions 'Control.Exception.BlockedIndefinitelyOnMVar',

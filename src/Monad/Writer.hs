@@ -24,7 +24,7 @@ This module exports:
 
 -}
 
-module Control.Monad.Interface.Writer
+module Monad.Writer
     ( MonadWriter (writer, tell, listen, pass)
     , listens
     , censor
