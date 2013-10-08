@@ -8,15 +8,14 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadRecover' interface, which consists of:
 
-    1. The type class 'MonadRecover' and its operation 'recover'.
+    * 'MonadRecover' :: @* -> (* -> *) -> Constraint@
 
-    2. Instances of 'MonadRecover' for every 'MonadPlus' and 'Either'-like
-    monad from the @base@ and @transformers@ packages.
+    * 'recover' :: @MonadRecover e m => m a -> (e -> m a) -> m a@
 
-    3. A universal pass-through instance of 'MonadRecover' for any existing
-    'MonadRecover' wrapped by any 'MonadLayerControl'.
+The 'MonadRecover' interface is the basis of both the 'Monad.Throw.MonadCatch'
+and 'Monad.Error.MonadError' interfaces.
 
 -}
 
@@ -47,8 +46,18 @@ import          Monad.Abort (MonadAbort)
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadRecover' type class represents the subclass of monads which can
--- fail ('MonadAbort') and recover from that failure.
+-- | The @'MonadRecover' e@ constraint matches monads whose computations can
+-- 'recover' from a failure caused by a call to 'Monad.Abort.abort'.
+--
+-- Every monad which permits an instance 'Control.Monad.MonadPlus' trivially
+-- permits an instance of @MonadRecover@: for these instances, the @e@ is
+-- fixed to @()@, as there is no @e@ value which can be recovered from a
+-- \"zero\".
+--
+-- The other class of monads that permit a @MonadRecover@ instance are the
+-- 'Either'-like monads (including 'IO'): these monads actually store the @e@
+-- parameter passed to the @abort@ operation on failure, hence it can later be
+-- retrieved using the @recover@ operation.
 --
 -- Minimal complete definition: recover.
 class MonadAbort e m => MonadRecover e m | m -> e where

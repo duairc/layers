@@ -8,17 +8,25 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadFork' interface, which consists of:
 
-    1. The 'MonadFork' type class and its operations 'fork' and 'forkOn'.
+    * 'MonadFork' :: @(* -> *) -> Constraint@
 
-    2. An instance of 'MonadFork' for the 'IO' monad.
+    * 'fork' :: @MonadFork m => m () -> m ThreadId@
 
-    3. A universal pass-through instance of 'MonadFork' for any existing
-    @MonadFork@ wrapped by a 'MonadLayerControl'.
+    * 'forkOn' :: @MonadFork m => Int -> m () -> m ThreadId@
 
-    4. The utility operations 'forkWithUnmask', 'forkOnWithUnmask' and
-    'forkFinally'.
+    * 'forkWithUnmask' :: @MonadFork m =>
+        ((forall a n. MonadMask n => n a -> n a) -> m ()) -> m ThreadId@
+
+    * 'forkOnWithUnmask' :: @MonadFork m => Int ->
+        ((forall a n. MonadMask n => n a -> n a) -> m ()) -> m ThreadId@
+
+    * 'forkFinally' :: @(MonadTry m, MonadFork m) => m a ->
+        (Either (m a) a -> m ()) -> m ThreadId@
+
+The 'MonadFork' interface is designed for compatibility with
+"Control.Concurrent".
 
 -}
 

@@ -11,11 +11,15 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadThrow' interface, which consists of:
 
-    1. The 'MonadThrow' constraint synonym (a version of 'MonadAbort').
+    * 'MonadThrow' :: @(* -> *) -> Constraint@
 
-    2. The 'throw' operation (a version of 'abort').
+    * 'throw' :: @(Exception e, MonadThrow m) => e -> m a@
+
+The 'MonadThrow' interface is defined purely in terms of the 'MonadAbort'
+interface. It is provided for compatibility with "Control.Exception" (see
+"Monad.Catch").
 
 -}
 
@@ -61,8 +65,9 @@ throw = abort . toException
 
 ------------------------------------------------------------------------------
 -- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
--- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus a
--- 'MonadCatch' instance to be defined for @ErrorT SomeException@.
+-- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus
+-- 'MonadThrow' and 'MonadCatch' instances to be defined for
+-- @ErrorT SomeException@.
 instance Error SomeException where
     noMsg = strMsg "mzero"
     {-# INLINE noMsg #-}

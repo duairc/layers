@@ -9,18 +9,25 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadTry' interface, which consists of:
 
-    1. The 'MonadTry' type class and its operation 'mtry'.
+    * 'MonadTry' :: @(* -> *) -> Constraint@
 
-    2. Instances of 'MonadTry' for all the base monads in the @base@ and
-    @transformers@ packages.
+    * 'mtry' :: @MonadTry m => m a -> m (Either (m a) a)@
 
-    3. A universal pass-through instance of 'MonadMask' for any existing
-    @MonadMask@ wrapped by a 'MonadLayerControl'.
+    * 'bracket' :: @MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c@
 
-    4. The utility operations 'bracket', 'bracket_', 'bracketOnError',
-    'finally' and 'onException'.
+    * 'bracket_' :: @MonadTry m => m a -> m b -> m c -> m c@
+
+    * 'bracketOnError' :: @MonadTry m => m a -> (a -> m b) -> (a -> m c) ->
+        m c@
+
+    * 'finally' :: @MonadTry m => m a -> m b -> m a@
+
+    * 'onException' :: @MonadTry m => m a -> m b -> m a@
+
+The 'MonadTry' interface is designed for compatibility with
+"Contorl.Exception".
 
 -}
 

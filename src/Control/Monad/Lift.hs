@@ -22,7 +22,7 @@ machinery (including re-exports from @transformers@ and @mmorph@). It exports:
     1. The 'MonadTrans' class and its operation 'lift'. This is re-exported
     from @transformers@.
 
-    2. The 'MonadTransControl' class, its type synonyms 'LayerState' and
+    2. The 'MonadTransControl' class, its associated types 'LayerState' and
     'LayerResult', and its operations 'peel', 'suspend', 'restore', 'extract'.
     Also, the convenience operations 'liftControl', 'control', 'liftOp',
     'liftOp_' and 'liftDiscard'. These are inspired by similarly named
@@ -35,23 +35,48 @@ machinery (including re-exports from @transformers@ and @mmorph@). It exports:
     <https://github.com/Gabriel439/Haskell-MMorph-Library/pull/1 hoping> to
     get it moved to @mmorph@ where the other classes are defined.
 
-    3. The type classes 'MonadTrans', 'MonadTransFunctor' and
-    'MonadTransControl' and instances of these classes for the transformers in
-    the @transformers@ package.
+It also defines the @'MonadLift'*@ family of interfaces, which consist of:
 
-    4. The type classes 'MonadLift', 'MonadLiftControl', 'MonadLiftInvariant'
-    and 'MonadLiftFunctor'. These are analogues of 'MonadTrans',
-    'MonadTransControl', 'MInvariant' and 'MFunctor' respectively, except they
-    allow the lifting of operations through arbitrarily many monad
-    transformers. They provide the operations 'lift'', 'liftControl'',
-    'control'', 'liftOp'', 'liftOp_'', 'liftDiscard'', 'hoist'' and
-    'hoistiso'', which again are analogues of their apostropheless
-    counterparts.
+    * 'MonadLift' :: @(* -> *) -> (* -> *) -> Constraint@
+
+    * 'MonadLiftControl' :: @(* -> *) -> (* -> *) -> Constraint@
+
+    * 'MonadLiftInvariant' :: @(* -> *) -> (* -> *) -> Constraint@
+
+    * 'MonadLiftFunctor' :: @(* -> *) -> (* -> *) -> Constraint@
+
+    * 'lift'' :: @MonadLift i m => i a -> m a@
+
+    * 'liftControl'' :: @MonadLiftControl i m =>
+        ((forall b. m b -> i (m b)) -> i a) -> m a@
+
+    * 'control'' :: @MonadLiftControl i m =>
+        ((forall b. m b -> i (m b)) -> i (m a)) -> m a@
+
+    * 'liftOp'' :: @MonadLiftControl i m => ((a -> i (m b)) -> i (m c)) ->
+        (a -> m b) -> m c@
+
+    * 'liftOp_'' :: @MonadLiftControl i m => (i (m a) -> i (m b)) -> m a ->
+        m b@
+
+    * 'liftDiscard'' :: @MonadLiftControl i m => (i () -> i a) -> m () -> m a@
+
+    * 'hoistiso'' :: @MonadLiftInvariant i m => (forall b. i b -> i b) ->
+        (forall b. i b -> i b) -> m a -> m a@
+
+    * 'hoist'' :: @MonadLiftFunctor i m => (forall b. i b -> i b) -> m a ->
+        m a@
+
+Each operation in the @'MonadLift'*@ family of interfaces is an analogue of an
+operation from the @MonadTrans*@/@MMorph@ family of interfaces. The naming of
+these operations reflect this relationship.
 
 -}
 
 module Control.Monad.Lift
-    ( MonadTrans (lift)
+    (
+    -- * The @MonadTrans@/@MMorph@ family
+      MonadTrans (lift)
     , MonadTransControl
         ( type LayerState
         , type LayerResult
@@ -65,15 +90,21 @@ module Control.Monad.Lift
     , liftOp
     , liftOp_
     , liftDiscard
+
+    -- ** Monad morphisms
     , MInvariant (hoistiso)
     , MFunctor (hoist)
     , MMonad (embed)
+
+    -- * The @MonadLift@ family
     , MonadLift (lift')
     , MonadLiftControl (liftControl')
     , control'
     , liftOp'
     , liftOp_'
     , liftDiscard'
+
+    -- ** Monad lift morphisms
     , MonadLiftInvariant (hoistiso')
     , MonadLiftFunctor (hoist')
     )
@@ -200,18 +231,22 @@ instance MInvariant (L.WriterT w) where
 -- "Documentation.Layers.Overview" for a more complete discussion of how it
 -- works.
 class MonadTrans t => MonadTransControl t where
-    -- | The portion of the monadic state of @t@ that is independent of
-    -- @'Inner' m@.
+    -- | The portion of the result of executing a computation of @t@ that is
+    -- independent of @m@ and which is not the new 'LayerState'.
 #if __GLASGOW_HASKELL__ >= 704
     type LayerResult t :: * -> *
 #else
     data LayerResult t :: * -> *
 #endif
+
+    -- | The \"state\" needed to 'peel' a computation of @t@. Running a peeled
+    -- computation returns a 'LayerResult' and an updated 'LayerState'.
 #if __GLASGOW_HASKELL__ >= 704
     type LayerState t (m :: * -> *) :: *
 #else
     data LayerState t :: (* -> *) -> *
 #endif
+
     -- | Given the current \"state\" of the monad transformer @t@, 'peel'
     -- unwraps the @t@ and returns the result and the new state of @t@.
     -- 'liftControl', a more often used operation, is defined in terms of
@@ -740,24 +775,3 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- @liftDiscard' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
-
-{-
-data P (t :: (* -> *) -> * -> *) = P
-
-class Monad m => MonadTry m where
-    mtry :: m a -> m (Either (m a) a)
-    mtry = liftM Right
-
-instance MonadTry (Either e) where
-    mtry = return . either (Left . Left) Right
-
-instance (MonadTransControl t, Monad (t m), MonadTry m) => MonadTry (t m) where
-    mtry m = do
-        state <- suspend
-        ma <- lift . mtry $ peel state m
-        case ma of
-            Left m' -> return . Left $ lift m' >>= uncurry restore
-            Right (result, state') -> case extract (P :: P t) result of
-                Nothing -> return . Left $ restore result state'
-                Just _ -> liftM Right $ restore result state'
--}

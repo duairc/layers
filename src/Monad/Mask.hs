@@ -11,19 +11,26 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadMask' interface, which consists of:
 
-    1. The 'MonadMask' type class and its operations 'getMaskingState' and
-    'setMaskingState'.
+    * 'MonadMask' :: @(* -> *) -> Constraint@
 
-    2. Instances of 'MonadMask' for all the base monads in the @base@ and
-    @transformers@ packages.
+    * 'getMaskingState' :: @MonadMask m => m MaskingState@
 
-    3. A universal pass-through instance of 'MonadMask' for any existing
-    @MonadMask@ wrapped by a 'MonadLayer'.
+    * 'setMaskingState' :: @MonadMask m => MaskingState -> m a -> m a@
 
-    4. The utility operations 'mask', 'mask_', 'uninterruptibleMask',
-    'uninterruptibleMask_'.
+    * 'mask' :: @MonadMask m =>
+        ((forall a n). MonadMask n => n a -> n a) -> m b) -> m b@
+
+    * 'mask_' :: @MonadMask m => m a -> m a@
+
+    * 'uninterruptibleMask' :: @MonadMask m =>
+        ((forall a n). MonadMask n => n a -> n a) -> m b) -> m b@
+
+    * 'uninterruptibleMask_' :: @MonadMask m => m a -> m a@
+
+The 'MonadMask' interface is designed for compatibility with
+"Control.Exception".
 
 -}
 

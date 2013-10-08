@@ -8,20 +8,20 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadReader' interface, which consists of:
 
-    1. The 'MonadReader' type class and its operations 'reader', 'ask' and
-    'local'.
+    * 'MonadReader' :: @* -> (* -> *) -> Constraint@
 
-    2. An instance of 'MonadReader' for the @->@ type.
+    * 'reader' :: @MonadReader r m => (r -> a) -> m a@
 
-    3. Instances of 'MonadReader' for the relevant monad transformers from the
-    @transformers@ package (ReaderT', lazy 'L.RWST' and strict 'RWST').
+    * 'ask' :: @MonadReader r m => m r@
 
-    4. A universal pass-through instance of 'MonadReader' for any existing
-    @MonadReader@ wrapped by a 'MonadLayer'.
+    * 'asks' :: @MonadReader r m => (r -> a) -> m a@
 
-    5. The utility operations 'asks'.
+    * 'local' :: @MonadReader r m => (r -> r) -> m a -> m a@
+
+The 'MonadReader' interface is designed for compatibility with the
+@MonadReader@ interface from the @mtl@ library.
 
 -}
 

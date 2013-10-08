@@ -6,20 +6,14 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadAbort' interface, which consists of:
 
-    1. The type class 'MonadAbort' and its operation 'abort'.
+    * 'MonadAbort' :: @* -> (* -> *) -> Constraint@
 
-    2. Instances of 'MonadAbort' for every 'MonadPlus' and 'Either'-like monad
-    from the @base@ and @transformers@ packages.
+    * 'abort' :: @MonadAbort e m => e -> m a@
 
-    3. A universal pass-through instance of 'MonadAbort' for any existing
-    'MonadAbort' wrapped by any 'MonadLayer'.
-
-    4. An orphan instance of the 'Error' class from @transformers@ for the
-    'SomeException' type: this is a necessary hack in order to force 'ErrorT'
-    to permit instances of 
-    an instance of 'MonadCatch'.
+The 'MonadAbort' interface is the basis of both the 'Monad.Throw.MonadThrow'
+and 'Monad.Error.MonadError' interfaces.
 
 -}
 
@@ -46,15 +40,18 @@ import          Control.Monad.Lift (MonadTrans, lift)
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadAbort' type class represents the class of monads which can
--- fail, and, if possible, store a value of type @e@ in doing so. This
--- includes every monad permitting a 'Control.Monad.MonadPlus' instance (in
--- which case the value of type @e@ is simply discarded) as well as
--- 'Either'-like monads (including 'IO'). The latter class of monads generally
--- permit a 'Monad.MonadRecover' for resuming failed
--- computations.
+-- | The @'MonadAbort' e@ constraint matches monads whose computations can
+-- \"fail\" (be aborted), and, if possible, store a value of type @e@
+-- containing information about the nature of the failure.
 --
--- Minimal complete definition: abort.
+-- Every monad which permits an instance 'Control.Monad.MonadPlus' trivially
+-- permits an instance of @MonadAbort@: for these monads, the @e@ paramater to
+-- 'abort' is discarded, and @abort@ is implemented as @const mzero@.
+--
+-- The other class of monads that permit a @MonadAbort@ instance are the
+-- 'Either'-like monads (including 'IO'): these monads actually store the @e@
+-- parameter passed to the @abort@ operation on failure. These monads also
+-- generally permit a 'Monad.Recover.MonadRecover' instance.
 class Monad m => MonadAbort e m where
     -- | The following law holds for valid instances of 'MonadAbort';
     --

@@ -8,19 +8,22 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadWriter' interface, which consists of:
 
-    1. The 'MonadWriter' type class and its operations 'writer', 'tell',
-    'listen' and 'pass'.
+    * 'writer' :: @MonadWriter w m => (a, w) -> m a@
 
-    2. Instances of 'MonadWriter' for the relevant monad transformers from the
-    @transformers@ package (lazy 'L.WriterT', strict 'WriterT', lazy 'L.RWST'
-    and strict 'RWST').
+    * 'tell' :: @MonadWriter w m => w -> m ()@
 
-    3. A universal pass-through instance of 'MonadWriter' for any existing
-    @MonadWriter@ wrapped by a 'MonadLayer'.
+    * 'listen' :: @MonadWriter w m => m a -> m (a, w)@
 
-    4. The utility operations 'listens' and 'censor'.
+    * 'listens' :: @MonadWriter w m => (w -> b) -> m a -> m (a, b)@
+
+    * 'pass' :: @MonadWriter w m => m (a, w -> w) -> m a@
+
+    * 'censor' :: @MonadWriter w m => (w -> w) -> m a -> m a@
+
+The 'MonadWriter' interface is designed for compatibility with the
+@MonadWriter@ interface from the @mtl@ library.
 
 -}
 

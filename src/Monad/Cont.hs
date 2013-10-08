@@ -6,15 +6,14 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadCont' interface, which consists of:
 
-    1. The 'MonadCont' type class and its operation 'callCC'.
+    * 'MonadCont' :: @(* -> *) -> Constraint@
 
-    2. An instance of 'MonadCont' for the 'ContT' monad transformer from the
-    @transformers@ package.
+    * 'callCC' :: @MonadCont m => ((a -> m b) -> m a) -> m a@
 
-    3. A universal pass-through instance of 'MonadCont' for any existing
-    @MonadCont@ wrapped by a 'MonadLayerControl'.
+The 'MonadCont' interface is designed for compatibility with the @MonadCont@
+interface from the @mtl@ library.
 
 -}
 
@@ -61,12 +60,11 @@ class Monad m => MonadCont m where
     -- current continuation as its argument. Provides an escape continuation
     -- mechanism for use with instances of @MonadCont@. Escape continuations
     -- allow to abort the current computation and return a value immediately.
-    -- They achieve a similar effect to
-    -- 'Monad.Exception.throw' and
-    -- 'Monad.Exception.catch' from the
-    -- 'Monad.Exception.MonadException' interface.
-    -- Advantage of this function over calling @return@ is that it makes the
-    -- continuation explicit, allowing more flexibility and better control.
+    -- They achieve a similar effect to 'Monad.Abort.abort' and
+    -- 'Monad.Recover.recover' from the 'Monad.AbortMonadAbort' and
+    -- 'Monad.Recover.MonadRecover' interfaces. Advantage of this function
+    -- over calling @return@ is that it makes the continuation explicit,
+    -- allowing more flexibility and better control.
     --
     -- The standard idiom used with @callCC@ is to provide a lambda-expression
     -- to name the continuation. Then calling the named continuation anywhere

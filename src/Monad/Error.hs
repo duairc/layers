@@ -10,13 +10,24 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadError' interface, which consists of:
 
-    1. The 'MonadError' type class synonym (actually a constraint synonym for
-    'MonadRecover') and its \"member\" operations 'throwError' and
-    'catchError' (actually synonyms for 'abort' and 'recover' respectively).
+    * 'MonadError' :: @* -> (* -> *) -> Constraint@
 
-    2. The 'Error' type class from "Control.Monad.Trans.Error".
+    * 'throwError' :: @MonadError e m => e -> m a@
+
+    * 'catchError' :: @MonadError e m => m a -> (e -> m a) -> m a@
+
+    * 'Error' :: @* -> Constraint@
+
+    * 'noMsg' :: @Error a => a@
+
+    * 'strMsg' :: @Error a => String -> a@
+
+The 'MonadError' interface is defined purely in terms of the 'MonadAbort' and
+'MonadRecover' interfaces. It is provided for compatibility with the
+@MonadError@ class from the @mtl@ library. 'Error', 'noMsg' and 'strMsg' are
+re-exported from @transformers@.
 
 -}
 
@@ -38,9 +49,9 @@ import           Monad.Recover (MonadRecover (recover))
 
 
 ------------------------------------------------------------------------------
--- | The strategy of combining computations that can throw exceptions by by
--- passing bound functions from the point an exception is thrown to the point
--- that it is handled.
+-- | The strategy of combining computations that can throw exceptions by
+-- bypassing bound functions from the point an exception is thrown to the
+-- point that it is handled.
 --
 -- Is parameterized over the type of error information and the monad type
 -- constructor. It is common to use @'Data.Either' String@ as the monad type
@@ -52,6 +63,10 @@ import           Monad.Recover (MonadRecover (recover))
 -- constructor other than @'Either' 'String'@ or @'Either' 'IOError'@. In
 -- these cases you will have to explicitly define instances of the 'Error'
 -- and\/or 'MonadError' classes.
+--
+-- Note: This is for compatibility with the @MonadError@ type class from the
+-- @mtl@ package. It doesn't provide anything that isn't provided by the
+-- 'Monad.Abort.MonadAbort' and 'Monad.Recover.MonadRecover' interfaces.
 #ifdef LANGUAGE_ConstraintKinds
 type MonadError = MonadRecover
 #else

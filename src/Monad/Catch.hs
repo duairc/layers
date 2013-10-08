@@ -12,14 +12,33 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadCatch' interface, which consists of:
 
-    1. The 'MonadCatch' constraint synonym (a version of 'MonadRecover').
+    * 'MonadCatch' :: @(* -> *) -> Constraint@
 
-    2. The 'catch' operation (a version of 'recover').
+    * 'catch' :: @(Exception e, MonadCatch m) => m a -> (e -> m a) -> m a@
 
-    3. The utility operations 'catches', 'catchJust', 'handle', 'handleJust',
-    'try' and 'tryJust'.
+    * 'catches' :: @MonadCatch m => m a -> [Handler m a] -> m a@
+
+    * 'Handler' :: @(* -> *) -> * -> *@
+
+    * @Handler ('Handler')@ :: @Exception e => (e -> m a) -> Handler m a@
+
+    * 'catchJust' :: @(Exception e, MonadCatch m) => (e -> Maybe b) -> m a ->
+        (b -> m a) -> m a@
+
+    * 'handle' :: @(Exception e, MonadCatch m) => (e -> m a) -> m a -> m a@
+
+    * 'handleJust' :: @(Exception e, MonadCatch m) => (e -> Maybe b) ->
+        (b -> m a) -> m a -> m a@
+
+    * 'try' :: @(Exception e, MonadCatch m) => m a -> m (Either e a)@
+
+    * 'tryJust' :: @(Exception e, MonadCatch m) => (e -> Maybe b) -> m a ->
+        m (Either b a)@
+
+The 'MonadCatch' interface is defined purely in terms of the 'MonadRecover'
+interface. It is provided for compatibility with "Control.Exception".
 
 -}
 

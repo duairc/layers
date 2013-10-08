@@ -8,19 +8,28 @@
 
 {-|
 
-This module exports:
+This module provides the 'MonadST' interface, which consists of:
 
-    1. The 'MonadST' type class and its operations 'newRef', 'readRef',
-    'writeRef' and 'atomicModifyRef'.
+    * 'MonadST' :: @(* -> *) -> (* -> *) -> Constraint@
 
-    2. Instances of 'MonadST' for 'IO', 'STM', strict 'ST' and lazy
-    'L.ST'.
+    * 'newRef' :: @MonadST ref m => a -> m (ref a)@
 
-    3. A universal pass-through instance of 'MonadST' for any existing
-    @MonadST@ wrapped by a 'MonadLayer'.
+    * 'readRef' :: @MonadST ref m => ref a -> m a@
 
-    4. The utility operations 'atomicModifyRef'', 'atomicWriteRef',
-    'modifyRef' and 'modifyRef''.
+    * 'writeRef' :: @MonadST ref m => ref a -> a -> m ()@
+
+    * 'atomicModifyRef' :: @MonadST ref m => ref a -> (a -> (a, b)) -> m b@
+
+    * 'atomicModifyRef'' :: @MonadST ref m => ref a -> (a -> (a, b)) -> m b@
+
+    * 'atomicWriteRef' :: @MonadST ref m => ref a -> a -> m ()@
+
+    * 'modifyRef' :: @MonadST ref m => ref a -> (a -> a) -> m ()@
+
+    * 'modifyRef'' :: @MonadST ref m => ref a -> (a -> a) -> m ()@
+
+The 'MonadST' interface is designed for compatibility with "Data.IORef",
+"Data.STRef.Lazy" and "Data.STRef.Strict".
 
 -}
 

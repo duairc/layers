@@ -10,15 +10,18 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadRWS' interface, which consists of:
 
-    1. The 'MonadRWS' interface.
+    * 'MonadRWS' :: @* -> * -> * -> (* -> *) -> Constraint@
 
-    2. The "Monad.Reader" module.
+    * "Monad.Reader"
 
-    3. The "Monad.State" module.
+    * "Monad.State"
 
-    4. The "Monad.Writer" module.
+    * "Monad.Writer"
+
+The 'MonadRWS' interface is provided for compatibility with the @MonadRWS@
+interface from the @mtl@ library.
 
 -}
 

@@ -8,19 +8,20 @@
 
 {-|
 
-This module exports:
+This module defines the 'MonadState' interface, which consists of:
 
-    1. The 'MonadState' type class and its operations 'state', 'get' and
-    'put'.
+    * 'state' :: @MonadState s m => (s -> (a, s)) -> m a@
 
-    2. Instances of 'MonadState' for the relevant monad transformers from the
-    @transformers@ package (lazy 'L.StateT', strict 'StateT', lazy 'L.RWST'
-    and strict 'RWST').
+    * 'get' :: @MonadState s m => m s@
 
-    3. A universal pass-through instance of 'MonadState' for any existing
-    @MonadState@ wrapped by a 'MonadLayer'.
+    * 'gets' :: @MonadState s m => (s -> a) -> m a@
 
-    4. The utility operations 'modify' and 'gets'.
+    * 'put' :: @MonadState s m => s -> m ()@
+
+    * 'modify' :: @MonadState s m => (s -> s) -> m ()@
+
+The 'MonadState' interface is designed for compatibility with the @MonadState@
+interface from the @mtl@ library.
 
 -}
 
