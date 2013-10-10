@@ -76,15 +76,15 @@ these operations reflect this relationship.
 module Control.Monad.Lift
     (
     -- * The @MonadTrans@/@MMorph@ family
-      MonadTrans (lift)
+      MonadTrans
+    , lift
     , MonadTransControl
-        ( type LayerState
-        , type LayerResult
-        , peel
-        , suspend
-        , restore
-        , extract
-        )
+    , LayerState
+    , LayerResult
+    , peel
+    , suspend
+    , restore
+    , extract
     , liftControl
     , control
     , liftOp
@@ -92,21 +92,35 @@ module Control.Monad.Lift
     , liftDiscard
 
     -- ** Monad morphisms
-    , MInvariant (hoistiso)
-    , MFunctor (hoist)
-    , MMonad (embed)
+    , MInvariant
+    , hoistiso
+    , MFunctor
+    , hoist
+    , MMonad
+    , embed
 
     -- * The @MonadLift@ family
-    , MonadLift (lift')
-    , MonadLiftControl (liftControl')
+    , MonadLift
+    , lift'
+    , MonadLiftControl
+#if __GLASGOW_HASKELL__ >= 707
+    , LiftState
+    , LiftResult
+    , peel'
+    , suspend'
+    , restore'
+#endif
+    , liftControl'
     , control'
     , liftOp'
     , liftOp_'
     , liftDiscard'
 
     -- ** Monad lift morphisms
-    , MonadLiftInvariant (hoistiso')
-    , MonadLiftFunctor (hoist')
+    , MonadLiftInvariant
+    , hoistiso'
+    , MonadLiftFunctor
+    , hoist'
     )
 where
 
@@ -115,7 +129,10 @@ import           Control.Arrow (first)
 #if __GLASGOW_HASKELL__ < 704
 import           Control.Arrow ((***))
 #endif
-import           Control.Monad (join, liftM)
+import           Control.Monad (liftM)
+#if __GLASGOW_HASKELL__ < 707
+import           Control.Monad (join)
+#endif
 import           Data.Monoid (Monoid, mempty)
 
 
@@ -138,91 +155,6 @@ import           Data.Functor.Identity (Identity (Identity))
 
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Morph (MFunctor (hoist), MMonad (embed))
-
-
-------------------------------------------------------------------------------
--- | An invariant functor in the category of monads, using 'hoistiso' as the
--- analog of @invmap@:
-class MInvariant t where
-    -- | 'hoistiso' lifts a monad isomorphism between @m@ and @n@ into a monad
-    -- morphism from @(t m)@ to @(t n)@.
-    --
-    -- The following laws hold for valid instances of 'MInvariant':
-    --
-    --     [Identity] @hoistiso id id = id@
-    --
-    --     [Composition]
-    --         @hoistiso f g . hoistiso f' g' = hoistiso (f . f') (g' . g)@
-    hoistiso :: Monad m
-        => (forall b. m b -> n b)
-        -> (forall b. n b -> m b)
-        -> t m a
-        -> t n a
-
-
-------------------------------------------------------------------------------
-instance MInvariant (ContT r) where
-    hoistiso f g (ContT m) = ContT $ f . m . (g .)
-
-
-------------------------------------------------------------------------------
-instance MInvariant (ErrorT e) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant IdentityT where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant ListT where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MFunctor ListT where
-    hoist f (ListT m) = ListT $ f m
-
-
-------------------------------------------------------------------------------
-instance MInvariant MaybeT where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (ReaderT r) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (RWST r w s) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (L.RWST r w s) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (StateT s) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (L.StateT s) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (WriterT w) where
-    hoistiso f _ = hoist f
-
-
-------------------------------------------------------------------------------
-instance MInvariant (L.WriterT w) where
-    hoistiso f _ = hoist f
 
 
 ------------------------------------------------------------------------------
@@ -568,6 +500,91 @@ liftDiscard f m = liftControl $ \run -> f $ liftM (const ()) $ run m
 
 
 ------------------------------------------------------------------------------
+-- | An invariant functor in the category of monads, using 'hoistiso' as the
+-- analog of @invmap@:
+class MInvariant t where
+    -- | 'hoistiso' lifts a monad isomorphism between @m@ and @n@ into a monad
+    -- morphism from @(t m)@ to @(t n)@.
+    --
+    -- The following laws hold for valid instances of 'MInvariant':
+    --
+    --     [Identity] @hoistiso id id = id@
+    --
+    --     [Composition]
+    --         @hoistiso f g . hoistiso f' g' = hoistiso (f . f') (g' . g)@
+    hoistiso :: Monad m
+        => (forall b. m b -> n b)
+        -> (forall b. n b -> m b)
+        -> t m a
+        -> t n a
+
+
+------------------------------------------------------------------------------
+instance MInvariant (ContT r) where
+    hoistiso f g (ContT m) = ContT $ f . m . (g .)
+
+
+------------------------------------------------------------------------------
+instance MInvariant (ErrorT e) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant IdentityT where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant ListT where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MFunctor ListT where
+    hoist f (ListT m) = ListT $ f m
+
+
+------------------------------------------------------------------------------
+instance MInvariant MaybeT where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (ReaderT r) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (RWST r w s) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (L.RWST r w s) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (StateT s) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (L.StateT s) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (WriterT w) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
+instance MInvariant (L.WriterT w) where
+    hoistiso f _ = hoist f
+
+
+------------------------------------------------------------------------------
 -- | 'MonadLift' is a multi-parameter type class parameterised by two monads
 -- @i@ and @m@. If the constraint @MonadLift i m@ is satisfied, this means
 -- that @m@ supports lifting operations from @i@. If @m@ is a monad built from
@@ -592,6 +609,152 @@ class (Monad i, Monad m) => MonadLift i m where
 
 
 ------------------------------------------------------------------------------
+instance Monad m => MonadLift m m where
+    lift' = id
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monad (t m)) => MonadLift (t m) (t m) where
+    lift' = id
+
+
+------------------------------------------------------------------------------
+instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
+    lift' = lift . lift'
+
+
+#if __GLASGOW_HASKELL__ >= 707
+------------------------------------------------------------------------------
+-- | 'MonadLiftControl' represents the class of monad lifts that support
+-- lifting control operations. See "Documentation.Layers.Overview" for a more
+-- complete discussion.
+class MonadLift i m => MonadLiftControl i m where
+    peel' :: LiftState i m -> m a -> i (LiftResult i m a, LiftState i m)
+    restore' :: proxy i -> LiftResult i m a -> LiftState i m -> m a
+    suspend' :: proxy i -> m (LiftState i m)
+
+
+------------------------------------------------------------------------------
+type family LiftState (i :: * -> *) (m :: * -> *) :: * where
+    LiftState m m = ()
+    LiftState i (t m) = (LayerState t m, LiftState i m)
+
+
+------------------------------------------------------------------------------
+type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> * where
+    LiftResult m m = Identity
+    LiftResult i (t m) = ComposeResult i t m
+
+
+------------------------------------------------------------------------------
+newtype ComposeResult i t m a
+    = ComposeResult (LiftResult i m (LayerResult t a, LayerState t m))
+
+
+------------------------------------------------------------------------------
+instance MonadLift m m => MonadLiftControl m m where
+    peel' _ = liftM (\a -> (Identity a, ()))
+    restore' _ (Identity a) _ = return a
+    suspend' _ = return ()
+
+
+------------------------------------------------------------------------------
+instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
+  where
+    peel' _ = liftM (\a -> (Identity a, ()))
+    restore' _ (Identity a) _ = return a
+    suspend' _ = return ()
+
+
+------------------------------------------------------------------------------
+instance
+    ( MonadTransControl t
+    , Monad (t m)
+    , MonadLift i (t m)
+    , MonadLiftControl i m
+    , LiftResult i (t m) ~ ComposeResult i t m
+    , LiftState i (t m) ~ (LayerState t m, LiftState i m)
+    )
+  =>
+    MonadLiftControl i (t m)
+  where
+    peel' (lys, lis) m =
+        liftM (\(lir, lis') -> (ComposeResult lir, (lys, lis'))) $
+            peel' lis (peel lys m)
+    restore' p (ComposeResult lir) (_, lis) =
+        lift (restore' p lir lis) >>= uncurry restore
+    suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b -> return (a, b)
+
+
+------------------------------------------------------------------------------
+data P (p :: * -> *) = P
+
+
+------------------------------------------------------------------------------
+liftControl' :: forall i m a. MonadLiftControl i m
+    => ((forall b. m b -> i (LiftResult i m b, LiftState i m)) -> i a)
+    -> m a
+liftControl' f = suspend' (P :: P i) >>= \s -> lift' $ f (peel' s)
+
+
+------------------------------------------------------------------------------
+control' :: forall i m a. MonadLiftControl i m
+    => ((forall b. m b -> i (LiftResult i m b, LiftState i m))
+        -> i (LiftResult i m a, LiftState i m))
+    -> m a
+control' f = liftControl' f >>= uncurry (restore' (P :: P i))
+
+
+------------------------------------------------------------------------------
+-- | @liftOp'@ is a particular application of 'liftControl'' that allows
+-- lifting control operations of type: @(a -> i b) -> i b@ to
+-- @'MonadLiftControl' i m => (a -> m b) -> m b@.
+--
+-- For example:
+--
+-- @liftOp' . withMVar :: 'MonadLiftControl' 'IO' m => MVar a -> (a -> m b) -> m b@
+liftOp' :: MonadLiftControl i m =>
+     ((a -> i (LiftResult i m b, LiftState i m))
+      -> i (LiftResult i m c, LiftState i m))
+     -> (a -> m b)
+     -> m c
+liftOp' f = \g -> control' $ \run -> f $ run . g
+
+
+------------------------------------------------------------------------------
+-- | @liftOp_'@ is a particular application of 'liftControl'' that allows
+-- lifting control operations of type: @i a -> i b@ to
+-- @'MonadLiftControl' i m => m a -> m b@.
+--
+-- For example:
+--
+-- @liftOp_' mask_ :: 'MonadLiftControl' 'IO' m => m a -> m a@
+liftOp_' :: MonadLiftControl i m
+    => (i (LiftResult i m a, LiftState i m)
+        -> i (LiftResult i m b, LiftState i m))
+     -> m a
+     -> m b
+liftOp_' f = \m -> control' $ \run -> f $ run m
+
+
+------------------------------------------------------------------------------
+-- | @liftDiscard'@ is a particular application of 'liftControl'' that allows
+-- lifting control operations of type: @i () -> i a@ to
+-- @'MonadLiftControl' i m => m () -> m a@.
+--
+-- Note that, while the argument computation @m ()@ has access to the captured
+-- state, all its side-effects in @m@ are discarded. It is run only for its
+-- side-effects in the inner monad @i@.
+--
+-- For example:
+--
+-- @liftDiscard' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
+liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
+liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
+
+
+#else
+------------------------------------------------------------------------------
 -- | 'MonadLiftControl' represents the class of monad lifts that support
 -- lifting control operations. See "Documentation.Layers.Overview" for a more
 -- complete discussion.
@@ -613,88 +776,20 @@ class MonadLift i m => MonadLiftControl i m where
 
 
 ------------------------------------------------------------------------------
--- | The constraint @'MonadLiftInvariant' i m@ holds if it is possible to lift
--- a monad (auto)morphism of @i@ to a monad (endo)morphism of @m@.
-class Monad i => MonadLiftInvariant i m where
-    -- | 'hoistiso'' represents an invariant (endo)functor in the category
-    -- of monads. It takes a transformation @f@ of an inner monad @i@ and its
-    -- inverse @g@ (such that @g . f = id@) and returns transformation of @m@
-    -- analogous to @f@. (i.e., @hoistiso'@ lifts an automorphism of @i@
-    -- to an endomorphism of @m@).
-    --
-    -- The following laws hold for valid instances of 'MonadLift':
-    --
-    --     [Identity] @hoistiso' id id = id@
-    --
-    --     [Composition]
-    --         @hoistiso' f g . hoistiso' f' g' = hoistiso' (f . f') (g' . g)@
-    --
-    -- The difference between 'hoistiso'' and 'hoistiso' is that
-    -- @hoistiso@ only lifts from the monad directly beneath the top of the
-    -- stack, while @hoistiso'@ can lift from /any/ monad anywhere in the
-    -- stack (including @m@ itself). (@hoistiso@ is used to implement
-    -- @hoistiso'@)
-    hoistiso'
-        :: (forall b. i b -> i b)
-        -> (forall b. i b -> i b)
-        -> m a
-        -> m a
-
-
-------------------------------------------------------------------------------
--- | The constraint @'MonadLiftFunctor' i m@ holds it is possible to lift a
--- monad (auto)morphism of @i@ to a monad (endo)morphism of @m@.
--- The 'hoist'' which does this is more powerful than the 'hoistiso''
--- operation which is of the 'MonadLiftInvariant' type class.
-class MonadLiftInvariant i m => MonadLiftFunctor i m where
-    -- | 'hoist'' represents an (endo)functor in the category of monads. It
-    -- takes a transformation @f@ of an inner monad @i@ returns a
-    -- transformation of @m@ analogous to @f@. (i.e., @hoist@ lifts an
-    -- endomorphism of @i@ to an endomorphism of @m@).
-    --
-    -- The following laws hold for valid instances of 'MonadLiftFunctor':
-    --
-    --     [Identity] @hoist' id = id@
-    --
-    --     [Composition] @hoist' f . hoist' g = hoist' (f . g)@
-    --
-    -- The difference between 'hoist'' and 'hoist' is that @hoist@ only
-    -- lifts from the monad directly beneath the top of the stack, while
-    -- @hoist'@ can lift from /any/ monad anywhere in the stack (including
-    -- @m@ itself). (@hoist@ is used to implement @hoist'@)
-    hoist' :: (forall b. i b -> i b) -> m a -> m a
-
-
-------------------------------------------------------------------------------
-instance Monad m => MonadLift m m where
-    lift' = id
-
-
-------------------------------------------------------------------------------
 instance MonadLift m m => MonadLiftControl m m where
     liftControl' f = f (liftM return)
 
 
 ------------------------------------------------------------------------------
-instance Monad m => MonadLiftInvariant m m where
-    hoistiso' f _ = f
-
-
-------------------------------------------------------------------------------
-instance MonadLiftInvariant m m => MonadLiftFunctor m m where
-    hoist' f = f
-
-
-------------------------------------------------------------------------------
-instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
-    lift' = lift . lift'
+instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
+  where
+    liftControl' f = f (liftM return) 
 
 
 ------------------------------------------------------------------------------
 instance
     ( MonadTransControl t
     , Monad (t m)
-    , MonadLift m m
     , MonadLift i (t m)
     , MonadLiftControl i m
     )
@@ -703,27 +798,6 @@ instance
   where
     liftControl' f = liftControl $ \run -> liftControl' $ \run' ->
         f $ liftM (\m -> lift (lift' m) >>= uncurry restore) . run' . run
-
-
-------------------------------------------------------------------------------
-instance (MInvariant t, Monad m, MonadLiftInvariant i m) =>
-    MonadLiftInvariant i (t m)
-  where
-    hoistiso' f g = hoistiso (hoistiso' f g) (hoistiso' g f)
-
-
-------------------------------------------------------------------------------
-instance
-    ( MInvariant t
-    , MFunctor t
-    , Monad m
-    , MonadLiftInvariant i (t m)
-    , MonadLiftFunctor i m
-    )
-  =>
-    MonadLiftFunctor i (t m)
-  where
-    hoist' f = hoist (hoist' f)
 
 
 ------------------------------------------------------------------------------
@@ -775,3 +849,133 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- @liftDiscard' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
+#endif
+
+
+------------------------------------------------------------------------------
+-- | The constraint @'MonadLiftInvariant' i m@ holds if it is possible to lift
+-- a monad (auto)morphism of @i@ to a monad (endo)morphism of @m@.
+class Monad i => MonadLiftInvariant i m where
+    -- | 'hoistiso'' represents an invariant (endo)functor in the category
+    -- of monads. It takes a transformation @f@ of an inner monad @i@ and its
+    -- inverse @g@ (such that @g . f = id@) and returns transformation of @m@
+    -- analogous to @f@. (i.e., @hoistiso'@ lifts an automorphism of @i@
+    -- to an endomorphism of @m@).
+    --
+    -- The following laws hold for valid instances of 'MonadLift':
+    --
+    --     [Identity] @hoistiso' id id = id@
+    --
+    --     [Composition]
+    --         @hoistiso' f g . hoistiso' f' g' = hoistiso' (f . f') (g' . g)@
+    --
+    -- The difference between 'hoistiso'' and 'hoistiso' is that
+    -- @hoistiso@ only lifts from the monad directly beneath the top of the
+    -- stack, while @hoistiso'@ can lift from /any/ monad anywhere in the
+    -- stack (including @m@ itself). (@hoistiso@ is used to implement
+    -- @hoistiso'@)
+    hoistiso'
+        :: (forall b. i b -> i b)
+        -> (forall b. i b -> i b)
+        -> m a
+        -> m a
+
+
+------------------------------------------------------------------------------
+instance Monad m => MonadLiftInvariant m m where
+    hoistiso' f _ = f
+
+
+------------------------------------------------------------------------------
+instance (Monad m, Monad (t m)) => MonadLiftInvariant (t m) (t m) where
+    hoistiso' f _ = f
+
+
+------------------------------------------------------------------------------
+instance (MInvariant t, Monad m, MonadLiftInvariant i m) =>
+    MonadLiftInvariant i (t m)
+  where
+    hoistiso' f g = hoistiso (hoistiso' f g) (hoistiso' g f)
+
+
+------------------------------------------------------------------------------
+-- | The constraint @'MonadLiftFunctor' i m@ holds it is possible to lift a
+-- monad (auto)morphism of @i@ to a monad (endo)morphism of @m@.
+-- The 'hoist'' which does this is more powerful than the 'hoistiso''
+-- operation which is of the 'MonadLiftInvariant' type class.
+class MonadLiftInvariant i m => MonadLiftFunctor i m where
+    -- | 'hoist'' represents an (endo)functor in the category of monads. It
+    -- takes a transformation @f@ of an inner monad @i@ returns a
+    -- transformation of @m@ analogous to @f@. (i.e., @hoist@ lifts an
+    -- endomorphism of @i@ to an endomorphism of @m@).
+    --
+    -- The following laws hold for valid instances of 'MonadLiftFunctor':
+    --
+    --     [Identity] @hoist' id = id@
+    --
+    --     [Composition] @hoist' f . hoist' g = hoist' (f . g)@
+    --
+    -- The difference between 'hoist'' and 'hoist' is that @hoist@ only
+    -- lifts from the monad directly beneath the top of the stack, while
+    -- @hoist'@ can lift from /any/ monad anywhere in the stack (including
+    -- @m@ itself). (@hoist@ is used to implement @hoist'@)
+    hoist' :: (forall b. i b -> i b) -> m a -> m a
+
+
+------------------------------------------------------------------------------
+instance MonadLiftInvariant m m => MonadLiftFunctor m m where
+    hoist' f = f
+
+
+------------------------------------------------------------------------------
+instance (Monad m, MonadLiftInvariant (t m) (t m)) =>
+    MonadLiftFunctor (t m) (t m)
+  where
+    hoist' f = f
+
+
+------------------------------------------------------------------------------
+instance
+    ( MInvariant t
+    , MFunctor t
+    , Monad m
+    , MonadLiftInvariant i (t m)
+    , MonadLiftFunctor i m
+    )
+  =>
+    MonadLiftFunctor i (t m)
+  where
+    hoist' f = hoist (hoist' f)
+
+{-
+
+
+
+
+
+
+
+newtype NIO a = NIO {runNIO :: IO a} deriving (Functor, Monad, MonadLift IO, MonadLiftInvariant IO, MonadLiftFunctor IO)
+
+instance MonadLiftControl' IO NIO where
+    peel' = newtypePeel' runNIO
+    restore' = newtypeRestore' NIO
+    suspend' = newtypeSuspend' NIO
+
+newtype NSIO a = NSIO {runNSIO :: IdentityT (StateT Int IO) a} deriving (Functor, Monad, MonadLift (StateT Int IO), MonadLiftInvariant (StateT Int IO), MonadLiftFunctor (StateT Int IO), MonadLift IO, MonadLiftInvariant IO, MonadLiftFunctor IO, MonadLift (IdentityT (StateT Int IO)), MonadLiftInvariant (IdentityT (StateT Int IO)), MonadLiftFunctor (IdentityT (StateT Int IO)))
+
+instance MonadLiftControl' (StateT Int IO) NSIO where
+    peel' = newtypePeel' runNSIO
+    restore' = newtypeRestore' NSIO
+    suspend' = newtypeSuspend' NSIO
+
+instance MonadLiftControl' (IdentityT (StateT Int IO)) NSIO where
+    peel' = newtypePeel' runNSIO
+    restore' = newtypeRestore' NSIO
+    suspend' = newtypeSuspend' NSIO
+
+instance MonadLiftControl' IO NSIO where
+    peel' = newtypePeel' runNSIO
+    restore' = newtypeRestore' NSIO
+    suspend' = newtypeSuspend' NSIO
+-}

@@ -24,7 +24,8 @@ description:
   having to explicitly define how to lift specific interfaces through specific
   transformers. It also provides a more complete set of monad interfaces than
   the @mtl@, which fully solve the problems of exceptions and exception safety
-  (among others).
+  (among others), while maintaining full compatibility with all the monad
+  interfaces from the @mtl@.
   .
   @layers@ improves upon and/or replaces, in part or in whole, the following
   list of packages: @mtl@, @mmtl@, @transformers-base@, @monad-control@,
@@ -76,6 +77,10 @@ Library
 
   if impl(ghc >= 7.4)
     cpp-options: -DLANGUAGE_ConstraintKinds
+
+  if impl(ghc >= 7.7)
+    exposed-modules:
+      Control.Monad.Lift.Unsafe
 
   ghc-options:
     -Wall
