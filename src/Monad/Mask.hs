@@ -104,9 +104,7 @@ class Monad m => MonadMask m where
     setMaskingState :: MaskingState -> m a -> m a
 
     getMaskingState = return MaskedInterruptible
-    {-# INLINE getMaskingState #-}
     setMaskingState = const id
-    {-# INLINE setMaskingState #-}
 
 
 ------------------------------------------------------------------------------
@@ -116,10 +114,8 @@ instance MonadMask Identity
 ------------------------------------------------------------------------------
 instance (MonadMask f, MonadMask g) => MonadMask (Product f g) where
     getMaskingState = Pair getMaskingState getMaskingState
-    {-# INLINE getMaskingState #-}
     setMaskingState s (Pair f g)
         = Pair (setMaskingState s f) (setMaskingState s g)
-    {-# INLINE setMaskingState #-}
 
 
 ------------------------------------------------------------------------------
@@ -153,7 +149,6 @@ instance MonadMask STM
 ------------------------------------------------------------------------------
 instance MonadMask IO where
     getMaskingState = E.getMaskingState
-    {-# INLINE getMaskingState #-}
     setMaskingState Unmasked (IO i) = IO $ unmaskAsyncExceptions# i
     setMaskingState MaskedInterruptible (IO i) = IO $ maskAsyncExceptions# i
     setMaskingState MaskedUninterruptible (IO i) = IO $ maskUninterruptible# i
@@ -214,14 +209,14 @@ mask :: MonadMask m => ((forall a n. MonadMask n => n a -> n a) -> m b) -> m b
 mask f = getMaskingState >>= \s -> case s of
     Unmasked -> setMaskingState MaskedInterruptible (f (setMaskingState s))
     _ -> f id
-{-# INLINE mask #-}
+{-# INLINABLE mask #-}
 
 
 ------------------------------------------------------------------------------
 -- | Like 'mask', but does not pass a @restore@ action to the argument.
 mask_ :: MonadMask m => m a -> m a
 mask_ = mask . const
-{-# INLINE mask_ #-}
+{-# INLINABLE mask_ #-}
 
 
 ------------------------------------------------------------------------------
@@ -239,7 +234,7 @@ uninterruptibleMask :: MonadMask m
 uninterruptibleMask f = getMaskingState >>= \s -> case s of
     MaskedUninterruptible -> f id
     _ -> setMaskingState MaskedUninterruptible (f (setMaskingState s))
-{-# INLINE uninterruptibleMask #-}
+{-# INLINABLE uninterruptibleMask #-}
 
 
 ------------------------------------------------------------------------------
@@ -247,4 +242,4 @@ uninterruptibleMask f = getMaskingState >>= \s -> case s of
 -- argument.
 uninterruptibleMask_ :: MonadMask m => m a -> m a
 uninterruptibleMask_ = uninterruptibleMask . const
-{-# INLINE uninterruptibleMask_ #-}
+{-# INLINABLE uninterruptibleMask_ #-}

@@ -23,7 +23,7 @@ machinery (including re-exports from @transformers@ and @mmorph@). It exports:
     from @transformers@.
 
     2. The 'MonadTransControl' class, its associated types 'LayerState' and
-    'LayerResult', and its operations 'peel', 'suspend', 'restore', 'zero'.
+    'LayerResult', and its operations 'peel', 'suspend', 'restore', 'extract'.
     Also, the convenience operations 'liftControl', 'control', 'liftOp',
     'liftOp_' and 'liftDiscard'. These are inspired by similarly named
     functions from the @monad-control@ package.
@@ -79,12 +79,12 @@ module Control.Monad.Lift
       MonadTrans
     , lift
     , MonadTransControl
-    , LayerState
     , LayerResult
+    , LayerState
     , peel
     , suspend
     , restore
-    , zero
+    , extract
     , liftControl
     , control
     , liftOp
@@ -104,11 +104,12 @@ module Control.Monad.Lift
     , lift'
     , MonadLiftControl
 #if __GLASGOW_HASKELL__ >= 707
-    , LiftState
     , LiftResult
+    , LiftState
     , peel'
     , suspend'
     , restore'
+    , extract'
 #endif
     , liftControl'
     , control'
@@ -129,11 +130,7 @@ import           Control.Arrow (first)
 #if __GLASGOW_HASKELL__ < 704
 import           Control.Arrow ((***))
 #endif
-import           Control.Monad (liftM)
-#if __GLASGOW_HASKELL__ < 707
-import           Control.Monad (join)
-#endif
-import           Data.Maybe (isNothing)
+import           Control.Monad (join, liftM)
 import           Data.Monoid (Monoid, mempty)
 
 
@@ -163,7 +160,7 @@ import           Control.Monad.Morph (MFunctor (hoist), MMonad (embed))
 -- which it is possible to lift control operations. See
 -- "Documentation.Layers.Overview" for a more complete discussion of how it
 -- works.
-class MonadTrans t => MonadTransControl t where
+class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- | The portion of the result of executing a computation of @t@ that is
     -- independent of @m@ and which is not the new 'LayerState'.
 #if __GLASGOW_HASKELL__ >= 704
@@ -180,11 +177,11 @@ class MonadTrans t => MonadTransControl t where
     data LayerState t :: (* -> *) -> *
 #endif
 
-    -- | Given the current \"state\" of the monad transformer @t@, 'peel'
-    -- unwraps the @t@ and returns the result and the new state of @t@.
-    -- 'liftControl', a more often used operation, is defined in terms of
-    -- @peel@ and 'suspend'. See "Documentation.Layers.Overview" for more
-    -- information.
+    -- | Given the current \"state\" of the monad transformer @t@ (given by
+    -- 'suspend'), 'peel' unwraps the @t@ and returns the result and the new
+    -- state of @t@ wrapped in @m@. 'liftControl', a more often used
+    -- operation, is defined in terms of @peel@ and 'suspend'. See
+    -- "Documentation.Layers.Overview" for more information.
     --
     -- Instances should satisfy similar laws as the monad transformer laws:
     --
@@ -197,8 +194,7 @@ class MonadTrans t => MonadTransControl t where
         -> t m a
         -> m (LayerResult t a, LayerState t m)
 
-
-    -- | Construct a @t m@ computation from the monadic state of @m@ that is
+    -- | Reconstruct a @t m@ computation from the monadic state of @m@ that is
     -- returned from the 'peel' operation.
     --
     -- Instances should satisfy the following law:
@@ -211,12 +207,13 @@ class MonadTrans t => MonadTransControl t where
     -- means.
     suspend :: Monad m => t m (LayerState t m)
 
-    -- | 'zero' inspects a @'LayerResult' t a@ value and determines whether or
-    -- not it is a \"zero\" value of the monad transformer @t@ (i.e., if @t@
-    -- had short-circuited when the @LayerResult@ was captured). (This is used
-    -- to implement the universal pass-through instance of
-    -- 'Monad.Try.MonadTry'.)
-    zero :: proxy t -> LayerResult t a -> Bool
+    -- | 'extract' inspects a @'LayerResult' t a@ value and tries to
+    -- \"extract\" an @a@ value from it, if possible. This can be used to
+    -- detect if the monad transformer @t@ short-circuited when the
+    -- @LayerResult@ was captured (if it did, @extract@ returns @Nothing@).
+    -- This trick is used to implement the universal pass-through instance of
+    -- 'Control.Monad.Interface.Try.MonadTry'.
+    extract :: proxy t -> LayerResult t a -> Maybe a
 
 
 ------------------------------------------------------------------------------
@@ -227,14 +224,19 @@ instance Error e => MonadTransControl (ErrorT e) where
     peel _ (ErrorT m) = liftM (\a -> (a, ())) m
     restore a _ = ErrorT $ return a
     suspend = return ()
-    zero _ = either (const True) (const False)
+    extract _ = either (const Nothing) Just
 #else
     newtype LayerResult (ErrorT e) a = ER (Either e a)
     newtype LayerState (ErrorT e) m = ES ()
     peel _ (ErrorT m) = liftM (\a -> (ER a, ES ())) m
     restore (ER a) _ = ErrorT $ return a
     suspend = return (ES ())
-    zero _ (ER e) = either (const True) (const False) e
+    extract _ (ER e) = either (const Nothing) Just e
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (ErrorT e)) where
+    fmap f = \(ER r) -> ER (fmap f r)=
 #endif
 
 
@@ -246,14 +248,19 @@ instance MonadTransControl IdentityT where
     peel _ (IdentityT m) = liftM (\a -> (Identity a, ())) m
     restore (Identity a) _ = IdentityT $ return a
     suspend = return ()
-    zero _ = const False
+    extract _ (Identity a) = Just a
 #else
     newtype LayerResult IdentityT a = IR a
     newtype LayerState IdentityT m = IS ()
     peel _ (IdentityT m) = liftM (\a -> (IR a, IS ())) m
     restore (IR a) _ = IdentityT $ return a
     suspend = return (IS ())
-    zero _ = const False
+    extract _ (IR a) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult IdentityT) where
+    fmap f = \(IR r) -> IR (f r)
 #endif
 
 
@@ -265,14 +272,19 @@ instance MonadTransControl ListT where
     peel _ (ListT m) = liftM (\a -> (a, ())) m
     restore a _ = ListT $ return a
     suspend = return ()
-    zero _ = null
+    extract _ = foldr (const . Just) Nothing
 #else
     newtype LayerResult ListT a = LR [a]
     newtype LayerState ListT m = LS ()
     peel _ (ListT m) = liftM (\a -> (LR a, LS ())) m
     restore (LR a) _ = ListT $ return a
     suspend = return (LS ())
-    zero _ (LR xs) = null xs
+    extract _ (LR xs) = foldr (const . Just) Nothing xs
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult ListT) where
+    fmap f = \(LR r) -> LR (fmap f r)
 #endif
 
 
@@ -284,14 +296,19 @@ instance MonadTransControl MaybeT where
     peel _ (MaybeT m) = liftM (\a -> (a, ())) m
     restore a _ = MaybeT $ return a
     suspend = return ()
-    zero _ = isNothing
+    extract _ = id
 #else
     newtype LayerResult MaybeT a = MR (Maybe a)
     newtype LayerState MaybeT m = MS ()
     peel _ (MaybeT m) = liftM (\a -> (MR a, MS ())) m
     restore (MR a) _ = MaybeT $ return a
     suspend = return (MS ())
-    zero _ (MR a) = isNothing a
+    extract _ (MR a) = a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult MaybeT) where
+    fmap f = \(MR r) -> MR (fmap f r)
 #endif
 
 
@@ -303,14 +320,19 @@ instance MonadTransControl (ReaderT r) where
     peel r (ReaderT m) = liftM (\a -> (Identity a, r)) (m r)
     restore (Identity a) _ = ReaderT $ \_ -> return a
     suspend = ReaderT $ \r -> return r
-    zero _ = const False
+    extract _ (Identity a) = Just a
 #else
     newtype LayerResult (ReaderT r) a = RR a
     newtype LayerState (ReaderT r) m = RS r
     peel (RS r) (ReaderT m) = liftM (\a -> (RR a, RS r)) (m r)
     restore (RR a) _ = ReaderT $ \_ -> return a
     suspend = ReaderT $ \r -> return (RS r)
-    zero _ = const False
+    extract _ (RR a) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (ReaderT r)) where
+    fmap f = \(RR r) -> RR (f r)
 #endif
 
 
@@ -322,14 +344,19 @@ instance MonadTransControl (StateT s) where
     peel s (StateT m) = liftM (first Identity) (m s)
     restore (Identity a) s = StateT $ \_ -> return (a, s)
     suspend = StateT $ \s -> return (s, s)
-    zero _ = const False
+    extract _ (Identity a) = Just a
 #else
     newtype LayerResult (StateT s) a = SR a
     newtype LayerState (StateT s) m = SS s
     peel (SS s) (StateT m) = liftM (SR *** SS) (m s)
     restore (SR a) (SS s) = StateT $ \_ -> return (a, s)
     suspend = StateT $ \s -> return (SS s, s)
-    zero _ = const False
+    extract _ (SR a) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (StateT s)) where
+    fmap f = \(SR r) -> SR (f r)
 #endif
 
 
@@ -341,14 +368,19 @@ instance MonadTransControl (L.StateT s) where
     peel s (L.StateT m) = liftM (first Identity) (m s)
     restore (Identity a) s = L.StateT $ \_ -> return (a, s)
     suspend = L.StateT $ \s -> return (s, s)
-    zero _ = const False
+    extract _ (Identity a) = Just a
 #else
     newtype LayerResult (L.StateT s) a = SR' a
     newtype LayerState (L.StateT s) m = SS' s
     peel (SS' s) (L.StateT m) = liftM (SR' *** SS') (m s)
     restore (SR' a) (SS' s) = L.StateT $ \_ -> return (a, s)
     suspend = L.StateT $ \s -> return (SS' s, s)
-    zero _ = const False
+    extract _ (SR' a) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (L.StateT s)) where
+    fmap f = \(SR' r) -> SR' (f r)
 #endif
 
 
@@ -360,7 +392,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     peel (r, s) (RWST m) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     restore (w, a) (_, s) = RWST $ \_ _ -> return (a, s, w)
     suspend = RWST $ \r s -> return ((r, s), s, mempty)
-    zero _ = const False
+    extract _ (_, a) = Just a
 #else
     newtype LayerResult (RWST r w s) a = RWSR (a, w)
     newtype LayerState (RWST r w s) m = RWSS (r, s)
@@ -368,7 +400,11 @@ instance Monoid w => MonadTransControl (RWST r w s) where
         liftM (\(a, s', w) -> (RWSR (a, w), RWSS (r, s'))) (m r s)
     restore (RWSR (a, w)) (RWSS (_, s)) = RWST $ \_ _ -> return (a, s, w)
     suspend = RWST $ \r s -> return (RWSS (r, s), s, mempty)
-    zero _ = const False
+    extract _ (RWSR (a, w)) = Just a
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (RWST r w s)) where
+    fmap f = \(RWSR (a, w)) -> RWSR (f a, w)
 #endif
 
 
@@ -380,7 +416,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
     peel (r, s) (L.RWST m) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     restore (w, a) (_, s) = L.RWST $ \_ _ -> return (a, s, w)
     suspend = L.RWST $ \r s -> return ((r, s), s, mempty)
-    zero _ = const False
+    extract _ (_, a) = Just a
 #else
     newtype LayerResult (L.RWST r w s) a = RWSR' (a, w)
     newtype LayerState (L.RWST r w s) m = RWSS' (r, s)
@@ -388,7 +424,12 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
         liftM (\(a, s', w) -> (RWSR' (a, w), RWSS' (r, s'))) (m r s)
     restore (RWSR' (a, w)) (RWSS' (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     suspend = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
-    zero _ = const False
+    extract _ (RWSR' (a, w)) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (L.RWST r w s)) where
+    fmap f = \(RWSR' (a, w)) -> RWSR' (f a, w)
 #endif
 
 
@@ -400,14 +441,19 @@ instance Monoid w => MonadTransControl (WriterT w) where
     peel _ (WriterT m) = liftM (\(a, w) -> ((w, a), ())) m
     restore (w, a) _ = WriterT $ return (a, w)
     suspend = return ()
-    zero _ = const False
+    extract _ (_, a) = Just a
 #else
     newtype LayerResult (WriterT w) a = WR (a, w)
     newtype LayerState (WriterT w) m = WS ()
     peel _ (WriterT m) = liftM (\a -> (WR a, WS ())) m
     restore (WR a) _ = WriterT $ return a
     suspend = return (WS ())
-    zero _ = const False
+    extract _ (WR (a, _)) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (WriterT w)) where
+    fmap f = \(WR (a, w)) -> WR (f a, w)
 #endif
 
 
@@ -419,14 +465,19 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
     peel _ (L.WriterT m) = liftM (\(a, w) -> ((w, a), ())) m
     restore (w, a) _ = L.WriterT $ return (a, w)
     suspend = return ()
-    zero _ = const False
+    extract _ (_, a) = Just a
 #else
     newtype LayerResult (L.WriterT w) a = WR' (a, w)
     newtype LayerState (L.WriterT w) m = WS' ()
     peel _ (L.WriterT m) = liftM (\a -> (WR' a, WS' ())) m
     restore (WR' a) _ = L.WriterT $ return a
     suspend = return (WS' ())
-    zero _ = const False
+    extract _ (WR' (a, _)) = Just a
+
+
+------------------------------------------------------------------------------
+instance Functor (LayerResult (L.WriterT w)) where
+    fmap f = \(WR' (a, w)) -> WR' (f a, w)
 #endif
 
 
@@ -629,22 +680,60 @@ instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
 -- | 'MonadLiftControl' represents the class of monad lifts that support
 -- lifting control operations. See "Documentation.Layers.Overview" for a more
 -- complete discussion.
-class MonadLift i m => MonadLiftControl i m where
+class (MonadLift i m, Functor (LiftResult i m)) => MonadLiftControl i m where
+    -- | Given the current \"state\" of the monad @m@ relative to @i@ (given
+    -- by 'suspend''), 'peel'' unwraps the @m@ and returns the result and the
+    -- new state of @m@ (relative to @i@) wrapped in @i@. 'liftControl'', a
+    -- more often used operation, is defined in terms of @peel'@ and
+    -- @suspend'@. See "Documentation.Layers.Overview" for more information.
+    --
+    -- Instances should satisfy similar laws as the monad transformer laws:
+    --
+    -- [Identity] @liftControl' . const . return = return@
+    --
+    -- [Composition]
+    --     @liftControl' (const m) >>=
+    --         liftControl' . const . f@ = @liftControl' (const (m >>= f))@
     peel' :: LiftState i m -> m a -> i (LiftResult i m a, LiftState i m)
+
+    -- | Reconstruct an @m@ computation from the monadic state of @m@
+    -- (realtive to @i@) that is returned from the 'peel\'' operation.
+    --
+    -- Instances should satisfy the following law:
+    --
+    -- [Preservation]
+    --     @liftControl' (\\run -> run t) >>=
+    --         uncurry (restore' (Proxy :: Proxy i)) = t@
     restore' :: proxy i -> LiftResult i m a -> LiftState i m -> m a
+
+    -- | Captures the current \"state\" of the monad @m@ relative to @i@. See
+    -- the explanation in "Documentation.Layers.Overview" for what this
+    -- actually means.
     suspend' :: proxy i -> m (LiftState i m)
 
+    -- | 'extract' inspects a @'LiftResult' i m a@ value and tries to
+    -- \"extract\" an @a@ value from it, if possible. This can be used to
+    -- detect if any of the layers betweem @i@ and @m@ short-circuited when
+    -- the @LiftResult@ was captured (if it did, @extract'@ returns
+    -- @Nothing@).
+    extract' :: proxy i -> proxy m -> LiftResult i m a -> Maybe a
+
 
 ------------------------------------------------------------------------------
-type family LiftState (i :: * -> *) (m :: * -> *) :: * where
-    LiftState m m = ()
-    LiftState i (t m) = (LayerState t m, LiftState i m)
-
-
-------------------------------------------------------------------------------
+-- | The portion of the result of executing a computation of @m@ relative to
+-- @i@ that is independent of @m@ (and all layers down to @i@) and which is
+-- not the new 'LiftState'.
 type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> * where
     LiftResult m m = Identity
     LiftResult i (t m) = ComposeResult i t m
+
+
+------------------------------------------------------------------------------
+-- | The \"state\" needed to 'peel' a computation of @m@ back to @i@. Running
+-- a peeled computation returns a 'LiftResult' and an updated 'LiftState'.
+type family LiftState (i :: * -> *) (m :: * -> *) :: * where
+    LiftState m m = ()
+    LiftState i (t m) = (LayerState t m, LiftState i m)
 
 
 ------------------------------------------------------------------------------
@@ -653,10 +742,19 @@ newtype ComposeResult i t m a
 
 
 ------------------------------------------------------------------------------
+instance (Functor (LiftResult i m), Functor (LayerResult t)) =>
+    Functor (ComposeResult i t m)
+  where
+    fmap f (ComposeResult r) = ComposeResult $
+        fmap (\(r', s) -> (fmap f r', s)) r
+
+
+------------------------------------------------------------------------------
 instance MonadLift m m => MonadLiftControl m m where
     peel' _ = liftM (\a -> (Identity a, ()))
     restore' _ (Identity a) _ = return a
     suspend' _ = return ()
+    extract' _ _ (Identity a) = Just a
 
 
 ------------------------------------------------------------------------------
@@ -665,6 +763,7 @@ instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
     peel' _ = liftM (\a -> (Identity a, ()))
     restore' _ (Identity a) _ = return a
     suspend' _ = return ()
+    extract' _ _ (Identity a) = Just a
 
 
 ------------------------------------------------------------------------------
@@ -685,6 +784,13 @@ instance
     restore' p (ComposeResult lir) (_, lis) =
         lift (restore' p lir lis) >>= uncurry restore
     suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b -> return (a, b)
+    extract' (_ :: proxy i) (_ :: proxy (t m)) (ComposeResult r) =
+        join $ extract' (P :: P i) (P :: P m) $
+            (fmap (\(r', _) -> extract (P' :: P' t) r') r)
+
+
+------------------------------------------------------------------------------
+data P' (p :: (* -> *) -> * -> *) = P'
 
 
 ------------------------------------------------------------------------------
@@ -707,53 +813,19 @@ control' f = liftControl' f >>= uncurry (restore' (P :: P i))
 
 
 ------------------------------------------------------------------------------
--- | @liftOp'@ is a particular application of 'liftControl'' that allows
--- lifting control operations of type: @(a -> i b) -> i b@ to
--- @'MonadLiftControl' i m => (a -> m b) -> m b@.
---
--- For example:
---
--- @liftOp' . withMVar :: 'MonadLiftControl' 'IO' m => MVar a -> (a -> m b) -> m b@
 liftOp' :: MonadLiftControl i m =>
      ((a -> i (LiftResult i m b, LiftState i m))
       -> i (LiftResult i m c, LiftState i m))
      -> (a -> m b)
      -> m c
-liftOp' f = \g -> control' $ \run -> f $ run . g
 
 
 ------------------------------------------------------------------------------
--- | @liftOp_'@ is a particular application of 'liftControl'' that allows
--- lifting control operations of type: @i a -> i b@ to
--- @'MonadLiftControl' i m => m a -> m b@.
---
--- For example:
---
--- @liftOp_' mask_ :: 'MonadLiftControl' 'IO' m => m a -> m a@
 liftOp_' :: MonadLiftControl i m
     => (i (LiftResult i m a, LiftState i m)
         -> i (LiftResult i m b, LiftState i m))
      -> m a
      -> m b
-liftOp_' f = \m -> control' $ \run -> f $ run m
-
-
-------------------------------------------------------------------------------
--- | @liftDiscard'@ is a particular application of 'liftControl'' that allows
--- lifting control operations of type: @i () -> i a@ to
--- @'MonadLiftControl' i m => m () -> m a@.
---
--- Note that, while the argument computation @m ()@ has access to the captured
--- state, all its side-effects in @m@ are discarded. It is run only for its
--- side-effects in the inner monad @i@.
---
--- For example:
---
--- @liftDiscard' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
-liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
-liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
-
-
 #else
 ------------------------------------------------------------------------------
 -- | 'MonadLiftControl' represents the class of monad lifts that support
@@ -770,7 +842,8 @@ class MonadLift i m => MonadLiftControl i m where
     -- [Identity] @liftControl' . const . return = return@
     --
     -- [Composition]
-    --     @liftControl' (const m) >>= liftControl' . const . f@ = @liftControl' (const (m >>= f))@
+    --     @liftControl' (const m) >>= liftControl' . const . f@ =
+    --         @liftControl' (const (m >>= f))@
     --
     -- [Preservation] @join (liftControl' (\\run -> run t)) = t@
     liftControl' :: ((forall b. m b -> i (m b)) -> i a) -> m a
@@ -784,7 +857,7 @@ instance MonadLift m m => MonadLiftControl m m where
 ------------------------------------------------------------------------------
 instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
   where
-    liftControl' f = f (liftM return) 
+    liftControl' f = f (liftM return)
 
 
 ------------------------------------------------------------------------------
@@ -810,17 +883,26 @@ control' = join . liftControl'
 
 
 ------------------------------------------------------------------------------
+liftOp' :: MonadLiftControl i m
+    => ((a -> i (m b)) -> i (m c))
+    -> (a -> m b)
+    -> m c
+
+
+------------------------------------------------------------------------------
+liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
+#endif
+
+
+------------------------------------------------------------------------------
 -- | @liftOp'@ is a particular application of 'liftControl'' that allows
 -- lifting control operations of type: @(a -> i b) -> i b@ to
 -- @'MonadLiftControl' i m => (a -> m b) -> m b@.
 --
 -- For example:
 --
--- @liftOp' . withMVar :: 'MonadLiftControl' 'IO' m => MVar a -> (a -> m b) -> m b@
-liftOp' :: MonadLiftControl i m
-    => ((a -> i (m b)) -> i (m c))
-    -> (a -> m b)
-    -> m c
+-- @liftOp' . withMVar :: 'MonadLiftControl' 'IO' m =>
+--     MVar a -> (a -> m b) -> m b@
 liftOp' f = \g -> control' $ \run -> f $ run . g
 
 
@@ -832,7 +914,6 @@ liftOp' f = \g -> control' $ \run -> f $ run . g
 -- For example:
 --
 -- @liftOp_' mask_ :: 'MonadLiftControl' 'IO' m => m a -> m a@
-liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
 liftOp_' f = \m -> control' $ \run -> f $ run m
 
 
@@ -850,7 +931,6 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- @liftDiscard' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
-#endif
 
 
 ------------------------------------------------------------------------------

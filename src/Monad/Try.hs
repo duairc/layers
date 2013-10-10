@@ -58,7 +58,7 @@ import           Data.Functor.Product (Product (Pair))
 import           Monad.Mask (MonadMask, mask)
 import           Control.Monad.Lift
                      ( MonadTransControl
-                     , zero
+                     , extract
                      , lift
                      , peel
                      , restore
@@ -93,7 +93,6 @@ class MonadMask m => MonadTry m where
     -- computation @m@.
     mtry :: m a -> m (Either (m a) a)
     mtry = liftM Right
-    {-# INLINE mtry #-}
 
 
 ------------------------------------------------------------------------------
@@ -110,20 +109,17 @@ instance (MonadTry f, MonadTry g) => MonadTry (Product f g) where
 ------------------------------------------------------------------------------
 instance MonadTry Maybe where
     mtry = return . maybe (Left Nothing) Right
-    {-# INLINE mtry #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadTry (Either e) where
     mtry = return . either (Left . Left) Right
-    {-# INLINE mtry #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadTry [] where
     mtry [] = [Left []]
     mtry (x:_) = [Right x]
-    {-# INLINE mtry #-}
 
 
 ------------------------------------------------------------------------------
@@ -136,7 +132,6 @@ instance MonadTry IO where
       where
         try' :: IO a -> IO (Either SomeException a)
         try' = try
-    {-# INLINE mtry #-}
 
 
 ------------------------------------------------------------------------------
@@ -153,7 +148,6 @@ instance MonadTry STM where
       where
         try' :: STM a -> STM (Either SomeException a)
         try' m' = catchSTM (liftM Right m') (return . Left)
-    {-# INLINE mtry #-}
 
 
 ------------------------------------------------------------------------------
@@ -168,9 +162,9 @@ instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
         ma <- lift . mtry $ peel state m
         case ma of
             Left m' -> return . Left $ lift m' >>= uncurry restore
-            Right (result, state') -> if zero (P :: P t) result
-                then return . Left $ restore result state'
-                else liftM Right $ restore result state'
+            Right (result, state') -> case extract (P :: P t) result of
+                Nothing ->  return . Left $ restore result state'
+                Just _ -> liftM Right $ restore result state'
     {-# INLINE mtry #-}
 
 
@@ -202,7 +196,7 @@ bracket :: MonadTry m
 bracket acquire release run = mask $ \unmask -> do
     a <- acquire
     unmask (run a) `finally` release a
-{-# INLINE bracket #-}
+{-# INLINABLE bracket #-}
 
 
 ------------------------------------------------------------------------------
@@ -210,7 +204,7 @@ bracket acquire release run = mask $ \unmask -> do
 -- is not required.
 bracket_ :: MonadTry m => m a -> m b -> m c -> m c
 bracket_ acquire release run = bracket acquire (const release) (const run)
-{-# INLINE bracket_ #-}
+{-# INLINABLE bracket_ #-}
 
 
 ------------------------------------------------------------------------------
@@ -220,7 +214,7 @@ bracketOnError :: MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c
 bracketOnError acquire release run = mask $ \unmask -> do
     a <- acquire
     unmask (run a) `onException` release a
-{-# INLINE bracketOnError #-}
+{-# INLINABLE bracketOnError #-}
 
 
 ------------------------------------------------------------------------------
@@ -231,7 +225,7 @@ finally m sequel = mask $ \unmask -> do
     r <- unmask m `onException` sequel
     _ <- sequel
     return r
-{-# INLINE finally #-}
+{-# INLINABLE finally #-}
 
 
 ------------------------------------------------------------------------------
@@ -240,4 +234,4 @@ finally m sequel = mask $ \unmask -> do
 onException :: MonadTry m => m a -> m b -> m a
 onException m sequel = mask $ \unmask -> do
     mtry (unmask m) >>= either (sequel >>) return
-{-# INLINE onException #-}
+{-# INLINABLE onException #-}

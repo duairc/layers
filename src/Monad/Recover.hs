@@ -74,31 +74,26 @@ class MonadAbort e m => MonadRecover e m | m -> e where
 ------------------------------------------------------------------------------
 instance MonadRecover e (Either e) where
     recover m h = either h Right m
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadRecover () ([]) where
     recover m h = mplus m (h ())
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadRecover () Maybe where
     recover m h = mplus m (h ())
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadRecover SomeException IO where
     recover = catch
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadRecover SomeException STM where
     recover = catchSTM
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
@@ -106,19 +101,17 @@ instance (Error e, Monad m) => MonadRecover e (ErrorT e m) where
     recover (ErrorT m) h = ErrorT $ m >>= either
         (\e -> let ErrorT m' = h e in m')
         (return . Right)
-    {-# INLINE recover #-}
+    {-# INLINABLE recover #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadRecover () (ListT m) where
     recover m h = mplus m (h ())
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadRecover () (MaybeT m) where
     recover m h = mplus m (h ())
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
@@ -127,7 +120,6 @@ instance (MonadRecover e f, MonadRecover e g) => MonadRecover e (Product f g)
     recover (Pair f g) h = Pair
         (recover f (\e -> let Pair f' _ = h e in f'))
         (recover g (\e -> let Pair _ g' = h e in g'))
-    {-# INLINE recover #-}
 
 
 ------------------------------------------------------------------------------
