@@ -23,7 +23,7 @@ machinery (including re-exports from @transformers@ and @mmorph@). It exports:
     from @transformers@.
 
     2. The 'MonadTransControl' class, its associated types 'LayerState' and
-    'LayerResult', and its operations 'peel', 'suspend', 'restore', 'extract'.
+    'LayerResult', and its operations 'peel', 'suspend', 'restore', 'zero'.
     Also, the convenience operations 'liftControl', 'control', 'liftOp',
     'liftOp_' and 'liftDiscard'. These are inspired by similarly named
     functions from the @monad-control@ package.
@@ -84,7 +84,7 @@ module Control.Monad.Lift
     , peel
     , suspend
     , restore
-    , extract
+    , zero
     , liftControl
     , control
     , liftOp
@@ -133,6 +133,7 @@ import           Control.Monad (liftM)
 #if __GLASGOW_HASKELL__ < 707
 import           Control.Monad (join)
 #endif
+import           Data.Maybe (isNothing)
 import           Data.Monoid (Monoid, mempty)
 
 
@@ -210,12 +211,12 @@ class MonadTrans t => MonadTransControl t where
     -- means.
     suspend :: Monad m => t m (LayerState t m)
 
-    -- | 'extract' inspects a @'LayerResult' t a@ value and tries to
-    -- \"extract\" an @a@ value from it, if possible. This can be used to
-    -- detect if the monad transformer @t@ has \"short-circuited\". This trick
-    -- is used to implement the universal pass-through instance of
-    -- 'Control.Monad.Interface.Try.MonadTry'.
-    extract :: proxy t -> LayerResult t a -> Maybe a
+    -- | 'zero' inspects a @'LayerResult' t a@ value and determines whether or
+    -- not it is a \"zero\" value of the monad transformer @t@ (i.e., if @t@
+    -- had short-circuited when the @LayerResult@ was captured). (This is used
+    -- to implement the universal pass-through instance of
+    -- 'Monad.Try.MonadTry'.)
+    zero :: proxy t -> LayerResult t a -> Bool
 
 
 ------------------------------------------------------------------------------
@@ -226,14 +227,14 @@ instance Error e => MonadTransControl (ErrorT e) where
     peel _ (ErrorT m) = liftM (\a -> (a, ())) m
     restore a _ = ErrorT $ return a
     suspend = return ()
-    extract _ = either (const Nothing) Just
+    zero _ = either (const True) (const False)
 #else
     newtype LayerResult (ErrorT e) a = ER (Either e a)
     newtype LayerState (ErrorT e) m = ES ()
     peel _ (ErrorT m) = liftM (\a -> (ER a, ES ())) m
     restore (ER a) _ = ErrorT $ return a
     suspend = return (ES ())
-    extract _ (ER e) = either (const Nothing) Just e
+    zero _ (ER e) = either (const True) (const False) e
 #endif
 
 
@@ -245,14 +246,14 @@ instance MonadTransControl IdentityT where
     peel _ (IdentityT m) = liftM (\a -> (Identity a, ())) m
     restore (Identity a) _ = IdentityT $ return a
     suspend = return ()
-    extract _ (Identity a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult IdentityT a = IR a
     newtype LayerState IdentityT m = IS ()
     peel _ (IdentityT m) = liftM (\a -> (IR a, IS ())) m
     restore (IR a) _ = IdentityT $ return a
     suspend = return (IS ())
-    extract _ (IR a) = Just a
+    zero _ = const False
 #endif
 
 
@@ -264,14 +265,14 @@ instance MonadTransControl ListT where
     peel _ (ListT m) = liftM (\a -> (a, ())) m
     restore a _ = ListT $ return a
     suspend = return ()
-    extract _ = foldr (const . Just) Nothing
+    zero _ = null
 #else
     newtype LayerResult ListT a = LR [a]
     newtype LayerState ListT m = LS ()
     peel _ (ListT m) = liftM (\a -> (LR a, LS ())) m
     restore (LR a) _ = ListT $ return a
     suspend = return (LS ())
-    extract _ (LR xs) = foldr (const . Just) Nothing xs
+    zero _ (LR xs) = null xs
 #endif
 
 
@@ -283,14 +284,14 @@ instance MonadTransControl MaybeT where
     peel _ (MaybeT m) = liftM (\a -> (a, ())) m
     restore a _ = MaybeT $ return a
     suspend = return ()
-    extract _ = id
+    zero _ = isNothing
 #else
     newtype LayerResult MaybeT a = MR (Maybe a)
     newtype LayerState MaybeT m = MS ()
     peel _ (MaybeT m) = liftM (\a -> (MR a, MS ())) m
     restore (MR a) _ = MaybeT $ return a
     suspend = return (MS ())
-    extract _ (MR a) = a
+    zero _ (MR a) = isNothing a
 #endif
 
 
@@ -302,14 +303,14 @@ instance MonadTransControl (ReaderT r) where
     peel r (ReaderT m) = liftM (\a -> (Identity a, r)) (m r)
     restore (Identity a) _ = ReaderT $ \_ -> return a
     suspend = ReaderT $ \r -> return r
-    extract _ (Identity a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (ReaderT r) a = RR a
     newtype LayerState (ReaderT r) m = RS r
     peel (RS r) (ReaderT m) = liftM (\a -> (RR a, RS r)) (m r)
     restore (RR a) _ = ReaderT $ \_ -> return a
     suspend = ReaderT $ \r -> return (RS r)
-    extract _ (RR a) = Just a
+    zero _ = const False
 #endif
 
 
@@ -321,14 +322,14 @@ instance MonadTransControl (StateT s) where
     peel s (StateT m) = liftM (first Identity) (m s)
     restore (Identity a) s = StateT $ \_ -> return (a, s)
     suspend = StateT $ \s -> return (s, s)
-    extract _ (Identity a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (StateT s) a = SR a
     newtype LayerState (StateT s) m = SS s
     peel (SS s) (StateT m) = liftM (SR *** SS) (m s)
     restore (SR a) (SS s) = StateT $ \_ -> return (a, s)
     suspend = StateT $ \s -> return (SS s, s)
-    extract _ (SR a) = Just a
+    zero _ = const False
 #endif
 
 
@@ -340,14 +341,14 @@ instance MonadTransControl (L.StateT s) where
     peel s (L.StateT m) = liftM (first Identity) (m s)
     restore (Identity a) s = L.StateT $ \_ -> return (a, s)
     suspend = L.StateT $ \s -> return (s, s)
-    extract _ (Identity a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (L.StateT s) a = SR' a
     newtype LayerState (L.StateT s) m = SS' s
     peel (SS' s) (L.StateT m) = liftM (SR' *** SS') (m s)
     restore (SR' a) (SS' s) = L.StateT $ \_ -> return (a, s)
     suspend = L.StateT $ \s -> return (SS' s, s)
-    extract _ (SR' a) = Just a
+    zero _ = const False
 #endif
 
 
@@ -359,7 +360,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     peel (r, s) (RWST m) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     restore (w, a) (_, s) = RWST $ \_ _ -> return (a, s, w)
     suspend = RWST $ \r s -> return ((r, s), s, mempty)
-    extract _ (_, a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (RWST r w s) a = RWSR (a, w)
     newtype LayerState (RWST r w s) m = RWSS (r, s)
@@ -367,7 +368,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
         liftM (\(a, s', w) -> (RWSR (a, w), RWSS (r, s'))) (m r s)
     restore (RWSR (a, w)) (RWSS (_, s)) = RWST $ \_ _ -> return (a, s, w)
     suspend = RWST $ \r s -> return (RWSS (r, s), s, mempty)
-    extract _ (RWSR (a, w)) = Just a
+    zero _ = const False
 #endif
 
 
@@ -379,7 +380,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
     peel (r, s) (L.RWST m) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     restore (w, a) (_, s) = L.RWST $ \_ _ -> return (a, s, w)
     suspend = L.RWST $ \r s -> return ((r, s), s, mempty)
-    extract _ (_, a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (L.RWST r w s) a = RWSR' (a, w)
     newtype LayerState (L.RWST r w s) m = RWSS' (r, s)
@@ -387,7 +388,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
         liftM (\(a, s', w) -> (RWSR' (a, w), RWSS' (r, s'))) (m r s)
     restore (RWSR' (a, w)) (RWSS' (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     suspend = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
-    extract _ (RWSR' (a, w)) = Just a
+    zero _ = const False
 #endif
 
 
@@ -399,14 +400,14 @@ instance Monoid w => MonadTransControl (WriterT w) where
     peel _ (WriterT m) = liftM (\(a, w) -> ((w, a), ())) m
     restore (w, a) _ = WriterT $ return (a, w)
     suspend = return ()
-    extract _ (_, a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (WriterT w) a = WR (a, w)
     newtype LayerState (WriterT w) m = WS ()
     peel _ (WriterT m) = liftM (\a -> (WR a, WS ())) m
     restore (WR a) _ = WriterT $ return a
     suspend = return (WS ())
-    extract _ (WR (a, _)) = Just a
+    zero _ = const False
 #endif
 
 
@@ -418,14 +419,14 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
     peel _ (L.WriterT m) = liftM (\(a, w) -> ((w, a), ())) m
     restore (w, a) _ = L.WriterT $ return (a, w)
     suspend = return ()
-    extract _ (_, a) = Just a
+    zero _ = const False
 #else
     newtype LayerResult (L.WriterT w) a = WR' (a, w)
     newtype LayerState (L.WriterT w) m = WS' ()
     peel _ (L.WriterT m) = liftM (\a -> (WR' a, WS' ())) m
     restore (WR' a) _ = L.WriterT $ return a
     suspend = return (WS' ())
-    extract _ (WR' (a, _)) = Just a
+    zero _ = const False
 #endif
 
 

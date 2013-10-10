@@ -58,7 +58,7 @@ import           Data.Functor.Product (Product (Pair))
 import           Monad.Mask (MonadMask, mask)
 import           Control.Monad.Lift
                      ( MonadTransControl
-                     , extract
+                     , zero
                      , lift
                      , peel
                      , restore
@@ -168,9 +168,9 @@ instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
         ma <- lift . mtry $ peel state m
         case ma of
             Left m' -> return . Left $ lift m' >>= uncurry restore
-            Right (result, state') -> case extract (P :: P t) result of
-                Nothing -> return . Left $ restore result state'
-                Just _ -> liftM Right $ restore result state'
+            Right (result, state') -> if zero (P :: P t) result
+                then return . Left $ restore result state'
+                else liftM Right $ restore result state'
     {-# INLINE mtry #-}
 
 
