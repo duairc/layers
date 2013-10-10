@@ -947,36 +947,3 @@ instance
     MonadLiftFunctor i (t m)
   where
     hoist' f = hoist (hoist' f)
-
-{-
-
-
-
-
-
-
-
-newtype NIO a = NIO {runNIO :: IO a} deriving (Functor, Monad, MonadLift IO, MonadLiftInvariant IO, MonadLiftFunctor IO)
-
-instance MonadLiftControl' IO NIO where
-    peel' = newtypePeel' runNIO
-    restore' = newtypeRestore' NIO
-    suspend' = newtypeSuspend' NIO
-
-newtype NSIO a = NSIO {runNSIO :: IdentityT (StateT Int IO) a} deriving (Functor, Monad, MonadLift (StateT Int IO), MonadLiftInvariant (StateT Int IO), MonadLiftFunctor (StateT Int IO), MonadLift IO, MonadLiftInvariant IO, MonadLiftFunctor IO, MonadLift (IdentityT (StateT Int IO)), MonadLiftInvariant (IdentityT (StateT Int IO)), MonadLiftFunctor (IdentityT (StateT Int IO)))
-
-instance MonadLiftControl' (StateT Int IO) NSIO where
-    peel' = newtypePeel' runNSIO
-    restore' = newtypeRestore' NSIO
-    suspend' = newtypeSuspend' NSIO
-
-instance MonadLiftControl' (IdentityT (StateT Int IO)) NSIO where
-    peel' = newtypePeel' runNSIO
-    restore' = newtypeRestore' NSIO
-    suspend' = newtypeSuspend' NSIO
-
-instance MonadLiftControl' IO NSIO where
-    peel' = newtypePeel' runNSIO
-    restore' = newtypeRestore' NSIO
-    suspend' = newtypeSuspend' NSIO
--}
