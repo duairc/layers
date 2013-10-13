@@ -161,10 +161,10 @@ instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
         state <- suspend
         ma <- lift . mtry $ peel state m
         case ma of
-            Left m' -> return . Left $ lift m' >>= uncurry restore
+            Left m' -> return . Left $ lift m' >>= restore
             Right (result, state') -> case extract (P :: P t) result of
-                Nothing ->  return . Left $ restore result state'
-                Just _ -> liftM Right $ restore result state'
+                Nothing ->  return . Left $ restore (result, state')
+                Just _ -> liftM Right $ restore (result, state')
     {-# INLINE mtry #-}
 
 

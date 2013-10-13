@@ -19,6 +19,7 @@ import           Unsafe.Coerce (unsafeCoerce)
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
                      ( MonadLiftControl
+                     , Lift
                      , LiftResult
                      , LiftState
                      , peel'
@@ -33,7 +34,7 @@ defaultPeel' :: MonadLiftControl i m
     => (forall b. n b -> m b)
     -> LiftState i n
     -> n a
-    -> i (LiftResult i n a, LiftState i n)
+    -> i (Lift i n a)
 defaultPeel' un s m = liftM (unsafeCoerce *** unsafeCoerce) $
     peel' (unsafeCoerce s) (un m)
 
@@ -42,10 +43,9 @@ defaultPeel' un s m = liftM (unsafeCoerce *** unsafeCoerce) $
 defaultRestore' :: MonadLiftControl i m
     => (forall b. m b -> n b)
     -> proxy i
-    -> LiftResult i n a
-    -> LiftState i n
+    -> Lift i n a
     -> n a
-defaultRestore' nu p r s = nu (restore' p (unsafeCoerce r) (unsafeCoerce s))
+defaultRestore' nu p (r, s) = nu (restore' p (unsafeCoerce r, unsafeCoerce s))
 
 
 ------------------------------------------------------------------------------
