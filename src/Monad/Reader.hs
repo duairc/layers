@@ -90,7 +90,7 @@ instance Monad m => MonadReader r (ReaderT r m) where
 instance (Monad m, Monoid w) => MonadReader r (L.RWST r w s m) where
     reader f = L.RWST $ \r s -> return (f r, s, mempty)
     ask = L.RWST $ \r s -> return (r, s, mempty)
-    local f (L.RWST m) = L.RWST $ \r s -> m (f r)
+    local f (L.RWST m) = L.RWST $ \r s -> m (f r) s
 
 
 ------------------------------------------------------------------------------

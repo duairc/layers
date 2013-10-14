@@ -149,12 +149,11 @@ instance MonadTry (L.ST s)
 
 ------------------------------------------------------------------------------
 instance MonadTry STM where
-#if MIN_VERSION_base(4, 3, 0)
     mtry m = try' m >>= return . either (Left . throwSTM) Right
-#else
-    mtry m = try' m >>= return . either (Left . unsafeIOToSTM . throwIO) Right
-#endif
       where
+#if !MIN_VERSION_base(4, 3, 0)
+        throwSTM = unsafeIOToSTM . throwIO
+#endif
         try' :: STM a -> STM (Either SomeException a)
         try' m' = catchSTM (liftM Right m') (return . Left)
 

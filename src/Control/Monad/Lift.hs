@@ -255,6 +255,10 @@ import           Control.Monad.Morph (MFunctor (hoist), MMonad (embed))
 class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- | The portion of the result of executing a computation of @t@ that is
     -- independent of @m@ and which is not the new 'LayerState'.
+    --
+    -- Note: On versions of GHC prior to 7.4, 'LayerResult' is an associated
+    -- /data/ type instead of a type synonym due to GHC bug
+    -- <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>.
 #if __GLASGOW_HASKELL__ >= 704
     type LayerResult t :: * -> *
 #else
@@ -263,6 +267,10 @@ class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
 
     -- | The \"state\" needed to 'peel' a computation of @t@. Running a peeled
     -- computation returns a 'LayerResult' and an updated 'LayerState'.
+    --
+    -- Note: On versions of GHC prior to 7.4, 'LayerState' is an associated
+    -- /data/ type instead of a type synonym due to GHC bug
+    -- <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>.
 #if __GLASGOW_HASKELL__ >= 704
     type LayerState t (m :: * -> *) :: *
 #else
@@ -587,11 +595,7 @@ liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m a)
     -> t m a
 liftControl f = suspend >>= \s -> lift $ f (peel s)
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftControl #-}
-#else
-{-# INLINE liftControl #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -601,11 +605,7 @@ control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m (Layer t m a))
     -> t m a
 control f = liftControl f >>= restore
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE control #-}
-#else
-{-# INLINE control #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -620,11 +620,7 @@ liftOp :: (MonadTransControl t, Monad (t m), Monad m)
     -> (a -> t m b)
     -> t m c
 liftOp f = \g -> control (\run -> f $ run . g)
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftOp #-}
-#else
-{-# INLINE liftOp #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -639,11 +635,7 @@ liftOp_ :: (MonadTransControl t, Monad (t m), Monad m)
     -> t m a
     -> t m b
 liftOp_ f = \m -> control (\run -> f $ run m)
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftOp_ #-}
-#else
-{-# INLINE liftOp_ #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -662,11 +654,7 @@ liftDiscard :: (MonadTransControl t, Monad (t m), Monad m)
     -> t m ()
     -> t m a
 liftDiscard f m = liftControl $ \run -> f $ liftM (const ()) $ run m
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftDiscard #-}
-#else
-{-# INLINE liftDiscard #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -1019,11 +1007,7 @@ control' :: MonadLiftControl i m
     => ((forall b. m b -> i (m b)) -> i (m a))
    -> m a
 control' = join . liftControl'
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE control' #-}
-#else
-{-# INLINE control' #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -1047,11 +1031,7 @@ liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
 --
 -- @'liftOp'' . withMVar :: 'MonadLiftControl' 'IO' m => MVar a -> (a -> m b) -> m b@
 liftOp' f = \g -> control' $ \run -> f $ run . g
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftOp' #-}
-#else
-{-# INLINE liftOp' #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -1063,11 +1043,7 @@ liftOp' f = \g -> control' $ \run -> f $ run . g
 --
 -- @'liftOp_'' mask_ :: 'MonadLiftControl' 'IO' m => m a -> m a@
 liftOp_' f = \m -> control' $ \run -> f $ run m
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftOp_' #-}
-#else
-{-# INLINE liftOp_' #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -1085,11 +1061,7 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- @'liftDiscard'' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
-#if __GLASGOW_HASKELL >= 700
 {-# INLINABLE liftDiscard' #-}
-#else
-{-# INLINE liftDiscard' #-}
-#endif
 
 
 ------------------------------------------------------------------------------

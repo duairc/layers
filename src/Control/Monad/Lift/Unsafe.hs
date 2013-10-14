@@ -2,6 +2,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
+{-|
+
+This module exports 
+
+-}
+
 module Control.Monad.Lift.Unsafe
     ( defaultPeel'
     , defaultRestore'
