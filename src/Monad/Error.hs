@@ -1,11 +1,10 @@
 {-# LANGUAGE CPP #-}
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#else
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
 #endif
 
 {-|
@@ -40,7 +39,11 @@ module Monad.Error
 where
 
 -- transformers --------------------------------------------------------------
+#if __GLASGOW_HASKELL__ >= 706
 import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
+#else
+import           Control.Monad.Trans.Error (Error (..))
+#endif
 
 
 -- layers --------------------------------------------------------------------

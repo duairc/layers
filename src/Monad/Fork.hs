@@ -43,7 +43,6 @@ import           Control.Concurrent (ThreadId, forkIO)
 #if MIN_VERSION_base(4, 4, 0)
 import qualified Control.Concurrent (forkOn)
 #endif
-import           Control.Exception (MaskingState (Unmasked))
 
 
 -- transformers --------------------------------------------------------------
@@ -54,6 +53,7 @@ import           Data.Functor.Product (Product (Pair))
 import           Control.Monad.Lift (MonadTransControl, liftDiscard)
 import           Monad.Mask
                      ( MonadMask
+                     , MaskingState (Unmasked)
                      , mask
                      , setMaskingState
                      )
@@ -114,21 +114,17 @@ class MonadMask m => MonadFork m where
 ------------------------------------------------------------------------------
 instance MonadFork IO where
     fork = forkIO
-    {-# INLINE fork #-}
 #if MIN_VERSION_base(4, 4, 0)
     forkOn = Control.Concurrent.forkOn
 #else
     forkOn _ = forkIO
 #endif
-    {-# INLINE forkOn #-}
 
 
 ------------------------------------------------------------------------------
 instance (MonadFork f, MonadFork g) => MonadFork (Product f g) where
     fork (Pair f g) = Pair (fork f) (fork g)
-    {-# INLINE fork #-}
     forkOn n (Pair f g) = Pair (forkOn n f) (forkOn n g)
-    {-# INLINE forkOn #-}
 
 
 ------------------------------------------------------------------------------

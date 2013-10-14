@@ -1,19 +1,31 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#if __GLASGOW_HASKELL__ >= 707
+{-# LANGUAGE ImpredicativeTypes #-}
+#endif
 
 {-|
 
 This module defines the 'MonadMask' interface, which consists of:
 
     * 'MonadMask' :: @(* -> *) -> Constraint@
+
+    * 'MaskingState' :: @*@
+
+    * 'Unmasked' :: @MaskingState@
+
+    * 'MaskedInterruptible' :: @MaskingState@
+
+    * 'MaskedUninterruptible' :: @MaskingState@
 
     * 'getMaskingState' :: @MonadMask m => m MaskingState@
 
@@ -36,6 +48,7 @@ The 'MonadMask' interface is designed for compatibility with
 
 module Monad.Mask
     ( MonadMask (getMaskingState, setMaskingState)
+    , MaskingState (Unmasked, MaskedInterruptible, MaskedUninterruptible)
     , mask
     , mask_
     , uninterruptibleMask
@@ -44,6 +57,7 @@ module Monad.Mask
 where
 
 -- base ----------------------------------------------------------------------
+#if MIN_VERSION_base(4, 3, 0)
 import           Control.Exception
                      ( MaskingState
                          ( Unmasked
@@ -52,15 +66,23 @@ import           Control.Exception
                          )
                      )
 import qualified Control.Exception as E (getMaskingState)
+#else
+import           Control.Exception (block, unblock, blocked)
+#endif
 import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
-import           GHC.Conc.Sync (STM)
+
+#if MIN_VERSION_base(4, 3, 0)
 import           GHC.Base
                      ( maskAsyncExceptions#
                      , maskUninterruptible#
                      , unmaskAsyncExceptions#
                      )
+import           GHC.Conc.Sync (STM)
 import           GHC.IO (IO (IO))
+#else
+import           GHC.Conc (STM)
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -107,6 +129,23 @@ class Monad m => MonadMask m where
     setMaskingState = const id
 
 
+#if !MIN_VERSION_base(4, 3, 0)
+------------------------------------------------------------------------------
+-- | Describes the behaviour of a thread when an asynchronous exception is
+-- received.
+data MaskingState
+    = Unmasked
+        -- ^ asynchronous exceptions are unmasked (the normal state)
+    | MaskedInterruptible 
+        -- ^ the state during 'mask': asynchronous exceptions are masked, but
+        -- blocking operations may still be interrupted
+    | MaskedUninterruptible
+        -- ^ the state during 'uninterruptibleMask': asynchronous exceptions
+        -- are masked, and blocking operations may not be interrupted
+  deriving (Eq, Show)
+#endif
+
+
 ------------------------------------------------------------------------------
 instance MonadMask Identity
 
@@ -148,11 +187,19 @@ instance MonadMask STM
 
 ------------------------------------------------------------------------------
 instance MonadMask IO where
+#if MIN_VERSION_base(4, 3, 0)
     getMaskingState = E.getMaskingState
     setMaskingState Unmasked (IO i) = IO $ unmaskAsyncExceptions# i
     setMaskingState MaskedInterruptible (IO i) = IO $ maskAsyncExceptions# i
     setMaskingState MaskedUninterruptible (IO i) = IO $ maskUninterruptible# i
-    {-# INLINE setMaskingState #-}
+#else
+    getMaskingState = fmap (\b -> if b then MaskedInterruptible else Unmasked)
+        blocked
+    setMaskingState Unmasked = unblock 
+    setMaskingState MaskedInterruptible = block
+    setMaskingState MaskedUninterruptible = block
+#endif
+
 
 
 ------------------------------------------------------------------------------
@@ -209,14 +256,22 @@ mask :: MonadMask m => ((forall a n. MonadMask n => n a -> n a) -> m b) -> m b
 mask f = getMaskingState >>= \s -> case s of
     Unmasked -> setMaskingState MaskedInterruptible (f (setMaskingState s))
     _ -> f id
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE mask #-}
+#else
+{-# INLINE mask #-}
+#endif
 
 
 ------------------------------------------------------------------------------
 -- | Like 'mask', but does not pass a @restore@ action to the argument.
 mask_ :: MonadMask m => m a -> m a
 mask_ = mask . const
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE mask_ #-}
+#else
+{-# INLINE mask_ #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -234,7 +289,11 @@ uninterruptibleMask :: MonadMask m
 uninterruptibleMask f = getMaskingState >>= \s -> case s of
     MaskedUninterruptible -> f id
     _ -> setMaskingState MaskedUninterruptible (f (setMaskingState s))
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE uninterruptibleMask #-}
+#else
+{-# INLINE uninterruptibleMask #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -242,4 +301,8 @@ uninterruptibleMask f = getMaskingState >>= \s -> case s of
 -- argument.
 uninterruptibleMask_ :: MonadMask m => m a -> m a
 uninterruptibleMask_ = uninterruptibleMask . const
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE uninterruptibleMask_ #-}
+#else
+{-# INLINE uninterruptibleMask_ #-}
+#endif

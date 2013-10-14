@@ -7,7 +7,7 @@ author:         Shane O'Brien
 maintainer:     shane@duairc.com
 stability:      Experimental
 category:       Control
-cabal-version:  >= 1.6
+cabal-version:  >= 1.4
 homepage:       http://github.com/duairc/layers
 bug-reports:    http://github.com/duairc/layers/issues
 build-type:     Simple
@@ -46,7 +46,9 @@ description:
   replacements for all of the monad interfaces of the @mtl@ package.
 
 extra-source-files:
+  CHANGELOG
   CONTRIBUTORS
+  README
 
 Library
   hs-source-dirs:
@@ -71,8 +73,8 @@ Library
     Monad.Writer
 
   build-depends:
-    base >= 4.2 && < 4.8,
-    mmorph >= 1.0 && <= 1.1,
+    base >= 4 && < 4.8,
+    mmorph >= 1.0 && < 1.1,
     transformers >= 0.2 && < 0.4
 
   if impl(ghc >= 7.4)

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -46,7 +47,11 @@ import           Control.Exception (SomeException, throwIO, try)
 import           Control.Monad (liftM)
 import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
+#if MIN_VERSION_base(4, 3, 0)
 import           GHC.Conc.Sync (STM, catchSTM, throwSTM)
+#else
+import           GHC.Conc (STM, catchSTM, unsafeIOToSTM)
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -144,7 +149,11 @@ instance MonadTry (L.ST s)
 
 ------------------------------------------------------------------------------
 instance MonadTry STM where
+#if MIN_VERSION_base(4, 3, 0)
     mtry m = try' m >>= return . either (Left . throwSTM) Right
+#else
+    mtry m = try' m >>= return . either (Left . unsafeIOToSTM . throwIO) Right
+#endif
       where
         try' :: STM a -> STM (Either SomeException a)
         try' m' = catchSTM (liftM Right m') (return . Left)
@@ -196,15 +205,22 @@ bracket :: MonadTry m
 bracket acquire release run = mask $ \unmask -> do
     a <- acquire
     unmask (run a) `finally` release a
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE bracket #-}
-
+#else
+{-# INLINE bracket #-}
+#endif
 
 ------------------------------------------------------------------------------
 -- | A variant of 'bracket' where the return value from the first computation
 -- is not required.
 bracket_ :: MonadTry m => m a -> m b -> m c -> m c
 bracket_ acquire release run = bracket acquire (const release) (const run)
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE bracket_ #-}
+#else
+{-# INLINE bracket_ #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -214,7 +230,11 @@ bracketOnError :: MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c
 bracketOnError acquire release run = mask $ \unmask -> do
     a <- acquire
     unmask (run a) `onException` release a
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE bracketOnError #-}
+#else
+{-# INLINE bracketOnError #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -225,7 +245,11 @@ finally m sequel = mask $ \unmask -> do
     r <- unmask m `onException` sequel
     _ <- sequel
     return r
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE finally #-}
+#else
+{-# INLINE finally #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -234,4 +258,8 @@ finally m sequel = mask $ \unmask -> do
 onException :: MonadTry m => m a -> m b -> m a
 onException m sequel = mask $ \unmask -> do
     mtry (unmask m) >>= either (sequel >>) return
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE onException #-}
+#else
+{-# INLINE onException #-}
+#endif

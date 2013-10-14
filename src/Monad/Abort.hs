@@ -1,4 +1,6 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -25,7 +27,11 @@ where
 -- base ----------------------------------------------------------------------
 import           Control.Exception (SomeException, throwIO)
 import           Control.Monad (mzero)
+#if MIN_VERSION_base(4, 3, 0)
 import           GHC.Conc.Sync (STM, throwSTM)
+#else
+import           GHC.Conc (STM, unsafeIOToSTM)
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -45,7 +51,7 @@ import          Control.Monad.Lift (MonadTrans, lift)
 -- containing information about the nature of the failure.
 --
 -- Every monad which permits an instance 'Control.Monad.MonadPlus' trivially
--- permits an instance of @MonadAbort@: for these monads, the @e@ paramater to
+-- permits an instance of @MonadFlexibleInstancesFlexibleInstancesAbort@: for these monads, the @e@ paramater to
 -- 'abort' is discarded, and @abort@ is implemented as @const mzero@.
 --
 -- The other class of monads that permit a @MonadAbort@ instance are the
@@ -85,7 +91,11 @@ instance MonadAbort SomeException IO where
 
 ------------------------------------------------------------------------------
 instance MonadAbort SomeException STM where
+#if MIN_VERSION_base(4, 3, 0)
     abort = throwSTM
+#else
+    abort = unsafeIOToSTM . throwIO
+#endif
     {-# INLINE abort #-}
 
 

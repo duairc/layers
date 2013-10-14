@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -55,7 +56,11 @@ import           Data.IORef
                      )
 import           Data.STRef (STRef, newSTRef, readSTRef, writeSTRef)
 import qualified Data.STRef.Lazy as L (newSTRef, readSTRef, writeSTRef)
+#if MIN_VERSION_base(4, 3, 0)
 import           GHC.Conc.Sync (STM, TVar, newTVar, readTVar, writeTVar)
+#else
+import           GHC.Conc (STM, TVar, newTVar, readTVar, writeTVar)
+#endif
 
 
 -- transformers --------------------------------------------------------------

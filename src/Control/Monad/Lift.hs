@@ -72,9 +72,9 @@ The 'MonadLift' family of interfaces consist of:
 
     * 'MonadLift': 'lift'';
 
-    * 'MonadLiftControl': @type 'Lift'@, @type 'LiftResult'@, @type 'LiftState'@; 'peel''
-          , 'restore'', 'suspend'', 'extract''; 'liftControl'', 'control''
-          , 'liftOp'', 'liftOp_'', 'liftDiscard'';
+    * 'MonadLiftControl': @type 'Lift'@, @type 'LiftResult'@
+          , @type 'LiftState'@; 'peel'', 'restore'', 'suspend'', 'extract''
+          ; 'liftControl'', 'control'', 'liftOp'', 'liftOp_'', 'liftDiscard'';
 
     * 'MonadLiftInvariant': 'hoistiso'';
 
@@ -215,8 +215,9 @@ module Control.Monad.Lift
 where
 
 -- base ----------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ >= 704
 import           Control.Arrow (first)
-#if __GLASGOW_HASKELL__ < 704
+#else
 import           Control.Arrow ((***))
 #endif
 import           Control.Monad (join, liftM)
@@ -237,7 +238,9 @@ import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
+#if __GLASGOW_HASKELL__ > 704
 import           Data.Functor.Identity (Identity (Identity))
+#endif
 
 
 -- mmorph --------------------------------------------------------------------
@@ -493,7 +496,8 @@ instance Monoid w => MonadTransControl (RWST r w s) where
         liftM (\(a, s', w) -> (RWSR (a, w), RWSS (r, s'))) (m r s)
     restore (RWSR (a, w),  RWSS (_, s)) = RWST $ \_ _ -> return (a, s, w)
     suspend = RWST $ \r s -> return (RWSS (r, s), s, mempty)
-    extract _ (RWSR (a, w)) = Just a
+    extract _ (RWSR (a, _)) = Just a
+
 
 ------------------------------------------------------------------------------
 instance Functor (LayerResult (RWST r w s)) where
@@ -517,7 +521,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
         liftM (\(a, s', w) -> (RWSR' (a, w), RWSS' (r, s'))) (m r s)
     restore (RWSR' (a, w), RWSS' (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     suspend = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
-    extract _ (RWSR' (a, w)) = Just a
+    extract _ (RWSR' (a, _)) = Just a
 
 
 ------------------------------------------------------------------------------
@@ -583,6 +587,11 @@ liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m a)
     -> t m a
 liftControl f = suspend >>= \s -> lift $ f (peel s)
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftControl #-}
+#else
+{-# INLINE liftControl #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -592,6 +601,11 @@ control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m (Layer t m a))
     -> t m a
 control f = liftControl f >>= restore
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE control #-}
+#else
+{-# INLINE control #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -606,6 +620,11 @@ liftOp :: (MonadTransControl t, Monad (t m), Monad m)
     -> (a -> t m b)
     -> t m c
 liftOp f = \g -> control (\run -> f $ run . g)
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftOp #-}
+#else
+{-# INLINE liftOp #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -620,6 +639,11 @@ liftOp_ :: (MonadTransControl t, Monad (t m), Monad m)
     -> t m a
     -> t m b
 liftOp_ f = \m -> control (\run -> f $ run m)
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftOp_ #-}
+#else
+{-# INLINE liftOp_ #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -638,6 +662,11 @@ liftDiscard :: (MonadTransControl t, Monad (t m), Monad m)
     -> t m ()
     -> t m a
 liftDiscard f m = liftControl $ \run -> f $ liftM (const ()) $ run m
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftDiscard #-}
+#else
+{-# INLINE liftDiscard #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -763,6 +792,7 @@ instance (Monad m, Monad (t m)) => MonadLift (t m) (t m) where
 ------------------------------------------------------------------------------
 instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
     lift' = lift . lift'
+    {-# INLINE lift' #-}
 
 
 #if __GLASGOW_HASKELL__ >= 707
@@ -842,6 +872,7 @@ instance (Functor (LiftResult i m), Functor (LayerResult t)) =>
   where
     fmap f (ComposeResult r) = ComposeResult $
         fmap (\(r', s) -> (fmap f r', s)) r
+    {-# INLINE fmap #-}
 
 
 ------------------------------------------------------------------------------
@@ -876,12 +907,19 @@ instance
     peel' (lys, lis) m =
         liftM (\(lir, lis') -> (ComposeResult lir, (lys, lis'))) $
             peel' lis (peel lys m)
+    {-# INLINE peel' #-}
+
     restore' p (ComposeResult lir, (_, lis)) =
         lift (restore' p (lir, lis)) >>= restore
+    {-# INLINE restore' #-}
+
     suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b -> return (a, b)
+    {-# INLINE suspend' #-}
+
     extract' (_ :: proxy i) (_ :: proxy (t m)) (ComposeResult r) =
         join $ extract' (P :: P i) (P :: P m) $
             (fmap (\(r', _) -> extract (P' :: P' t) r') r)
+    {-# INLINE extract' #-}
 
 
 ------------------------------------------------------------------------------
@@ -901,6 +939,7 @@ liftControl' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i a)
     -> m a
 liftControl' f = suspend' (P :: P i) >>= \s -> lift' $ f (peel' s)
+{-# INLINABLE liftControl' #-}
 
 
 ------------------------------------------------------------------------------
@@ -910,6 +949,7 @@ control' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i (Lift i m a))
     -> m a
 control' f = liftControl' f >>= restore' (P :: P i)
+{-# INLINABLE control' #-}
 
 
 ------------------------------------------------------------------------------
@@ -968,8 +1008,9 @@ instance
   =>
     MonadLiftControl i (t m)
   where
-    liftControl' f = liftControl $ \run -> liftControl' $ \run' ->
-        f $ liftM (\m -> lift (lift' m) >>= restore) . run' . run
+    liftControl' = \f -> liftControl $ \run -> liftControl' $ \run' ->
+        f $ liftM (\m -> lift m >>= restore) . run' . run
+    {-# INLINE liftControl' #-}
 
 
 ------------------------------------------------------------------------------
@@ -978,6 +1019,11 @@ control' :: MonadLiftControl i m
     => ((forall b. m b -> i (m b)) -> i (m a))
    -> m a
 control' = join . liftControl'
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE control' #-}
+#else
+{-# INLINE control' #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1001,6 +1047,11 @@ liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
 --
 -- @'liftOp'' . withMVar :: 'MonadLiftControl' 'IO' m => MVar a -> (a -> m b) -> m b@
 liftOp' f = \g -> control' $ \run -> f $ run . g
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftOp' #-}
+#else
+{-# INLINE liftOp' #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1012,6 +1063,11 @@ liftOp' f = \g -> control' $ \run -> f $ run . g
 --
 -- @'liftOp_'' mask_ :: 'MonadLiftControl' 'IO' m => m a -> m a@
 liftOp_' f = \m -> control' $ \run -> f $ run m
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftOp_' #-}
+#else
+{-# INLINE liftOp_' #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1029,6 +1085,11 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- @'liftDiscard'' forkIO :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId@
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
+#if __GLASGOW_HASKELL >= 700
+{-# INLINABLE liftDiscard' #-}
+#else
+{-# INLINE liftDiscard' #-}
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1076,6 +1137,7 @@ instance (MInvariant t, Monad m, MonadLiftInvariant i m) =>
     MonadLiftInvariant i (t m)
   where
     hoistiso' f g = hoistiso (hoistiso' f g) (hoistiso' g f)
+    {-# INLINE hoistiso' #-}
 
 
 ------------------------------------------------------------------------------
@@ -1126,3 +1188,4 @@ instance
     MonadLiftFunctor i (t m)
   where
     hoist' f = hoist (hoist' f)
+    {-# INLINE hoist' #-}

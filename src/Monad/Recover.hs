@@ -25,24 +25,28 @@ module Monad.Recover
 where
 
 -- base ----------------------------------------------------------------------
-import          Control.Exception (SomeException, catch)
-import          Control.Monad (mplus)
-import          GHC.Conc.Sync (STM, catchSTM)
+import           Control.Exception (SomeException, catch)
+import           Control.Monad (mplus)
+#if MIN_VERSION_base(4, 3, 0)
+import           GHC.Conc.Sync (STM, catchSTM)
+#else
+import           GHC.Conc (STM, catchSTM)
+#endif
 #if !MIN_VERSION_base(4, 6, 0)
-import          Prelude hiding (catch)
+import           Prelude hiding (catch)
 #endif
 
 
 -- transformers --------------------------------------------------------------
-import          Control.Monad.Trans.Error (ErrorT (ErrorT), Error)
-import          Control.Monad.Trans.Maybe (MaybeT)
-import          Control.Monad.Trans.List (ListT)
-import          Data.Functor.Product (Product (Pair))
+import           Control.Monad.Trans.Error (ErrorT (ErrorT), Error)
+import           Control.Monad.Trans.Maybe (MaybeT)
+import           Control.Monad.Trans.List (ListT)
+import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import          Control.Monad.Lift (MonadTransControl, control)
-import          Monad.Abort (MonadAbort)
+import           Control.Monad.Lift (MonadTransControl, control)
+import           Monad.Abort (MonadAbort)
 
 
 ------------------------------------------------------------------------------
@@ -101,7 +105,11 @@ instance (Error e, Monad m) => MonadRecover e (ErrorT e m) where
     recover (ErrorT m) h = ErrorT $ m >>= either
         (\e -> let ErrorT m' = h e in m')
         (return . Right)
+#if __GLASGOW_HASKELL__ >= 700
     {-# INLINABLE recover #-}
+#else
+    {-# INLINE recover #-}
+#endif
 
 
 ------------------------------------------------------------------------------
