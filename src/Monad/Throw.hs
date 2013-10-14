@@ -59,7 +59,6 @@ instance MonadAbort SomeException m => MonadThrow m
 -- 'MonadThrow'.
 throw :: (Exception e, MonadThrow m) => e -> m a
 throw = abort . toException
-{-# INLINE throw #-}
 
 
 ------------------------------------------------------------------------------
@@ -69,6 +68,4 @@ throw = abort . toException
 -- @ErrorT SomeException@.
 instance Error SomeException where
     noMsg = strMsg "mzero"
-    {-# INLINE noMsg #-}
     strMsg = toException . PatternMatchFail
-    {-# INLINE strMsg #-}

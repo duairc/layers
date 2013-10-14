@@ -114,11 +114,7 @@ instance MonadRecover SomeException m => MonadCatch m
 -- computation.
 catch :: (Exception e, MonadCatch m) => m a -> (e -> m a) -> m a
 catch m h = recover m (\e -> maybe (throw e) h (fromException e))
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE catch #-}
-#else
-{-# INLINE catch #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -143,11 +139,7 @@ catches m handlers = m `catch` go handlers
   where
     go [] e = throw e
     go (Handler handler:xs) e = maybe (go xs e) handler (fromException e)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE catches #-}
-#else
-{-# INLINE catches #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -177,11 +169,7 @@ catchJust
     -> (b -> m a)
     -> m a
 catchJust p a handler = catch a (\e -> maybe (throw e) handler (p e))
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE catchJust #-}
-#else
-{-# INLINE catchJust #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -192,11 +180,7 @@ catchJust p a handler = catch a (\e -> maybe (throw e) handler (p e))
 -- >      ...
 handle :: (MonadCatch m, Exception e) => (e -> m a) -> m a -> m a
 handle = flip catch
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE handle #-}
-#else
-{-# INLINE handle #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -209,11 +193,7 @@ handleJust
     -> m a
     -> m a
 handleJust = flip . catchJust
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE handleJust #-}
-#else
-{-# INLINE handleJust #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -226,11 +206,7 @@ handleJust = flip . catchJust
 -- > try a = catch (Right `liftM` a) (return . Left)
 try :: (MonadCatch m, Exception e) => m a -> m (Either e a)
 try = handle (return . Left) . liftM Right
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE try #-}
-#else
-{-# INLINE try #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -243,8 +219,4 @@ tryJust
     -> m a
     -> m (Either b a)
 tryJust p = handleJust p (return . Left) . liftM Right
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE tryJust #-}
-#else
-{-# INLINE tryJust #-}
-#endif

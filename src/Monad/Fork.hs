@@ -156,7 +156,7 @@ forkWithUnmask :: MonadFork m
     => ((forall a n. MonadMask n => n a -> n a) -> m ())
     -> m ThreadId
 forkWithUnmask m = fork $ m (setMaskingState Unmasked)
-{-# INLINE forkWithUnmask #-}
+{-# INLINABLE forkWithUnmask #-}
 
 
 ------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ forkOnWithUnmask :: MonadFork m
     -> ((forall a n. MonadMask n => n a -> n a) -> m ())
     -> m ThreadId
 forkOnWithUnmask c m = forkOn c $ m (setMaskingState Unmasked)
-{-# INLINE forkOnWithUnmask #-}
+{-# INLINABLE forkOnWithUnmask #-}
 
 
 ------------------------------------------------------------------------------
@@ -186,4 +186,4 @@ forkFinally :: (MonadTry m, MonadFork m)
     -> (Either (m a) a -> m ())
     -> m ThreadId
 forkFinally m sequel = mask $ \restore -> fork $ mtry (restore m) >>= sequel
-{-# INLINE forkFinally #-}
+{-# INLINABLE forkFinally #-}

@@ -76,63 +76,46 @@ class Monad m => MonadState s m | m -> s where
         let ~(a, s') = f s
         put s'
         return a
-    {-# INLINE state #-}
+    {-# INLINABLE state #-}
 
     get = state (\s -> (s, s))
-    {-# INLINE get #-}
 
     put s = state (\_ -> ((), s))
-    {-# INLINE put #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadState s (L.StateT s m) where
     state = L.StateT . (return .)
-    {-# INLINE state #-}
     get = L.StateT $ \s -> return (s, s)
-    {-# INLINE get #-}
     put s = L.StateT $ \_ -> return ((), s)
-    {-# INLINE put #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadState s (StateT s m) where
     state = StateT . (return .)
-    {-# INLINE state #-}
     get = StateT $ \s -> return (s, s)
-    {-# INLINE get #-}
     put s = StateT $ \_ -> return ((), s)
-    {-# INLINE put #-}
 
 
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadState s (L.RWST r w s m) where
     state f = L.RWST $ \_ s -> let (a, s') = f s in return (a, s', mempty)
-    {-# INLINE state #-}
     get = L.RWST $ \_ s -> return (s, s, mempty)
-    {-# INLINE get #-}
     put s = L.RWST $ \_ _ -> return ((), s, mempty)
-    {-# INLINE put #-}
 
 
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadState s (RWST r w s m) where
     state f = RWST $ \_ s -> case f s of (a, s') -> return (a, s', mempty)
-    {-# INLINE state #-}
     get = RWST $ \_ s -> return (s, s, mempty)
-    {-# INLINE get #-}
     put s = RWST $ \_ _ -> return ((), s, mempty)
-    {-# INLINE put #-}
 
 
 ------------------------------------------------------------------------------
 instance (MonadState s f, MonadState s g) => MonadState s (Product f g) where
     state f = Pair (state f) (state f)
-    {-# INLINE state #-}
     get = Pair get get
-    {-# INLINE get #-}
     put s = Pair (put s) (put s)
-    {-# INLINE put #-}
 
 
 ------------------------------------------------------------------------------
@@ -159,7 +142,7 @@ instance (MonadTrans t, MonadState s m, Monad (t m)) => MonadState s (t m)
 -- 'MonadState' class with an 'Int' state.
 modify :: MonadState s m => (s -> s) -> m ()
 modify f = state (\s -> ((), f s))
-{-# INLINE modify #-}
+{-# INLINABLE modify #-}
 
 
 ------------------------------------------------------------------------------
@@ -167,4 +150,4 @@ modify f = state (\s -> ((), f s))
 -- supplied.
 gets :: MonadState s m => (s -> a) -> m a
 gets f = liftM f get
-{-# INLINE gets #-}
+{-# INLINABLE gets #-}

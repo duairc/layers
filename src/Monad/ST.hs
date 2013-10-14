@@ -114,65 +114,46 @@ class Monad m => MonadST ref m | m -> ref where
         let (a', b) = f a
         writeRef ref a'
         return b
-    {-# INLINE atomicModifyRef #-}
+    {-# INLINABLE atomicModifyRef #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadST IORef IO where
     newRef = newIORef
-    {-# INLINE newRef #-}
     readRef = readIORef
-    {-# INLINE readRef #-}
     writeRef = writeIORef
-    {-# INLINE writeRef #-}
     atomicModifyRef = atomicModifyIORef
-    {-# INLINE atomicModifyRef #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadST (STRef s) (L.ST s) where
     newRef = L.newSTRef
-    {-# INLINE newRef #-}
     readRef = L.readSTRef
-    {-# INLINE readRef #-}
     writeRef = L.writeSTRef
-    {-# INLINE writeRef #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadST (STRef s) (ST s) where
     newRef = newSTRef
-    {-# INLINE newRef #-}
     readRef = readSTRef
-    {-# INLINE readRef #-}
     writeRef = writeSTRef
-    {-# INLINE writeRef #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadST TVar STM where
     newRef = newTVar
-    {-# INLINE newRef #-}
     readRef = readTVar
-    {-# INLINE readRef #-}
     writeRef = writeTVar
-    {-# INLINE writeRef #-}
 
 
 ------------------------------------------------------------------------------
-instance (MonadST ref f, MonadST ref g) =>
-    MonadST ref (Product f g)
-  where
+instance (MonadST ref f, MonadST ref g) => MonadST ref (Product f g) where
     newRef a = Pair (newRef a) (newRef a)
-    {-# INLINE newRef #-}
     readRef ref = Pair (readRef ref) (readRef ref)
-    {-# INLINE readRef #-}
     writeRef ref a = Pair (writeRef ref a) (writeRef ref a)
-    {-# INLINE writeRef #-}
     atomicModifyRef ref f = Pair
         (atomicModifyRef ref f)
         (atomicModifyRef ref f)
-    {-# INLINE atomicModifyRef #-}
 
 
 ------------------------------------------------------------------------------
@@ -194,7 +175,7 @@ atomicModifyRef' :: MonadST ref m => ref a -> (a -> (a, b)) -> m b
 atomicModifyRef' ref f = do
     b <- atomicModifyRef ref (\x -> let (a, b) = f x in (a, a `seq` b))
     return $! b
-{-# INLINE atomicModifyRef' #-}
+{-# INLINABLE atomicModifyRef' #-}
 
 
 ------------------------------------------------------------------------------
@@ -213,7 +194,7 @@ atomicModifyRef' ref f = do
 -- To avoid this problem, use 'modifyRef'' instead.
 modifyRef :: MonadST ref m => ref a -> (a -> a) -> m ()
 modifyRef ref f = readRef ref >>= writeRef ref . f
-{-# INLINE modifyRef #-}
+{-# INLINABLE modifyRef #-}
 
 
 ------------------------------------------------------------------------------
@@ -223,7 +204,7 @@ modifyRef' ref f = do
     x <- readRef ref
     let x' = f x
     x' `seq` writeRef ref x'
-{-# INLINE modifyRef' #-}
+{-# INLINABLE modifyRef' #-}
 
 
 ------------------------------------------------------------------------------
@@ -233,4 +214,4 @@ atomicWriteRef :: MonadST ref m => ref a -> a -> m ()
 atomicWriteRef ref a = do
     x <- atomicModifyRef ref (\_ -> (a, ()))
     x `seq` return ()
-{-# INLINE atomicWriteRef #-}
+{-# INLINABLE atomicWriteRef #-}

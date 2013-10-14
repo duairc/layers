@@ -205,22 +205,15 @@ bracket :: MonadTry m
 bracket acquire release run = mask $ \unmask -> do
     a <- acquire
     unmask (run a) `finally` release a
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE bracket #-}
-#else
-{-# INLINE bracket #-}
-#endif
+
 
 ------------------------------------------------------------------------------
 -- | A variant of 'bracket' where the return value from the first computation
 -- is not required.
 bracket_ :: MonadTry m => m a -> m b -> m c -> m c
 bracket_ acquire release run = bracket acquire (const release) (const run)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE bracket_ #-}
-#else
-{-# INLINE bracket_ #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -230,11 +223,7 @@ bracketOnError :: MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c
 bracketOnError acquire release run = mask $ \unmask -> do
     a <- acquire
     unmask (run a) `onException` release a
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE bracketOnError #-}
-#else
-{-# INLINE bracketOnError #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -245,11 +234,7 @@ finally m sequel = mask $ \unmask -> do
     r <- unmask m `onException` sequel
     _ <- sequel
     return r
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE finally #-}
-#else
-{-# INLINE finally #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -258,8 +243,4 @@ finally m sequel = mask $ \unmask -> do
 onException :: MonadTry m => m a -> m b -> m a
 onException m sequel = mask $ \unmask -> do
     mtry (unmask m) >>= either (sequel >>) return
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE onException #-}
-#else
-{-# INLINE onException #-}
-#endif

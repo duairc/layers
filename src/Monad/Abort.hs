@@ -68,25 +68,21 @@ class Monad m => MonadAbort e m where
 ------------------------------------------------------------------------------
 instance MonadAbort e ([]) where
     abort = const mzero
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadAbort e Maybe where
     abort = const mzero
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadAbort e (Either e) where
     abort = Left
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadAbort SomeException IO where
     abort = throwIO
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
@@ -96,31 +92,26 @@ instance MonadAbort SomeException STM where
 #else
     abort = unsafeIOToSTM . throwIO
 #endif
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadAbort e (ListT m) where
     abort = const mzero
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadAbort e (MaybeT m) where
     abort = const mzero
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance (Error e, Monad m) => MonadAbort e (ErrorT e m) where
     abort = ErrorT . return . Left
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------
 instance (MonadAbort e f, MonadAbort e g) => MonadAbort e (Product f g) where
     abort e = Pair (abort e) (abort e)
-    {-# INLINE abort #-}
 
 
 ------------------------------------------------------------------------------

@@ -82,7 +82,6 @@ instance MonadRecover e m => MonadError e m
 -- | Is used within a monadic computation to begin exception processing.
 throwError :: MonadError e m => e -> m a
 throwError = abort
-{-# INLINE throwError #-}
 
 
 ------------------------------------------------------------------------------
@@ -98,4 +97,3 @@ throwError = abort
 -- Note that @handler@ and the do-block must have the same return type.
 catchError :: MonadError e m => m a -> (e -> m a) -> m a
 catchError = recover
-{-# INLINE catchError #-}

@@ -105,11 +105,7 @@ instance (Error e, Monad m) => MonadRecover e (ErrorT e m) where
     recover (ErrorT m) h = ErrorT $ m >>= either
         (\e -> let ErrorT m' = h e in m')
         (return . Right)
-#if __GLASGOW_HASKELL__ >= 700
     {-# INLINABLE recover #-}
-#else
-    {-# INLINE recover #-}
-#endif
 
 
 ------------------------------------------------------------------------------

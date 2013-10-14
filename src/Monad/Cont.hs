@@ -76,7 +76,7 @@ class Monad m => MonadCont m where
 ------------------------------------------------------------------------------
 instance Monad m => MonadCont (ContT r m) where
     callCC f = ContT $ \c -> let ContT m = f $ \a -> ContT $ \_ -> c a in m c
-    {-# INLINE callCC #-}
+    {-# INLINABLE callCC #-}
 
 
 ------------------------------------------------------------------------------

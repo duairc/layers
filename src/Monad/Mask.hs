@@ -256,22 +256,14 @@ mask :: MonadMask m => ((forall a n. MonadMask n => n a -> n a) -> m b) -> m b
 mask f = getMaskingState >>= \s -> case s of
     Unmasked -> setMaskingState MaskedInterruptible (f (setMaskingState s))
     _ -> f id
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE mask #-}
-#else
-{-# INLINE mask #-}
-#endif
 
 
 ------------------------------------------------------------------------------
 -- | Like 'mask', but does not pass a @restore@ action to the argument.
 mask_ :: MonadMask m => m a -> m a
 mask_ = mask . const
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE mask_ #-}
-#else
-{-# INLINE mask_ #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -289,11 +281,7 @@ uninterruptibleMask :: MonadMask m
 uninterruptibleMask f = getMaskingState >>= \s -> case s of
     MaskedUninterruptible -> f id
     _ -> setMaskingState MaskedUninterruptible (f (setMaskingState s))
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE uninterruptibleMask #-}
-#else
-{-# INLINE uninterruptibleMask #-}
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -301,8 +289,4 @@ uninterruptibleMask f = getMaskingState >>= \s -> case s of
 -- argument.
 uninterruptibleMask_ :: MonadMask m => m a -> m a
 uninterruptibleMask_ = uninterruptibleMask . const
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE uninterruptibleMask_ #-}
-#else
-{-# INLINE uninterruptibleMask_ #-}
-#endif
