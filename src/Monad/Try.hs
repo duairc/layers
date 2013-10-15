@@ -165,9 +165,9 @@ data P (t :: (* -> *) -> * -> *) = P
 ------------------------------------------------------------------------------
 instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
   where
-    mtry m = do
+    mtry (m :: t m a) = do
         state <- suspend
-        ma <- lift . mtry $ peel state m
+        ma <- lift . mtry $ peel m state
         case ma of
             Left m' -> return . Left $ lift m' >>= restore
             Right (result, state') -> case extract (P :: P t) result of

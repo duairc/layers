@@ -40,7 +40,6 @@ import "Control.Applicative"
 import "Control.Monad.Lift"
 import "Control.Monad.Lift.Unsafe"
 import "Control.Monad.Trans.State"
-import "Data.Typeable"
 
 newtype MyMonad a = MyMonad { runMyMonad :: StateT [Int] IO a }
   deriving
@@ -53,7 +52,7 @@ newtype MyMonad a = MyMonad { runMyMonad :: StateT [Int] IO a }
     )
 
 instance 'MonadLiftControl' IO MyMonad where
-    'peel'' = 'defaultPeel'' runMyMonad
+    'peel''    = 'defaultPeel'' runMyMonad
     'restore'' = 'defaultRestore'' MyMonad
     'suspend'' = 'defaultSuspend'' MyMonad
     'extract'' = 'defaultExtract'' MyMonad
@@ -98,11 +97,11 @@ import           Control.Monad.Lift
 -- 'defaultPeel'' takes the @n -> m@ half of the isomorphism.
 defaultPeel' :: MonadLiftControl i m
     => (forall b. n b -> m b)
-    -> LiftState i n
     -> n a
+    -> LiftState i n
     -> i (Lift i n a)
-defaultPeel' un s m = liftM (unsafeCoerce *** unsafeCoerce) $
-    peel' (unsafeCoerce s) (un m)
+defaultPeel' un m s = liftM (unsafeCoerce *** unsafeCoerce) $
+    peel' (un m) (unsafeCoerce s)
 
 
 ------------------------------------------------------------------------------
