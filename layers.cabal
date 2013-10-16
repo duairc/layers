@@ -57,6 +57,8 @@ Library
   exposed-modules:
     Documentation.Layers.Overview
     Control.Monad.Lift
+    Control.Monad.Lift.Base
+    Control.Monad.Lift.IO
     Monad.Abort
     Monad.Cont
     Monad.Catch
@@ -72,17 +74,20 @@ Library
     Monad.Try
     Monad.Writer
 
+  if impl(ghc >= 7.7)
+    exposed-modules:
+      Control.Monad.Lift.Unsafe
+
   build-depends:
     base >= 4 && < 4.8,
     mmorph >= 1.0 && < 1.1,
     transformers >= 0.2 && < 0.4
 
-  if impl(ghc >= 7.4)
-    cpp-options: -DLANGUAGE_ConstraintKinds
-
-  if impl(ghc >= 7.7)
-    exposed-modules:
-      Control.Monad.Lift.Unsafe
-
   ghc-options:
     -Wall
+
+  if impl(ghc < 7)
+    cpp-options: -DINLINABLE=INLINE
+
+  if impl(ghc >= 7.4)
+    cpp-options: -DLANGUAGE_ConstraintKinds
