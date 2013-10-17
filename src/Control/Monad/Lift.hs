@@ -120,7 +120,7 @@ import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
-#if __GLASGOW_HASKELL__ > 704
+#if __GLASGOW_HASKELL__ >= 704
 import           Data.Functor.Identity (Identity (Identity))
 #endif
 
@@ -211,68 +211,68 @@ support for closed type families.)
 -- is the essence of how 'MonadTransControl' works.
 --
 -- However, 'peel' is not (and cannot) be a simple operation @t m a -> m a@.
--- To see why, let's consider the @RWST@ monad transformer. It is defined like
+-- To see why, let's consider the 'RWST' monad transformer. It is defined like
 -- this:
 --
 -- @
--- newtype RWST r w s m a = RWST { runRWST :: r -> s -> m (a, s, w) }
+-- newtype 'RWST' r w s m a = 'RWST' { 'Control.Monad.Trans.RWS.Strict.runRWST' :: r -> s -> m (a, s, w) }
 -- @
 --
--- It wouldn't be possible to make an operation @RWST r w s m a -> m a@,
--- because @RWST@'s inner function needs an @r@ and an @s@ value before it can
+-- It wouldn't be possible to make an operation @'RWST' r w s m a -> m a@,
+-- because 'RWST'​'s inner function needs an @r@ and an @s@ value before it can
 -- return an @m a@. We call these types of values the 'LayerState' of a monad
 -- transformer. 'LayerState' is an associated type synonym of the
--- 'MonadTransControl' class. In the 'MonadTransControl' instance for @RWST@:
+-- 'MonadTransControl' class. In the 'MonadTransControl' instance for 'RWST':
 --
 -- @
--- type 'LayerState' (RWST r w s) m = (r, s)
+-- type 'LayerState' ('RWST' r w s) m = (r, s)
 -- @
 --
 -- So does that mean 'peel' has the type @t m a -> 'LayerState' t m -> m a@?
 -- Not exactly. We don't want the computation in @m@ returned by 'peel' to
 -- \"lose\" the effects in @t@ that the original @t m a@ computation had. And
 -- for some monad transformers, we couldn't do this even if we wanted to.
--- Consider @MaybeT@:
+-- Consider 'MaybeT':
 --
 -- @
--- newtype MaybeT m a = { runMaybeT :: m (Maybe a) }
+-- newtype 'MaybeT' m a = { 'Control.Monad.Trans.Maybe.runMaybeT' :: m ('Maybe' a) }
 -- @
 -- 
--- If the value inside a @MaybeT@ is a @Nothing@, we can't get an @a@ out of
+-- If the value inside a 'MaybeT' is a 'Nothing', we can't get an @a@ out of
 -- it. The closest to the proposed 'peel' above that we could get would be
--- @MaybeT m a -> 'LayerState' MaybeT m -> m (Maybe a)@. Similarly, for
--- @ErrorT e@, the closest we could get would be
--- @ErrorT e m a -> 'LayerState' (ErrorT e) m -> m (Either e a)@. So, to deal
--- with this, 'MonadTransControl' has another associated type synonym
+-- @'MaybeT' m a -> 'LayerState' 'MaybeT' m -> m ('Maybe' a)@. Similarly, for
+-- @'ErrorT' e@, the closest we could get would be
+-- @'ErrorT' e m a -> 'LayerState' ('ErrorT' e) m -> m ('Either' e a)@. So, to
+-- deal with this, 'MonadTransControl' has another associated type synonym
 -- 'LayerResult'. Some examples of instances of 'LayerResult':
 --
 -- @
--- type 'LayerResult' MaybeT = Maybe
--- type 'LayerResult' (ErrorT e) = Either e
--- type 'LayerResult' (RWST r w s) = (,) w
+-- type 'LayerResult' 'MaybeT' = 'Maybe'
+-- type 'LayerResult' ('ErrorT' e) = 'Either' e
+-- type 'LayerResult' ('RWST' r w s) = (,) w
 -- @
 --
 -- How exactly is it decided what the type of @'LayerResult' t@ for a
--- particular monad transformer should be? Well, for @MaybeT@ and @ErrorT@,
+-- particular monad transformer should be? Well, for 'MaybeT' and 'ErrorT',
 -- it's simple: a type function @:: * -> *@ such that, when applied to @a@, it
 -- returns the type of everything inside the returned @m@ computation inside
--- the newtype wrapper. For example, given the definition of @MaybeT@ above,
--- @'LayerResult' MaybeT = Maybe@, because @a@ applied to @Maybe@ gives
--- @Maybe a@, which is the type that goes inside @MaybeT@'s @m (_)@.
+-- the newtype wrapper. For example, given the definition of 'MaybeT' above,
+-- @'LayerResult' 'MaybeT' = 'Maybe'@, because @a@ applied to 'Maybe' gives
+-- @'Maybe' a@, which is the type that goes inside 'MaybeT'​'s @m (_)@.
 --
--- For @RWST@, it's almost this, but it's a bit more complicated. The type
--- inside @RWST@'s @m (_)@ is @(a, s, w)@, but its 'LayerResult' type function
+-- For 'RWST', it's almost this, but it's a bit more complicated. The type
+-- inside 'RWST'​'s @m (_)@ is @(a, s, w)@, but its 'LayerResult' type function
 -- is @(,) w@, which, when applied to @a@, gives @(w, a)@. First of all,
 -- @(w, a)@ is isomorphic to @(a, w)@, but because @'LayerResult' t@ has to
 -- have a kind @* -> *@, and because it's impossible to write 'flip' at the
 -- type level (without using newtypes), we settle for @(w, a)@. But what about
 -- the @s@ in the middle? Well, that @s@ is actually part of the 'LayerState'
--- of @RWST@, not the 'LayerResult'. 'peel' takes this into account: the
+-- of 'RWST', not the 'LayerResult'. 'peel' takes this into account: the
 -- computations in @m@ it returns return both a 'LayerResult' and an updated
 -- 'LayerState'. The full type of 'peel' is thus:
 --
 -- @
--- 'peel' :: ('MonadTransControl' t, Monad m) => t m a -> 'LayerState' t m -> m ('LayerResult' t a, 'LayerState' t m)
+-- 'peel' :: ('MonadTransControl' t, 'Monad' m) => t m a -> 'LayerState' t m -> m ('LayerResult' t a, 'LayerState' t m)
 -- @
 --
 -- So really, 'MonadTransControl' is just the class of monad transformers
@@ -285,8 +285,8 @@ support for closed type families.)
 -- interface: 'suspend' and 'restore'.
 --
 -- @
--- 'suspend' :: ('MonadTransControl' t, Monad m) => t m ('LayerState' t m)
--- 'restore' :: ('MonadTransControl' t, Monad m) => ('LayerResult' t a, 'LayerState' t m) -> t m a
+-- 'suspend' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t m)
+-- 'restore' :: ('MonadTransControl' t, 'Monad' m) => ('LayerResult' t a, 'LayerState' t m) -> t m a
 -- @
 --
 -- 'suspend' captures the current @'LayerState' t m@ for the monad @t m@. This
@@ -297,20 +297,20 @@ support for closed type families.)
 -- operation we talked about earlier.
 --
 -- @
--- f' :: (MonadTransControl t, Monad (t m), Monad m) => t m a -> t m b
--- f' t = suspend >>= lift . f . peel t >>= restore
+-- f' :: ('MonadTransControl' t, 'Monad' (t m), 'Monad' m) => t m a -> t m b
+-- f' t = 'suspend' '>>=' 'lift' '.' f '.' 'peel' t '>>=' 'restore'
 -- @
 --
--- The full instance for @RWST@ is given below:
+-- The full instance for 'RWST' is given below:
 --
 -- @
--- instance Monoid w => 'MonadTransControl' (RWST r w s) where
---     type 'LayerResult' (RWST r w s) = (,) w
---     type 'LayerState' (RWST r w s) m = (r, s)
---     'peel' (RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
---     'restore' ((w, a), (_, s)) = RWST $ \_ _ -> return (a, s, w)
---     'suspend' = RWST $ \r s -> return ((r, s), s, mempty)
---     'extract' _ (_, a) = Just a
+-- instance 'Monoid' w => 'MonadTransControl' ('RWST' r w s) where
+--     type 'LayerResult' ('RWST' r w s) = (,) w
+--     type 'LayerState' ('RWST' r w s) m = (r, s)
+--     'peel' ('RWST' m) (r, s) = 'liftM' (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
+--     'restore' ((w, a), (_, s)) = 'RWST' '$' \_ _ -> 'return' (a, s, w)
+--     'suspend' = 'RWST' '$' \r s -> 'return' ((r, s), s, 'mempty')
+--     'extract' _ (_, a) = 'Just' a
 -- @
 class MonadTrans t => MonadTransControl t where
     -- | The portion of the result of executing a computation of @t@ that is
@@ -512,7 +512,7 @@ instance MonadTransControl (L.StateT s) where
 #else
     newtype LayerResult (L.StateT s) a = SR' a
     newtype LayerState (L.StateT s) m = SS' s
-    peel (SS' s) (L.StateT m) = liftM (SR' *** SS') (m s)
+    peel (L.StateT m) (SS' s) = liftM (SR' *** SS') (m s)
     restore (SR' a, SS' s) = L.StateT $ \_ -> return (a, s)
     suspend = L.StateT $ \s -> return (SS' s, s)
     extract _ (SR' a) = Just a
@@ -629,8 +629,8 @@ liftControl f = suspend >>= \s -> lift $ f (flip peel s)
 -- state returned from the continuation to the outer monad.
 --
 -- @
--- catch' :: (Exception e, 'MonadTransControl' t, Monad (t IO)) => t m b -> (e -> t m b) -> t m b
--- catch' m h = 'control' (\run -> catch (run m) (run . h))
+-- catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
+-- catch' m h = 'control' (\run -> 'Control.Exception.catch' (run m) (run '.' h))
 -- @
 control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m (Layer t m a))
@@ -644,8 +644,8 @@ control f = liftControl f >>= restore
 -- control operations of type: @(a -> m b) -> m c@ to @(a -> t m b) -> t m c@.
 --
 -- @
--- withMVar' :: ('MonadTransControl' t, Monad (t IO)) => MVar a -> (a -> t IO b) -> t IO b
--- withMVar' = 'liftOp' . withMVar
+-- withMVar' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => 'Control.Concurrent.MVar.MVar' a -> (a -> t 'IO' b) -> t 'IO' b
+-- withMVar' = 'liftOp' '.' 'Control.Concurrent.MVar.withMVar'
 -- @
 liftOp :: (MonadTransControl t, Monad (t m), Monad m)
     => ((a -> m (Layer t m b)) -> m (Layer t m c))
@@ -660,8 +660,8 @@ liftOp f = \g -> control (\run -> f $ run . g)
 -- lifting control operations of type: @m a -> m b@ to @t m a -> t m b@.
 --
 -- @
--- mask_' :: ('MonadTransControl' t, Monad (t IO)) => t IO a -> t IO a
--- mask_' = 'liftOp_' mask_
+-- mask_' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => t 'IO' a -> t 'IO' a
+-- mask_' = 'liftOp_' 'Control.Exception.mask_'
 -- @
 liftOp_ :: (MonadTransControl t, Monad (t m), Monad m)
     => (m (Layer t m a) -> m (Layer t m b))
@@ -774,9 +774,9 @@ instance MInvariant (L.WriterT w) where
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadLift' i m@ holds when @i@ is an inner monad of @m@
--- such that it is possible to lift actions from @i@ into @m@ using 'lift''.
--- If @m@ is a monad built from a monad transformer stack, then it supports
--- lifting operations from any monad @i@ anywhere in the stack.
+-- such that it is possible to lift computations from @i@ into @m@ using
+-- 'lift''. If @m@ is a monad built from a monad transformer stack, then it
+-- supports lifting operations from any monad @i@ anywhere in the stack.
 class (Monad i, Monad m) => MonadLift i m where
     -- | 'lift' takes a computation from an inner monad @i@ and lifts it into
     -- the \"outer\" monad @m@.
