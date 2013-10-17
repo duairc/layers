@@ -2,11 +2,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
-
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 {-|
 
