@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 #ifdef LANGUAGE_ConstraintKinds
@@ -29,13 +30,11 @@ operations.
 
 (The point of 'MonadLift' is that it only needs to be written once, and then
 'MonadIO', 'Control.Monad.Lift.Base.MonadBase' and all the rest come for free.
-This is not like the situation with
-@<http://hackage.haskell.org/package/transformers transformers>@ and
+With @<http://hackage.haskell.org/package/transformers transformers>@ and
 @<http://hackage.haskell.org/package/transformers-base transformers-base>@,
-where instances of 'Control.Monad.IO.Class.MonadIO' and
+instances of 'Control.Monad.IO.Class.MonadIO' and
 @<http://hackage.haskell.org/package/transformers-base/docs/Control-Monad-Base.html#t:MonadBase MonadBase>@
 have to be manually written for every monad transformer.)
-
 
 -}
 
@@ -43,11 +42,11 @@ module Control.Monad.Lift.IO
     ( MonadIO
     , liftIO
     , MonadControlIO
-#if __GLASGOW_HASKELL__ >= 707
     , peelIO
     , restoreIO
     , suspendIO
-#endif
+    , extractIO
+    , resultIO
     , liftControlIO
     , controlIO
     , liftIOOp
@@ -60,24 +59,19 @@ module Control.Monad.Lift.IO
     )
 where
 
-#if __GLASGOW_HASKELL__ >= 707
--- base ----------------------------------------------------------------------
-import           Data.Proxy (Proxy (Proxy))
-#endif
-
-
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
                      ( MonadLift
                      , lift'
                      , MonadLiftControl
-#if __GLASGOW_HASKELL__ >= 707
                      , Lift
+                     , LiftResult
                      , LiftState
                      , peel'
                      , restore'
                      , suspend'
-#endif
+                     , extract'
+                     , result'
                      , liftControl'
                      , control'
                      , liftOp'
@@ -133,7 +127,10 @@ instance MonadLiftControl IO m => MonadControlIO m
 #endif
 
 
-#if __GLASGOW_HASKELL__ >= 707
+------------------------------------------------------------------------------
+data Pm (m :: * -> *) = Pm
+
+
 ------------------------------------------------------------------------------
 peelIO :: MonadControlIO m => m a -> LiftState IO m -> IO (Lift IO m a)
 peelIO = peel'
@@ -141,12 +138,22 @@ peelIO = peel'
 
 ------------------------------------------------------------------------------
 restoreIO :: MonadControlIO m => Lift IO m a -> m a
-restoreIO = restore' (Proxy :: Proxy IO)
+restoreIO = restore' (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
 suspendIO :: MonadControlIO m => m (LiftState IO m)
-suspendIO = suspend' (Proxy :: Proxy IO)
+suspendIO = suspend' (Pm :: Pm IO)
+
+
+------------------------------------------------------------------------------
+extractIO :: MonadControlIO m => proxy m -> LiftResult IO m a -> Maybe a
+extractIO = extract' (Pm :: Pm IO)
+
+
+------------------------------------------------------------------------------
+resultIO :: MonadControlIO m => m a -> m (LiftResult IO m a)
+resultIO = result' (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
@@ -172,31 +179,6 @@ liftIOOp_ = liftOp_'
 ------------------------------------------------------------------------------
 liftIODiscard :: MonadControlIO m => (IO () -> IO a) -> m () -> m a
 liftIODiscard = liftDiscard'
-#else
-------------------------------------------------------------------------------
-liftControlIO :: MonadControlIO m => ((forall b. m b -> IO (m b)) -> IO a) -> m a
-liftControlIO = liftControl'
-
-
-------------------------------------------------------------------------------
-controlIO :: MonadControlIO m => ((forall b. m b -> IO (m b)) -> IO (m a)) -> m a
-controlIO = control'
-
-
-------------------------------------------------------------------------------
-liftIOOp :: MonadControlIO m => ((a -> IO (m b)) -> IO (m c)) -> (a -> m b) -> m c
-liftIOOp = liftOp'
-
-
-------------------------------------------------------------------------------
-liftIOOp_ :: MonadControlIO m => (IO (m a) -> IO (m b)) -> m a -> m b
-liftIOOp_ = liftOp_'
-
-
-------------------------------------------------------------------------------
-liftIODiscard :: MonadControlIO m => (IO () -> IO a) -> m () -> m a
-liftIODiscard = liftDiscard'
-#endif
 
 
 ------------------------------------------------------------------------------

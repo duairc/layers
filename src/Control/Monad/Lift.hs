@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -27,11 +28,12 @@ for lifting computations, operations and morphisms up exactly one level in the
 transformer stack. That is, it lifts computations from @m a@ to @t m a@. The
 'MonadLift' family of interfaces is for lifting computations, operations and
 morphisms from any level of the transformer stack to the top of the
-transformer stack (including from the top to itself). That is, it lifts
-computations from @i a@ to @m a@ (where the constraint @'MonadLift' i m@
-holds). The 'MonadTrans' family of interfaces is mainly used by libraries that
-implement monad transformers and monad interfaces, while the 'MonadLift'
-family is used by applications make use of (stacks of) these transformers.
+transformer stack. That is, it lifts computations from @i a@ to @m a@ (where
+@m@ is a monad built from a stack of transformers and @i@ is the constraint
+@'MonadLift' i m@ holds). The 'MonadTrans' family of interfaces is mainly used
+by libraries that implement monad transformers and monad interfaces, while the
+'MonadLift' family is used by applications make use of (stacks of) these
+transformers.
 
 -}
 
@@ -71,7 +73,6 @@ module Control.Monad.Lift
 
     -- ** Lifting control operations
     , MonadLiftControl
-#if __GLASGOW_HASKELL__ >= 707
     , Lift
     , LiftResult
     , LiftState
@@ -80,7 +81,6 @@ module Control.Monad.Lift
     , restore'
     , extract'
     , result'
-#endif
     , liftControl'
     , control'
     , liftOp'
@@ -101,9 +101,10 @@ import           Control.Arrow ((***))
 #endif
 import           Control.Monad (join, liftM)
 import           Data.Monoid (Monoid, mempty)
-#if __GLASGOW_HASKELL__ >= 707
-import           Data.Proxy (Proxy (Proxy))
+#if __GLASGOW_HASKELL__ < 707
+import           GHC.Exts (Any)
 #endif
+import           Unsafe.Coerce (unsafeCoerce)
 
 
 -- transformers --------------------------------------------------------------
@@ -120,29 +121,28 @@ import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
-#if __GLASGOW_HASKELL__ >= 704
 import           Data.Functor.Identity (Identity (Identity))
-#endif
 
 
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Morph (MFunctor (hoist))
 
+
 {-$transfamily
 
 The 'MonadTrans' family of interfaces consist of:
 
-    * The 'MonadTrans' class, re-exported from the
+    * 'MonadTrans', re-exported from the
         @<http://hackage.haskell.org/package/transformers transformers>@
         package.
 
-    * The 'MonadTransControl' class, defined by
+    * 'MonadTransControl', defined by
         @<http://hackage.haskell.org/package/layers layers>@.
 
-    * The 'MInvariant' class, defined by
+    * 'MInvariant', defined by
         @<http://hackage.haskell.org/package/layers layers>@.
 
-    * The 'MFunctor' class, re-exported from the
+    * 'MFunctor', re-exported from the
         @<http://hackage.haskell.org/package/mmorph mmorph>@ package.
 
 Ideally, all of these classes would be re-exports from more popular packages,
@@ -175,13 +175,13 @@ the ideal scenario for @<http://hackage.haskell.org/package/layers layers>@.
 
 The 'MonadLift' family of interfaces consist of:
 
-    * The 'MonadLift' class
+    * 'MonadLift'
 
-    * The 'MonadLiftControl' class
+    * 'MonadLiftControl'
 
-    * The 'MonadLiftInvariant' class
+    * 'MonadLiftInvariant'
 
-    * The 'MonadLiftFunctor' class
+    * 'MonadLiftFunctor'
 
 Each operation in the 'MonadLift' family of interfaces is an analogue of an
 operation from the 'MonadTrans' family of interfaces. The naming of these
@@ -190,8 +190,8 @@ operations reflect this relationship.
 (Note: The 'Lift', 'LiftResult' and 'LiftState' type synonyms and the 'peel'',
 'restore'', 'suspend'', 'extract'' and 'result'' operations are only available
 when compiled with GHC 7.8 and above. A different implementation is necessary
-on older versions (see "Documentation.Layers.Overview") because of the lack of
-support for closed type families.)
+on older versions because of the lack of support for
+<http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type families>.)
 
 -}
 
@@ -344,7 +344,7 @@ class MonadTrans t => MonadTransControl t where
     --
     -- Instances should satisfy the following law:
     --
-    -- [Preservation] @'suspend' >>= 'lift' . 'peel' t >>= 'restore' ≡ t@
+    -- [Preservation] @'suspend' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
     peel :: Monad m => t m a -> LayerState t m -> m (Layer t m a)
 
     -- | Reconstruct a @t m@ computation from the 'LayerResult' and
@@ -352,31 +352,31 @@ class MonadTrans t => MonadTransControl t where
     --
     -- Instances should satisfy the following law:
     --
-    -- [Preservation] @'suspend' >>= 'lift' . 'peel' t >>= 'restore' ≡ t@
+    -- [Preservation] @'suspend' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
     restore :: Monad m => Layer t m a -> t m a
 
     -- | Captures the current @'LayerState' t m@ of @t@ for the monad @t m@.
     -- This value is passed to the function returned by 'peel'.
     --
-    -- [Preservation] @'suspend' >>= 'lift' . 'peel' t >>= 'restore' ≡ t@
+    -- [Preservation] @'suspend' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
     suspend :: Monad m => t m (LayerState t m)
 
     -- | 'extract' inspects a @'LayerResult' t a@ value and tries to
     -- \"extract\" an @a@ value from it, if possible. This can be used to
     -- detect if the monad transformer @t@ short-circuited when the
-    -- 'LayerResult' was captured (if it did, 'extract' returns @Nothing@).
+    -- 'LayerResult' was captured (if it did, 'extract' returns 'Nothing').
     -- This trick is used to implement the universal pass-through instance of
     -- 'Monad.Try.MonadTry'.
     --
     -- Instances should satisfy the following laws:
     --
     -- [Preservation]
-    --     @liftM ('extract' (Proxy :: Proxy t)) ('result' (return a))
-    --         ≡ return (Just a)@
+    --     @'liftM' ('extract' ('Proxy' :: 'Proxy' t)) ('result' ('return' a))
+    --         ≡ 'return' ('Just' a)@
     --
     -- [Zero]
-    --     @(liftM ('extract' (Proxy :: Proxy t)) ('result' m)
-    --         ≡ return Nothing) ⇒ (m >>= f ≡ m)@
+    --     @('liftM' ('extract' ('Proxy' :: 'Proxy' t)) ('result' m)
+    --         ≡ 'return' 'Nothing') ⇒ (m '>>=' f ≡ m)@
     extract :: proxy t -> LayerResult t a -> Maybe a
 
 
@@ -625,8 +625,8 @@ liftControl f = suspend >>= \s -> lift $ f (flip peel s)
 
 
 ------------------------------------------------------------------------------
--- | A version of 'liftControl' that automatically restores the captured
--- state returned from the continuation to the outer monad.
+-- | A version of 'liftControl' that automatically restores to the outer monad
+-- the captured state returned from the continuation.
 --
 -- @
 -- catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
@@ -640,8 +640,8 @@ control f = liftControl f >>= restore
 
 
 ------------------------------------------------------------------------------
--- | 'liftOp' is a particular application of 'liftControl' that allows lifting
--- control operations of type: @(a -> m b) -> m c@ to @(a -> t m b) -> t m c@.
+-- | A particular application of 'liftControl' that lifts control operations
+-- from @(a -> m b) -> m c@ to @(a -> t m b) -> t m c@.
 --
 -- @
 -- withMVar' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => 'Control.Concurrent.MVar.MVar' a -> (a -> t 'IO' b) -> t 'IO' b
@@ -656,8 +656,8 @@ liftOp f = \g -> control (\run -> f $ run . g)
 
 
 ------------------------------------------------------------------------------
--- | 'liftOp_' is a particular application of 'liftControl' that allows
--- lifting control operations of type: @m a -> m b@ to @t m a -> t m b@.
+-- | A particular application of 'liftControl' that lifts control operations
+-- from @m a -> m b@ to @t m a -> t m b@.
 --
 -- @
 -- mask_' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => t 'IO' a -> t 'IO' a
@@ -676,13 +676,13 @@ liftOp_ f = \m -> control (\run -> f $ run m)
 -- from @m () -> m a@ to @t m () -> t m a@.
 --
 -- @
--- forkIO' :: ('MonadTransControl' t, Monad (t IO)) => t m () -> t m ThreadId
--- forkIO' = 'liftDiscard' forkIO
+-- forkIO' :: ('MonadTransControl' t, Monad (t 'IO')) => t m () -> t m 'Control.Concurrent.ThreadId'
+-- forkIO' = 'liftDiscard' 'Control.Concurrent.forkIO'
 -- @
 --
--- Note: While the argument computation @t m ()@ has access to the captured
--- state, all its side-effects in @t@ are discarded. It is run only for its
--- side-effects in @m@.
+-- Note: While the computation (@t m ()@) passed to the resulting operation
+-- has access to the 'LayerState' of @t@, it is run only for its side-effects
+-- in @m@. Its side-effects in @t@ are discarded.
 liftDiscard :: (MonadTransControl t, Monad (t m), Monad m)
     => (m () -> m a)
     -> t m ()
@@ -693,18 +693,23 @@ liftDiscard f m = liftControl $ \run -> f $ liftM (const ()) $ run m
 
 ------------------------------------------------------------------------------
 -- | An invariant functor in the category of monads, using 'hoistiso' as the
--- analog of @invmap@:
+-- analog of
+-- @<http://hackage.haskell.org/package/invariant/docs/Data-Functor-Invariant.html#t:Invariant invmap>@:
 class MInvariant t where
-    -- | 'hoistiso' lifts a monad isomorphism between @m@ and @n@ into a monad
-    -- morphism from @(t m)@ to @(t n)@.
+    -- | Lift a monad isomorphism between @m@ and @n@ into a monad morphism
+    -- from @(t m)@ to @(t n)@.
     --
     -- The following laws hold for valid instances of 'MInvariant':
     --
-    --     [Identity] @'hoistiso' id id ≡ id@
+    --     [Identity] @'hoistiso' 'id' 'id' ≡ 'id'@
     --
     --     [Composition]
-    --         @'hoistiso' f g . 'hoistiso' f' g' ≡
-    --             'hoistiso' (f . f') (g' . g)@
+    --         @'hoistiso' f g '.' 'hoistiso' f' g' ≡
+    --             'hoistiso' (f '.' f') (g' '.' g)@
+    --
+    -- Note: The homomorphism produced by @'hoistiso' f g@ is only valid if
+    -- @f@ and @g@ form a valid isomorphism, i.e., @f '.' g ≡ id@ and
+    -- @g '.' f ≡ id@.
     hoistiso :: Monad m
         => (forall b. m b -> n b)
         -> (forall b. n b -> m b)
@@ -783,9 +788,9 @@ class (Monad i, Monad m) => MonadLift i m where
     --
     -- The following laws hold for valid instances of 'MonadLift':
     --
-    --     [Identity] @'lift'' . return ≡ return@
+    --     [Identity] @'lift'' '.' 'return' ≡ 'return'@
     --
-    --     [Composition] @'lift'' m >>= 'lift'' . f ≡ 'lift'' (m >>= f)@
+    --     [Composition] @'lift'' m '>>=' 'lift'' '.' f ≡ 'lift'' (m '>>=' f)@
     --
     -- The difference between 'lift'' and 'lift' is that 'lift' only lifts
     -- from the monad directly beneath the top of the stack, while 'lift'' can
@@ -794,7 +799,10 @@ class (Monad i, Monad m) => MonadLift i m where
     -- If you know that you want to lift from the monad directly beneath the
     -- top of the stack, it's often better to use 'lift' than 'lift''. This
     -- improves type inference because 'lift' is less polymorphic than
-    -- 'lift''.
+    -- 'lift''. Similarly, you might also consider using
+    -- 'Control.Monad.Lift.IO.liftIO' or 'Control.Monad.Lift.Base.liftBase'
+    -- if you know that the monad from which you want to lift is 'IO' or the
+    -- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
     lift' :: Monad i => i a -> m a
 
 
@@ -818,7 +826,6 @@ instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
 -- | The constraint @'MonadLiftControl' i m@ holds when @i@ is an inner monad
 -- of @m@ such that it is possible to lift control operations from @i@ to @m@
 -- using 'liftControl''.
-#if __GLASGOW_HASKELL__ >= 707
 class MonadLift i m => MonadLiftControl i m where
     -- | Given the current \"state\" of the monad @m@ relative to @i@ (given
     -- by 'suspend''), 'peel'' unwraps the @m@ and returns the result and the
@@ -859,15 +866,15 @@ class MonadLift i m => MonadLiftControl i m where
     -- Instances should satisfy the following laws:
     --
     -- [Preservation]
-    --     @liftM ('extract'' (Proxy :: Proxy i) (Proxy :: Proxy m))
-    --         ('result'' (Proxy :: Proxy i) (return a))
-    --             ≡ return (Just a)@
+    --     @'liftM' ('extract'' ('Proxy' :: 'Proxy' i) ('Proxy' :: 'Proxy' m))
+    --         ('result'' ('Proxy' :: 'Proxy' i) ('return' a))
+    --             ≡ 'return' ('Just' a)@
     --
     -- [Zero]
-    --     @(liftM ('extract' (Proxy :: Proxy i) (Proxy :: Proxy m))
-    --         ('result' (Proxy :: Proxy i) m)
-    --             ≡ return Nothing) ⇒ (m >>= f ≡ m)@
-    extract' :: proxy i -> proxy m -> LiftResult i m a -> Maybe a
+    --     @('liftM' ('extract'' ('Proxy' :: 'Proxy' i) ('Proxy' :: 'Proxy' m))
+    --         ('result' ('Proxy' :: 'Proxy' i) m)
+    --             ≡ 'return' 'Nothing') ⇒ (m '>>=' _ ≡ m)@
+    extract' :: proxy i -> proxy' m -> LiftResult i m a -> Maybe a
 
 
 ------------------------------------------------------------------------------
@@ -880,17 +887,41 @@ type Lift i m a = (LiftResult i m a, LiftState i m)
 -- | The portion of the result of executing a computation of @m@ relative to
 -- @i@ that is independent of @m@ (and all layers down to @i@) and which is
 -- not the new 'LiftState'.
-type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> * where
+type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> *
+#ifdef __GLASGOW_HASKELL__
+#if __GLASGOW_HASKELL__ >= 707
+  where
     LiftResult m m = Identity
     LiftResult i (t m) = ComposeResult i t m
+#else
+type instance LiftResult i m = Any'
+#endif
+#else
+type LiftResult i m = Any'
+#endif
 
 
+#if __GLASGOW_HASKELL__ < 707
+------------------------------------------------------------------------------
+newtype Any' (a :: *) = Any' Any
+
+
+#endif
 ------------------------------------------------------------------------------
 -- | The \"state\" needed to 'peel'' a computation of @m@ back to @i@. Running
 -- a peeled computation returns a 'LiftResult' and an updated 'LiftState'.
-type family LiftState (i :: * -> *) (m :: * -> *) :: * where
+#ifdef __GLASGOW_HASKELL__
+type family LiftState (i :: * -> *) (m :: * -> *) :: *
+#if __GLASGOW_HASKELL__ >= 707
+  where
     LiftState m m = ()
     LiftState i (t m) = (LayerState t m, LiftState i m)
+#else
+type instance LiftState i m = Any
+#endif
+#else
+type LiftState i m = Any
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -899,20 +930,31 @@ newtype ComposeResult i t m a
 
 
 ------------------------------------------------------------------------------
+#if __GLASGOW_HASKELL__ >= 707
+coerce :: a -> a
+coerce = id
+#else
+coerce :: a -> b
+coerce = unsafeCoerce
+#endif
+{-# INLINE coerce #-}
+
+
+------------------------------------------------------------------------------
 instance MonadLift m m => MonadLiftControl m m where
-    peel' m _ = liftM (\a -> (Identity a, ())) m
-    restore' _ (Identity a, _) = return a
-    suspend' _ = return ()
-    extract' _ _ (Identity a) = Just a
+    peel' m _ = liftM (\a -> (coerce $ Identity a, coerce ())) m
+    restore' _ (r, _) = let Identity a = coerce r in return a
+    suspend' _ = return $ coerce ()
+    extract' _ _ r = let Identity a = coerce r in Just a
 
 
 ------------------------------------------------------------------------------
 instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
   where
-    peel' m _ = liftM (\a -> (Identity a, ())) m
-    restore' _ (Identity a, _) = return a
-    suspend' _ = return ()
-    extract' _ _ (Identity a) = Just a
+    peel' m _ = liftM (\a -> (coerce $ Identity a, coerce ())) m
+    restore' _ (r, _) = let Identity a = coerce r in return a
+    suspend' _ = return $ coerce ()
+    extract' _ _ r = let Identity a = coerce r in Just a
 
 
 ------------------------------------------------------------------------------
@@ -921,28 +963,44 @@ instance
     , Monad (t m)
     , MonadLift i (t m)
     , MonadLiftControl i m
+#if __GLASGOW_HASKELL__ >= 707
     , LiftResult i (t m) ~ ComposeResult i t m
     , LiftState i (t m) ~ (LayerState t m, LiftState i m)
+#endif
     )
   =>
     MonadLiftControl i (t m)
   where
-    peel' m (lys, lis) =
-        liftM (\(lir, lis') -> (ComposeResult lir, (lys, lis'))) $
-            peel' (peel m lys) lis
+    peel' (m :: t m a) s = do
+        let (lys, lis) = coerce s
+        let compose lir = ComposeResult lir :: ComposeResult i t m a
+        let f (lir, lis') = (coerce (compose lir), coerce (lys, lis'))
+        liftM f $ peel' (peel m lys) lis
     {-# INLINE peel' #-}
 
-    restore' p (ComposeResult lir, (_, lis)) =
-        lift (restore' p (lir, lis)) >>= restore
+    restore' p ((r, s) :: Lift i (t m) a) = do
+        let ComposeResult r' = (coerce r :: ComposeResult i t m a)
+        let (_, s') = coerce s
+        lift (restore' p (r', s')) >>= restore
     {-# INLINE restore' #-}
 
-    suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b -> return (a, b)
+    suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b ->
+        return $ coerce (a, b)
     {-# INLINE suspend' #-}
 
-    extract' _ _ (ComposeResult r) = join $
-        fmap (extract (Proxy :: Proxy t) . fst) $
-            extract' (Proxy :: Proxy i) (Proxy :: Proxy m) r
+    extract' _ _ (r :: LiftResult i (t m) a) =
+        let ComposeResult r' = (coerce r :: ComposeResult i t m a) in join $
+            fmap (extract (Pt :: Pt t) . fst) $
+                extract' (Pm :: Pm i) (Pm :: Pm m) r'
     {-# INLINE extract' #-}
+
+
+------------------------------------------------------------------------------
+data Pm (m :: * -> *) = Pm
+
+
+------------------------------------------------------------------------------
+data Pt (t :: (* -> *) -> * -> *) = Pt
 
 
 ------------------------------------------------------------------------------
@@ -964,21 +1022,35 @@ result' p m
 -- control operations from the inner monad @i@ to the outer monad @m@. It
 -- takes a continuation, to which it passes a version of 'peel'', which is
 -- kind of an \"inverse\" of 'lift''.
+--
+-- The difference between 'liftControl'' and 'liftControl' is that
+-- 'liftControl' only lifts from the monad directly beneath the top of the
+-- stack, while 'liftControl'' can lift from /any/ monad anywhere in the stack
+-- (including @m@ itself).
+--
+-- If you know that you want to lift from the monad directly beneath the top
+-- of the stack, it's often better to use 'liftControl' than 'liftControl''.
+-- This improves type inference because 'liftControl' is less polymorphic than
+-- 'liftControl''. Similarly, you might also consider using
+-- 'Control.Monad.Lift.IO.liftControlIO' or
+-- 'Control.Monad.Lift.Base.liftBaseControl' if you know that the monad from
+-- which you want to lift is 'IO' or the <Control-Monad-Lift-Base.html base>
+-- monad of a transformer stack.
 liftControl' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i a)
     -> m a
-liftControl' f = suspend' (Proxy :: Proxy i) >>= \s -> lift' $
+liftControl' f = suspend' (Pm :: Pm i) >>= \s -> lift' $
     f (flip peel' s)
 {-# INLINABLE liftControl' #-}
 
 
 ------------------------------------------------------------------------------
--- | A version of 'liftControl'' that automatically restores the captured
--- state returned from the continuation to the outer monad.
+-- | A version of 'liftControl'' that automatically restores to the outer
+-- monad the captured state returned from the continuation.
 --
 -- @
--- catch' :: (Exception e, 'MonadLiftControl' IO m) => m b -> (e -> m b) -> m b
--- catch' m h = 'control'' (\run -> catch (run m) (run . h))
+-- catch' :: ('Control.Exception.Exception' e, 'MonadLiftControl' 'IO' m) => m b -> (e -> m b) -> m b
+-- catch' m h = 'control'' (\run -> 'Control.Exception.catch' (run m) (run '.' h))
 -- @
 --
 -- The difference between 'control'' and 'control' is that 'control' only
@@ -989,106 +1061,15 @@ liftControl' f = suspend' (Proxy :: Proxy i) >>= \s -> lift' $
 -- If you know that you want to lift from the monad directly beneath the top
 -- of the stack, it's often better to use 'control' than 'control''. This
 -- improves type inference because 'control' is less polymorphic than
--- 'control''.
+-- 'control''. Similarly, you might also consider using
+-- 'Control.Monad.Lift.IO.controlIO' or 'Control.Monad.Lift.Base.controlBase'
+-- if you know that the monad from which you want to lift is 'IO' or the
+-- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
+
 control' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i (Lift i m a))
     -> m a
-control' f = liftControl' f >>= restore' (Proxy :: Proxy i)
-{-# INLINABLE control' #-}
-
-
-------------------------------------------------------------------------------
-liftOp' :: MonadLiftControl i m
-     => ((a -> i (Lift i m b)) -> i (Lift i m c))
-     -> (a -> m b)
-     -> m c
-
-
-------------------------------------------------------------------------------
-liftOp_' :: MonadLiftControl i m
-    => (i (Lift i m a) -> i (Lift i m b))
-     -> m a
-     -> m b
-#else
-class MonadLift i m => MonadLiftControl i m where
-    -- | 'liftControl'' is a version of 'lift'' that makes it possible to lift
-    -- control operations from an inner monad @i@ to the \"outer\" monad @m@.
-    -- It takes a continuation, to which it passes an operation we call @run@,
-    -- which is a kind of \"inverse\" of 'lift''.
-    --
-    -- Instances should satisfy the following laws:
-    --
-    -- [Identity] @'liftControl'' . const . return ≡ return@
-    --
-    -- [Composition]
-    --     @'liftControl'' (const m) >>= 'liftControl'' . const . f ≡
-    --         'liftControl'' (const (m >>= f))@
-    --
-    -- [Preservation] @join ('liftControl'' (\\run -> run m)) ≡ m@
-    liftControl' :: ((forall b. m b -> i (m b)) -> i a) -> m a
-
-
-------------------------------------------------------------------------------
-instance MonadLift m m => MonadLiftControl m m where
-    liftControl' f = f (liftM return)
-
-
-------------------------------------------------------------------------------
-instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
-  where
-    liftControl' f = f (liftM return)
-
-
-------------------------------------------------------------------------------
-instance
-    ( MonadTransControl t
-    , Monad (t m)
-    , MonadLift i (t m)
-    , MonadLiftControl i m
-    )
-  =>
-    MonadLiftControl i (t m)
-  where
-    liftControl' = \f -> liftControl $ \run -> liftControl' $ \run' ->
-        f $ liftM (\m -> lift m >>= restore) . run' . run
-    {-# INLINE liftControl' #-}
-
-
-------------------------------------------------------------------------------
--- | A version of 'liftControl'' that automatically restores the captured
--- state returned from the continuation to the outer monad.
---
--- @
--- catch' :: (Exception e, 'MonadLiftControl' IO m) => m b -> (e -> m b) -> m b
--- catch' m h = 'control'' (\run -> catch (run m) (run . h))
--- @
---
--- The difference between 'control'' and 'control' is that 'control' only
--- lifts from the monad directly beneath the top of the stack, while
--- 'control'' can lift from /any/ monad anywhere in the stack (including @m@
--- itself).
---
--- If you know that you want to lift from the monad directly beneath the top
--- of the stack, it's often better to use 'control' than 'control''. This
--- improves type inference because 'control' is less polymorphic than
--- 'control''.
-control' :: MonadLiftControl i m
-    => ((forall b. m b -> i (m b)) -> i (m a))
-   -> m a
-control' = join . liftControl'
-{-# INLINABLE control' #-}
-
-
-------------------------------------------------------------------------------
-liftOp' :: MonadLiftControl i m
-    => ((a -> i (m b)) -> i (m c))
-    -> (a -> m b)
-    -> m c
-
-
-------------------------------------------------------------------------------
-liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
-#endif
+control' f = (liftControl' f :: m (Lift i m a)) >>= restore' (Pm :: Pm i)
 
 
 ------------------------------------------------------------------------------
@@ -1096,8 +1077,8 @@ liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
 -- from @(a -> i b) -> i b@ to @(a -> m b) -> m b@.
 --
 -- @
--- withMVar' :: 'MonadLiftControl' IO m => MVar a -> (a -> m b) -> m b
--- withMVar' = 'liftOp'' . withMVar
+-- withMVar' :: 'MonadLiftControl' 'IO' m => 'Control.Concurrent.MVar.MVar' a -> (a -> m b) -> m b
+-- withMVar' = 'liftOp'' '.' 'Control.Concurrent.MVar.withMVar'
 -- @
 --
 -- The difference between 'liftOp'' and 'liftOp' is that 'liftOp' only lifts
@@ -1107,7 +1088,14 @@ liftOp_' :: MonadLiftControl i m => (i (m a) -> i (m b)) -> m a -> m b
 -- If you know that you want to lift from the monad directly beneath the top
 -- of the stack, it's often better to use 'liftOp' than 'liftOp''. This
 -- improves type inference because 'liftOp' is less polymorphic than
--- 'liftOp''.
+-- 'liftOp''. Similarly, you might also consider using
+-- 'Control.Monad.Lift.IO.liftIOOp' or 'Control.Monad.Lift.Base.liftBaseOp'
+-- if you know that the monad from which you want to lift is 'IO' or the
+-- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
+liftOp' :: MonadLiftControl i m
+     => ((a -> i (Lift i m b)) -> i (Lift i m c))
+     -> (a -> m b)
+     -> m c
 liftOp' f = \g -> control' $ \run -> f $ run . g
 {-# INLINABLE liftOp' #-}
 
@@ -1117,8 +1105,8 @@ liftOp' f = \g -> control' $ \run -> f $ run . g
 -- from @i a -> i b@ to @m a -> m b@.
 --
 -- @
--- mask_' :: 'MonadLiftControl' IO m => m a -> m a
--- mask_' = 'liftOp_'' mask_
+-- mask_' :: 'MonadLiftControl' 'IO' m => m a -> m a
+-- mask_' = 'liftOp_'' 'Control.Exception.mask_'
 -- @
 --
 -- The difference between 'liftOp_'' and 'liftOp_' is that 'liftOp_' only
@@ -1129,7 +1117,14 @@ liftOp' f = \g -> control' $ \run -> f $ run . g
 -- If you know that you want to lift from the monad directly beneath the top
 -- of the stack, it's often better to use 'liftOp_' than 'liftOp_''. This
 -- improves type inference because 'liftOp_' is less polymorphic than
--- 'liftOp_''.
+-- 'liftOp_''. Similarly, you might also consider using
+-- 'Control.Monad.Lift.IO.liftIOOp_' or 'Control.Monad.Lift.Base.liftBaseOp_'
+-- if you know that the monad from which you want to lift is 'IO' or the
+-- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
+liftOp_' :: MonadLiftControl i m
+    => (i (Lift i m a) -> i (Lift i m b))
+     -> m a
+     -> m b
 liftOp_' f = \m -> control' $ \run -> f $ run m
 {-# INLINABLE liftOp_' #-}
 
@@ -1139,8 +1134,8 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- from @i () -> i a@ to @m () -> m a@.
 --
 -- @
--- forkIO' :: 'MonadLiftControl' 'IO' m => m () -> m ThreadId
--- forkIO' = 'liftDiscard'' forkIO 
+-- forkIO' :: 'MonadLiftControl' 'IO' m => m () -> m 'Control.Concurrent.ThreadId'
+-- forkIO' = 'liftDiscard'' 'Control.Concurrent.forkIO'
 -- @
 --
 -- The difference between 'liftDiscard'' and 'liftDiscard' is that
@@ -1151,11 +1146,15 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 -- If you know that you want to lift from the monad directly beneath the top
 -- of the stack, it's often better to use 'liftDiscard' than 'liftDiscard''.
 -- This improves type inference because 'liftDiscard' is less polymorphic than
--- 'liftDiscard''.
+-- 'liftDiscard''. Similarly, you might also consider using
+-- 'Control.Monad.Lift.IO.liftIODiscard' or
+-- 'Control.Monad.Lift.Base.liftBaseDiscard' if you know that the monad from
+-- which you want to lift is 'IO' or the <Control-Monad-Lift-Base.html base>
+-- monad of a transformer stack.
 --
--- Note: While the argument computation @m ()@ has access to the captured
--- state, all its side-effects in the monad layers between @m@ and @i@ are
--- discarded. It is run only for its side-effects in the inner monad @i@.
+-- Note: While the computation (@m ()@) passed to the resulting operation has
+-- access to the @'LiftState' i@ of @m@, it is run only for its side-effects
+-- in @i@. Its side-effects in @m@ are discarded.
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
 {-# INLINABLE liftDiscard' #-}
@@ -1174,11 +1173,15 @@ class Monad i => MonadLiftInvariant i m where
     --
     -- The following laws hold for valid instances of 'MonadLiftInvariant':
     --
-    --     [Identity] @'hoistiso'' id id ≡ id@
+    --     [Identity] @'hoistiso'' 'id' 'id' ≡ 'id'@
     --
     --     [Composition]
-    --         @'hoistiso'' f g . 'hoistiso'' f' g' ≡
-    --             'hoistiso'' (f . f') (g' . g)@
+    --         @'hoistiso'' f g '.' 'hoistiso'' f' g' ≡
+    --             'hoistiso'' (f '.' f') (g' '.' g)@
+    --
+    -- Note: The endomorphism produced by @'hoistiso'' f g@ is only valid if
+    -- @f@ and @g@ form a valid isomorphism, i.e., @f '.' g ≡ id@ and
+    -- @g '.' f ≡ id@.
     --
     -- There are two main differences between 'hoistiso'' and 'hoistiso'. The
     -- first is that 'hoistiso' only lifts from the monad directly beneath the
@@ -1192,7 +1195,11 @@ class Monad i => MonadLiftInvariant i m where
     -- If you know that you want to lift from the monad directly beneath the
     -- top of the stack, it's often better to use 'hoistiso' than 'hoistiso''.
     -- This improves type inference because 'hoistiso' is less polymorphic
-    -- than 'hoistiso''.
+    -- than 'hoistiso''.  Similarly, you might also consider using
+    -- 'Control.Monad.Lift.IO.hoistisoIO' or
+    -- 'Control.Monad.Lift.Base.hoistisoBase' if you know that the monad from
+    -- which you want to lift is 'IO' or the
+    -- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
     hoistiso'
         :: (forall b. i b -> i b)
         -> (forall b. i b -> i b)
@@ -1232,9 +1239,9 @@ class MonadLiftInvariant i m => MonadLiftFunctor i m where
     --
     -- The following laws hold for valid instances of 'MonadLiftFunctor':
     --
-    --     [Identity] @'hoist'' id ≡ id@
+    --     [Identity] @'hoist'' 'id' ≡ 'id'@
     --
-    --     [Composition] @'hoist'' f . 'hoist'' g ≡ 'hoist'' (f . g)@
+    --     [Composition] @'hoist'' f '.' 'hoist'' g ≡ 'hoist'' (f '.' g)@
     --
     -- There are two main differences between 'hoist'' and 'hoist'. The first
     -- is that 'hoist' only lifts from the monad directly beneath the top of
@@ -1247,7 +1254,10 @@ class MonadLiftInvariant i m => MonadLiftFunctor i m where
     -- If you know that you want to lift from the monad directly beneath the
     -- top of the stack, it's often better to use 'hoist' than 'hoist''. This
     -- improves type inference because 'hoist' is less polymorphic than
-    -- 'hoist''.
+    -- 'hoist''. Similarly, you might also consider using
+    -- 'Control.Monad.Lift.IO.hoistIO' or 'Control.Monad.Lift.Base.hoistBase'
+    -- if you know that the monad from which you want to lift is 'IO' or the
+    -- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
     hoist' :: (forall b. i b -> i b) -> m a -> m a
 
 

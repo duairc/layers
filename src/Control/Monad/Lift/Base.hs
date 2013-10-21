@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverlappingInstances #-}
@@ -21,11 +22,11 @@ module Control.Monad.Lift.Base
     ( MonadBase
     , liftBase
     , MonadBaseControl
-#if __GLASGOW_HASKELL__ >= 707
     , peelBase
     , restoreBase
     , suspendBase
-#endif
+    , extractBase
+    , resultBase
     , liftBaseControl
     , controlBase
     , liftBaseOp
@@ -42,7 +43,7 @@ where
 import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
 #if MIN_VERSION_base(4, 7, 0)
-import           Data.Proxy (Proxy (Proxy))
+import           Data.Proxy (Proxy)
 #endif
 #if MIN_VERSION_base(4, 3, 0)
 import           GHC.Conc.Sync (STM)
@@ -61,13 +62,14 @@ import           Control.Monad.Lift
                      , MonadLift
                      , lift'
                      , MonadLiftControl
-#if __GLASGOW_HASKELL__ >= 707
                      , Lift
+                     , LiftResult
                      , LiftState
                      , peel'
                      , restore'
                      , suspend'
-#endif
+                     , extract'
+                     , result'
                      , liftControl'
                      , control'
                      , liftOp'
@@ -145,7 +147,10 @@ instance (MonadLiftControl b m, MonadBase b m) => MonadBaseControl b m
 #endif
 
 
-#if __GLASGOW_HASKELL__ >= 707
+------------------------------------------------------------------------------
+data Pm (m :: * -> *) = Pm
+
+
 ------------------------------------------------------------------------------
 peelBase :: MonadBaseControl b m => m a -> LiftState b m -> b (Lift b m a)
 peelBase = peel'
@@ -153,12 +158,22 @@ peelBase = peel'
 
 ------------------------------------------------------------------------------
 restoreBase :: forall b m a. MonadBaseControl b m => Lift b m a -> m a
-restoreBase = restore' (Proxy :: Proxy b)
+restoreBase = restore' (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
 suspendBase :: forall b m. MonadBaseControl b m => m (LiftState b m)
-suspendBase = suspend' (Proxy :: Proxy b)
+suspendBase = suspend' (Pm :: Pm b)
+
+
+------------------------------------------------------------------------------
+extractBase :: forall proxy b m a. MonadBaseControl b m => proxy m -> LiftResult b m a -> Maybe a
+extractBase = extract' (Pm :: Pm b)
+
+
+------------------------------------------------------------------------------
+resultBase :: forall b m a. MonadBaseControl b m => m a -> m (LiftResult b m a)
+resultBase = result' (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
@@ -184,31 +199,6 @@ liftBaseOp_ = liftOp_'
 ------------------------------------------------------------------------------
 liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> m () -> m a
 liftBaseDiscard = liftDiscard'
-#else
-------------------------------------------------------------------------------
-liftBaseControl :: MonadBaseControl b m => ((forall c. m c -> b (m c)) -> b a) -> m a
-liftBaseControl = liftControl'
-
-
-------------------------------------------------------------------------------
-controlBase :: MonadBaseControl b m => ((forall c. m c -> b (m c)) -> b (m a)) -> m a
-controlBase = control'
-
-
-------------------------------------------------------------------------------
-liftBaseOp :: MonadBaseControl b m => ((a -> b (m c)) -> b (m d)) -> (a -> m c) -> m d
-liftBaseOp = liftOp'
-
-
-------------------------------------------------------------------------------
-liftBaseOp_ :: MonadBaseControl b m => (b (m a) -> b (m c)) -> m a -> m c
-liftBaseOp_ = liftOp_'
-
-
-------------------------------------------------------------------------------
-liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> m () -> m a
-liftBaseDiscard = liftDiscard'
-#endif
 
 
 ------------------------------------------------------------------------------
