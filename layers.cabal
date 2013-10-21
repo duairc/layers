@@ -74,10 +74,6 @@ Library
     Monad.Try
     Monad.Writer
 
-  if impl(ghc >= 7.7)
-    exposed-modules:
-      Control.Monad.Lift.Unsafe
-
   build-depends:
     base >= 4 && < 4.8,
     mmorph >= 1.0 && < 1.1,

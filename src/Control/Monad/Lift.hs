@@ -51,8 +51,8 @@ module Control.Monad.Lift
     , LayerResult
     , LayerState
     , peel
-    , suspend
     , restore
+    , suspend
     , extract
     , result
     , liftControl
@@ -77,8 +77,8 @@ module Control.Monad.Lift
     , LiftResult
     , LiftState
     , peel'
-    , suspend'
     , restore'
+    , suspend'
     , extract'
     , result'
     , liftControl'
@@ -86,6 +86,13 @@ module Control.Monad.Lift
     , liftOp'
     , liftOp_'
     , liftDiscard'
+
+    -- *** Defaults
+    -- $defaults
+    , defaultPeel'
+    , defaultRestore'
+    , defaultExtract'
+    , defaultSuspend'
 
     -- ** Lifting morphisms
     , MonadLiftInvariant (hoistiso')
@@ -96,9 +103,8 @@ where
 -- base ----------------------------------------------------------------------
 #if __GLASGOW_HASKELL__ >= 704
 import           Control.Arrow (first)
-#else
-import           Control.Arrow ((***))
 #endif
+import           Control.Arrow ((***))
 import           Control.Monad (join, liftM)
 import           Data.Monoid (Monoid, mempty)
 #if __GLASGOW_HASKELL__ < 707
@@ -186,12 +192,6 @@ The 'MonadLift' family of interfaces consist of:
 Each operation in the 'MonadLift' family of interfaces is an analogue of an
 operation from the 'MonadTrans' family of interfaces. The naming of these
 operations reflect this relationship.
-
-(Note: The 'Lift', 'LiftResult' and 'LiftState' type synonyms and the 'peel'',
-'restore'', 'suspend'', 'extract'' and 'result'' operations are only available
-when compiled with GHC 7.8 and above. A different implementation is necessary
-on older versions because of the lack of support for
-<http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type families>.)
 
 -}
 
@@ -887,8 +887,8 @@ type Lift i m a = (LiftResult i m a, LiftState i m)
 -- | The portion of the result of executing a computation of @m@ relative to
 -- @i@ that is independent of @m@ (and all layers down to @i@) and which is
 -- not the new 'LiftState'.
+#if __GLASGOW_HASKELL__ >= 704
 type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> *
-#ifdef __GLASGOW_HASKELL__
 #if __GLASGOW_HASKELL__ >= 707
   where
     LiftResult m m = Identity
@@ -910,7 +910,7 @@ newtype Any' (a :: *) = Any' Any
 ------------------------------------------------------------------------------
 -- | The \"state\" needed to 'peel'' a computation of @m@ back to @i@. Running
 -- a peeled computation returns a 'LiftResult' and an updated 'LiftState'.
-#ifdef __GLASGOW_HASKELL__
+#if __GLASGOW_HASKELL__ >= 704
 type family LiftState (i :: * -> *) (m :: * -> *) :: *
 #if __GLASGOW_HASKELL__ >= 707
   where
@@ -1069,7 +1069,7 @@ liftControl' f = suspend' (Pm :: Pm i) >>= \s -> lift' $
 control' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i (Lift i m a))
     -> m a
-control' f = (liftControl' f :: m (Lift i m a)) >>= restore' (Pm :: Pm i)
+control' f = liftControl' f >>= restore' (Pm :: Pm i)
 
 
 ------------------------------------------------------------------------------
@@ -1158,6 +1158,126 @@ liftOp_' f = \m -> control' $ \run -> f $ run m
 liftDiscard' :: MonadLiftControl i m => (i () -> i a) -> m () -> m a
 liftDiscard' f = \m -> liftControl' $ \run -> f $ liftM (const ()) $ run m
 {-# INLINABLE liftDiscard' #-}
+
+
+{-$defaults
+
+The changes to the behaviour of the @GeneralizedNewtypeDeriving@ extension
+that come with the new <http://ghc.haskell.org/trac/ghc/wiki/Roles roles>
+mechanism in GHC 7.8 (which fixes GHC bug
+<http://ghc.haskell.org/trac/ghc/ticket/7148 #7148>) make it no longer
+possible to automatically derive instances of 'MonadLiftControl' the way it is
+for the other classes in the 'MonadLift' familiy.
+
+Rather than lose this useful feature altogether, the operations
+'defaultPeel'', 'defaultRestore'', 'defaultSuspend'' and 'defaultExtract''
+are provided. These operations can be used to implement an instance
+@'MonadLiftControl' i n@ for some inner monad @i@, if @n@ is isomorphic to an
+@m@ for which there exists an instance @'MonadLiftControl' i m@ (e.g., if @n@
+is a newtype wrapper around @m@). These operations use 'unsafeCoerce'
+internally in their implementation, but in such a way that should be okay as
+long as the given isomorphism is valid.
+
+Here is an example that (safely) uses these operations:
+
+@
+{\-\# LANGUAGE FlexibleContexts #-\}
+{\-\# LANGUAGE GeneralizedNewtypeDeriving #-\}
+{\-\# LANGUAGE MultiParamTypeClasses #-\}
+
+import "Control.Applicative"
+import "Control.Monad.Lift"
+import "Control.Monad.Lift.Unsafe"
+import "Control.Monad.Trans.State.Strict"
+
+newtype MyMonad a = MyMonad { runMyMonad :: 'StateT' ['Int'] 'IO' a }
+  deriving
+    ( 'Functor'
+    , 'Control.Applicative.Applicative'
+    , 'Monad'
+    , 'Control.Monad.Lift.MonadLift' 'IO'
+    , 'Control.Monad.Lift.MonadLiftInvariant' 'IO'
+    , 'Control.Monad.Lift.MonadLiftFunctor' 'IO'
+    )
+
+instance 'MonadLiftControl' 'IO' MyMonad where
+    'peel''    = 'defaultPeel'' runMyMonad
+    'restore'' = 'defaultRestore'' MyMonad
+    'suspend'' = 'defaultSuspend'' MyMonad
+    'extract'' = 'defaultExtract'' MyMonad
+@
+
+If you rely on a derived instance of 'MonadLiftControl' on a @newtype@, and
+you want your code to work with GHC 7.8 and above, you should use these
+operations to manually define an instance (as above) rather than using on the
+@GeneralizedNewtypeDeriving@ extension.
+
+-}
+
+
+------------------------------------------------------------------------------
+-- | Used when implementing a custom instance of @'MonadLiftControl' i@ for
+-- some monad @n@.
+--
+-- @n@ must be isomorphic to a monad @m@ which is already an instance of
+-- @'MonadLiftControl' i@.
+--
+-- 'defaultPeel'' takes the @n -> m@ half of the isomorphism.
+defaultPeel' :: MonadLiftControl i m
+    => (forall b. n b -> m b)
+    -> n a
+    -> LiftState i n
+    -> i (Lift i n a)
+defaultPeel' un m s = liftM (unsafeCoerce *** unsafeCoerce) $
+    peel' (un m) (unsafeCoerce s)
+
+
+------------------------------------------------------------------------------
+-- | Used when manually defining an instance of @'MonadLiftControl' i@ for
+-- some monad @n@.
+--
+-- @n@ must be isomorphic to a monad @m@ which is already an instance of
+-- @'MonadLiftControl' i@.
+--
+-- 'defaultRestore'' takes the @m -> n@ half of the isomorphism.
+defaultRestore' :: MonadLiftControl i m
+    => (forall b. m b -> n b)
+    -> proxy i
+    -> Lift i n a
+    -> n a
+defaultRestore' nu p (r, s) = nu (restore' p (unsafeCoerce r, unsafeCoerce s))
+
+
+------------------------------------------------------------------------------
+-- | Used when manually defining an instance of @'MonadLiftControl' i@ for
+-- some monad @n@.
+--
+-- @n@ must be isomorphic to a monad @m@ which is already an instance of
+-- @'MonadLiftControl' i@.
+--
+-- 'defaultSuspend'' takes the @m -> n@ half of the isomorphism.
+defaultSuspend' :: MonadLiftControl i m
+    => (forall b. m b -> n b)
+    -> proxy i
+    -> n (LiftState i n)
+defaultSuspend' nu p = nu (liftM unsafeCoerce (suspend' p))
+
+
+------------------------------------------------------------------------------
+-- | Used when manually defining an instance of @'MonadLiftControl' i@ for
+-- some monad @n@.
+--
+-- @n@ must be isomorphic to a monad @m@ which is already an instance of
+-- @'MonadLiftControl' i@.
+--
+-- 'defaultExtract'' takes the @m -> n@ half of the isomorphism.
+defaultExtract' :: forall proxy i m n a. MonadLiftControl i m
+    => (forall b. m b -> n b)
+    -> proxy i
+    -> proxy n
+    -> LiftResult i n a
+    -> Maybe a
+defaultExtract' _ p _ r = extract' p (Pm :: Pm m) (unsafeCoerce r)
 
 
 ------------------------------------------------------------------------------
