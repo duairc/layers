@@ -381,13 +381,13 @@ class MonadTrans t => MonadTransControl t where
     --
     -- Instances should satisfy the following laws:
     --
-    -- [Preservation]
+    -- [Preserve-Unit]
     --     @'liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' ('return' a))
     --         ≡ 'return' ('Just' a)@
     --
-    -- [Zero]
-    --     @('liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' m)
-    --         ≡ 'return' 'Nothing') ⇒ (m '>>=' _ ≡ m)@
+    -- [Implies-Non-Zero]
+    --     @('liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' m))
+    --         ≡ 'liftM' 'Just' m) ⇒ (∃f. m '>>=' f ≢ m)@
     extract :: proxy t -> LayerResult t a -> Maybe a
 
 

@@ -67,7 +67,7 @@ import           Control.Monad.Lift
                      , lift
                      , peel
                      , restore
-                     , suspend
+                     , capture
                      )
 
 
@@ -124,7 +124,7 @@ instance MonadTry (Either e) where
 ------------------------------------------------------------------------------
 instance MonadTry [] where
     mtry [] = [Left []]
-    mtry (x:_) = [Right x]
+    mtry (x:xs) = Right x : map Right xs
 
 
 ------------------------------------------------------------------------------
@@ -166,7 +166,7 @@ data P (t :: (* -> *) -> * -> *) = P
 instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
   where
     mtry (m :: t m a) = do
-        state <- suspend
+        state <- capture
         ma <- lift . mtry $ peel m state
         case ma of
             Left m' -> return . Left $ lift m' >>= restore
