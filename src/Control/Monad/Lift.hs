@@ -135,7 +135,7 @@ import           Control.Monad.Morph (MFunctor (hoist))
 
 {-$transfamily
 
-The 'MonadTrans' family of interfaces consist of:
+The 'MonadTrans' family of interfaces consists of:
 
     * 'MonadTrans', re-exported from the
         @<http://hackage.haskell.org/package/transformers transformers>@
@@ -161,24 +161,28 @@ ever incurring a dependency on
 already half way there. @<http://hackage.haskell.org/package/mmorph mmorph>@
 is also the most sensible home for 'MInvariant', and
 <https://github.com/Gabriel439/Haskell-MMorph-Library/pull/1 hopefully> it
-will get moved there some day soon. 'MonadTransControl' is more complicated:
-there is a very similar class (the design of which I mostly copied) defined in
-the @<http://hackage.haskell.org/package/monad-control monad-control>@
+will get moved there soon. 'MonadTransControl' is more complicated: there is a
+<http://hackage.haskell.org/package/monad-control/docs/Control-Monad-Trans-Control.html#t:MonadTransControl very similar class>
+(the design of which I mostly copied) defined in the
+@<http://hackage.haskell.org/package/monad-control monad-control>@
 package, which is a relatively popular package. However,
 @<http://hackage.haskell.org/package/layers layers>@' version has a few
-important differences. It is conceivable that
-@<http://hackage.haskell.org/package/monad-control monad-control>@ could
-incorporate these changes some day, in which case
-@<http://hackage.haskell.org/package/layers layers>@ could depend on
-@<http://hackage.haskell.org/package/monad-control monad-control>@ and
-'MonadTransControl' would be a re-export. This would be
-the ideal scenario for @<http://hackage.haskell.org/package/layers layers>@.
+important differences that stop it from being able to use
+@<http://hackage.haskell.org/package/monad-control monad-control>@'
+@<http://hackage.haskell.org/package/monad-control/docs/Control-Monad-Trans-Control.html#t:MonadTransControl MonadTransControl>@
+without losing some of its features (notably 'Monad.Try.MonadTry'). However,
+It is conceivable that these changes could be merged into
+@<http://hackage.haskell.org/package/monad-control monad-control>@ some day,
+in which case I would be happy to make
+@<http://hackage.haskell.org/package/layers layers>@ depend on
+@<http://hackage.haskell.org/package/monad-control monad-control>@ and make
+'MonadTransControl' a re-export.
 
 -}
 
 {-$liftfamily
 
-The 'MonadLift' family of interfaces consist of:
+The 'MonadLift' family of interfaces consists of:
 
     * 'MonadLift'
 
@@ -894,7 +898,12 @@ class MonadLift i m => MonadLiftControl i m where
 
 ------------------------------------------------------------------------------
 -- | A higher-kinded version of 'Any'.
-newtype Any' (a :: *) = Any' Any
+newtype Any' (i :: * -> *) (m :: * -> *) = Any' Any
+
+
+------------------------------------------------------------------------------
+-- | A higher-kinded version of 'Any'.
+newtype Any'' (i :: * -> *) (m :: * -> *) (a :: *) = Any'' Any
 
 
 ------------------------------------------------------------------------------
@@ -920,13 +929,13 @@ type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> *
   where
     LiftResult m m = Identity
     LiftResult i (t m) = ComposeResult i t m
-    LiftResult i m = Any'
+    LiftResult i m = Any' i m
 -- closed type families are only supported on GHC 7.8 and above
 #else
-type instance LiftResult i m = Any'
+type instance LiftResult i m = Any'' i m
 #endif
 #else
-type LiftResult i m = Any'
+type LiftResult i m = Any'' i m
 -- we can't use a type family on GHC 7.2 and older because we run into GHC
 -- bug #5595, so we use a type synonym instead
 #endif
@@ -948,13 +957,13 @@ type family LiftState (i :: * -> *) (m :: * -> *) :: *
   where
     LiftState m m = ()
     LiftState i (t m) = (LayerState t m, LiftState i m)
-    LiftState i m = Any
+    LiftState i m = Any' i m
 -- closed type families are only supported on GHC 7.8 and above
 #else
-type instance LiftState i m = Any
+type instance LiftState i m = Any' i m
 #endif
 #else
-type LiftState i m = Any
+type LiftState i m = Any i m
 -- we can't use a type family on GHC 7.2 and older because we run into GHC
 -- bug #5595, so we use a type synonym instead
 #endif
@@ -970,7 +979,9 @@ newtype ComposeResult i t m a
 to, from, to', from' :: a -> a
 to = id; from = id; to' = id; from' = id
 #else
-to :: a -> Any; to' :: a -> Any' x; from :: Any -> a; from' :: Any' x -> a
+to :: x -> Any' i m
+to' :: x -> Any'' i m a
+from :: Any' i m -> x; from' :: Any'' i m a -> x
 to = toAny; to' = toAny'; from = fromAny; from' = fromAny'
 #endif
 {-# INLINE to #-}
@@ -980,23 +991,23 @@ to = toAny; to' = toAny'; from = fromAny; from' = fromAny'
 
 
 ------------------------------------------------------------------------------
-toAny :: a -> Any
-toAny = unsafeCoerce
+toAny :: x -> Any' i m
+toAny = Any' . unsafeCoerce
 
 
 ------------------------------------------------------------------------------
-fromAny :: Any -> a
-fromAny = unsafeCoerce
+fromAny :: Any' i m -> x
+fromAny (Any' x) = unsafeCoerce x
 
 
 ------------------------------------------------------------------------------
-toAny' :: a -> Any' x
-toAny' = Any' . toAny
+toAny' :: x -> Any'' i m a
+toAny' = Any'' . unsafeCoerce
 
 
 ------------------------------------------------------------------------------
-fromAny' :: Any' x -> a
-fromAny' (Any' x) = fromAny x
+fromAny' :: Any'' i m a -> x
+fromAny' (Any'' x) = unsafeCoerce x
 
 
 ------------------------------------------------------------------------------
@@ -1277,7 +1288,11 @@ operations to manually define an instance (as above) rather than using on the
 --
 -- 'defaultPeel'' takes the @n -> m@ half of the isomorphism.
 defaultPeel'
-    :: (MonadLiftControl i m, LiftResult i n ~ Any', LiftState i n ~ Any)
+    :: forall i m n a.
+        ( MonadLiftControl i m
+        , LiftResult i n ~ Any'' i n
+        , LiftState i n ~ Any' i n
+        )
     => (forall b. n b -> m b)
     -> n a
     -> LiftState i n
@@ -1294,7 +1309,11 @@ defaultPeel' un m s = liftM (toAny' *** toAny) $ peel' (un m) (fromAny s)
 --
 -- 'defaultRestore'' takes the @m -> n@ half of the isomorphism.
 defaultRestore'
-    :: (MonadLiftControl i m, LiftResult i n ~ Any', LiftState i n ~ Any)
+    :: forall proxy i n m a.
+        ( MonadLiftControl i m
+        , LiftResult i n ~ Any'' i n
+        , LiftState i n ~ Any' i n
+        )
     => (forall b. m b -> n b)
     -> proxy i
     -> Lift i n a
@@ -1310,8 +1329,7 @@ defaultRestore' nu p (r, s) = nu (restore' p (fromAny' r, fromAny s))
 -- @'MonadLiftControl' i@.
 --
 -- 'defaultCapture'' takes the @m -> n@ half of the isomorphism.
-defaultCapture'
-    :: (MonadLiftControl i m, LiftState i n ~ Any)
+defaultCapture' :: (MonadLiftControl i m, LiftState i n ~ Any' i n)
     => (forall b. m b -> n b)
     -> proxy i
     -> n (LiftState i n)
@@ -1329,7 +1347,7 @@ defaultCapture' nu p = nu (liftM toAny (capture' p))
 defaultExtract'
     :: forall proxy proxy' i m n a.
         ( MonadLiftControl i m
-        , LiftResult i n ~ Any'
+        , LiftResult i n ~ Any'' i n
         )
     => (forall b. m b -> n b)
     -> proxy i
