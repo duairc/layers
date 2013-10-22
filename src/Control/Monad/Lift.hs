@@ -292,9 +292,9 @@ operations reflect this relationship.
 -- 'capture' captures the current @'LayerState' t m@ for the monad @t m@. This
 -- is passed to the function returned by 'peel'. 'restore' takes the
 -- 'LayerResult' and updated 'LayerState' returned by that function and
--- recovers the monadic state in @t@ that they represent. Taken together, we
--- can use these operations to define @f'@, the lifted version of the @f@
--- operation described above.
+-- returns a computation in @t@ with the side-effects that they represent.
+-- Taken together, we can use these operations to define @f'@, the lifted
+-- version of the @f@ operation described above.
 --
 -- @
 -- f' :: ('MonadTransControl' t, 'Monad' (t m), 'Monad' m) => t m a -> t m b
@@ -388,6 +388,10 @@ class MonadTrans t => MonadTransControl t where
     -- [Implies-Non-Zero]
     --     @('liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' m))
     --         ≡ 'liftM' 'Just' m) ⇒ (∃f. m '>>=' f ≢ m)@
+    --
+    -- [Implies-Zero]
+    --     @('liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' m))
+    --         ≡ 'liftM' ('const' 'Nothing') m) ⇒ (∀f. m '>>=' f ≡ m)@
     extract :: proxy t -> LayerResult t a -> Maybe a
 
 
@@ -1031,23 +1035,19 @@ instance
         let compose lir = ComposeResult lir :: ComposeResult i t m a
         let f (lir, lis') = (to' (compose lir), to (lys, lis'))
         liftM f $ peel' (peel m lys) lis
-    {-# INLINE peel' #-}
 
     restore' p ((r, s) :: Lift i (t m) a) = do
         let ComposeResult r' = (from' r :: ComposeResult i t m a)
         let (_, s') = from s
         lift (restore' p (r', s')) >>= restore
-    {-# INLINE restore' #-}
 
     capture' p = capture >>= \a -> lift (capture' p) >>= \b ->
         return $ to (a, b)
-    {-# INLINE capture' #-}
 
     extract' _ _ (r :: LiftResult i (t m) a) =
         let ComposeResult r' = (from' r :: ComposeResult i t m a) in join $
             fmap (extract (Pt :: Pt t) . fst) $
                 extract' (Pm :: Pm i) (Pm :: Pm m) r'
-    {-# INLINE extract' #-}
 
 
 ------------------------------------------------------------------------------
@@ -1120,7 +1120,6 @@ liftControl' f = capture' (Pm :: Pm i) >>= \s -> lift' $
 -- 'Control.Monad.Lift.IO.controlIO' or 'Control.Monad.Lift.Base.controlBase'
 -- if you know that the monad from which you want to lift is 'IO' or the
 -- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
-
 control' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i (Lift i m a))
     -> m a
