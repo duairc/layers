@@ -53,7 +53,7 @@ module Control.Monad.Lift
     , LayerState
     , peel
     , restore
-    , suspend
+    , capture
     , extract
     , result
     , liftControl
@@ -79,7 +79,7 @@ module Control.Monad.Lift
     , LiftState
     , peel'
     , restore'
-    , suspend'
+    , capture'
     , extract'
     , result'
     , liftControl'
@@ -93,7 +93,7 @@ module Control.Monad.Lift
     , defaultPeel'
     , defaultRestore'
     , defaultExtract'
-    , defaultSuspend'
+    , defaultCapture'
 
     -- ** Lifting morphisms
     , MonadLiftInvariant (hoistiso')
@@ -162,9 +162,9 @@ already half way there. @<http://hackage.haskell.org/package/mmorph mmorph>@
 is also the most sensible home for 'MInvariant', and
 <https://github.com/Gabriel439/Haskell-MMorph-Library/pull/1 hopefully> it
 will get moved there some day soon. 'MonadTransControl' is more complicated:
-there is a very similar class (the design of which I copied) defined in the
-@<http://hackage.haskell.org/package/monad-control monad-control>@ package,
-which is a relatively popular package. However,
+there is a very similar class (the design of which I mostly copied) defined in
+the @<http://hackage.haskell.org/package/monad-control monad-control>@
+package, which is a relatively popular package. However,
 @<http://hackage.haskell.org/package/layers layers>@' version has a few
 important differences. It is conceivable that
 @<http://hackage.haskell.org/package/monad-control monad-control>@ could
@@ -243,7 +243,8 @@ operations reflect this relationship.
 -- @'ErrorT' e@, the closest we could get would be
 -- @'ErrorT' e m a -> 'LayerState' ('ErrorT' e) m -> m ('Either' e a)@. So, to
 -- deal with this, 'MonadTransControl' has another associated type synonym
--- 'LayerResult'. Some examples of instances of 'LayerResult':
+-- 'LayerResult' that abstracts this general pattern. Here are some examples
+-- of instances of 'LayerResult':
 --
 -- @
 -- type 'LayerResult' 'MaybeT' = 'Maybe'
@@ -281,14 +282,14 @@ operations reflect this relationship.
 -- such a function for @t@.
 --
 -- There are two other important operations in the 'MonadTransControl'
--- interface: 'suspend' and 'restore'.
+-- interface: 'capture' and 'restore'.
 --
 -- @
--- 'suspend' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t m)
+-- 'capture' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t m)
 -- 'restore' :: ('MonadTransControl' t, 'Monad' m) => ('LayerResult' t a, 'LayerState' t m) -> t m a
 -- @
 --
--- 'suspend' captures the current @'LayerState' t m@ for the monad @t m@. This
+-- 'capture' captures the current @'LayerState' t m@ for the monad @t m@. This
 -- is passed to the function returned by 'peel'. 'restore' takes the
 -- 'LayerResult' and updated 'LayerState' returned by that function and
 -- recovers the monadic state in @t@ that they represent. Taken together, we
@@ -297,7 +298,7 @@ operations reflect this relationship.
 --
 -- @
 -- f' :: ('MonadTransControl' t, 'Monad' (t m), 'Monad' m) => t m a -> t m b
--- f' t = 'suspend' '>>=' 'lift' '.' f '.' 'peel' t '>>=' 'restore'
+-- f' t = 'capture' '>>=' 'lift' '.' f '.' 'peel' t '>>=' 'restore'
 -- @
 --
 -- The full instance for 'RWST' is given below:
@@ -308,12 +309,12 @@ operations reflect this relationship.
 --     type 'LayerState' ('RWST' r w s) m = (r, s)
 --     'peel' ('RWST' m) (r, s) = 'liftM' (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
 --     'restore' ((w, a), (_, s)) = 'RWST' '$' \_ _ -> 'return' (a, s, w)
---     'suspend' = 'RWST' '$' \r s -> 'return' ((r, s), s, 'mempty')
+--     'capture' = 'RWST' '$' \r s -> 'return' ((r, s), s, 'mempty')
 --     'extract' _ (_, a) = 'Just' a
 -- @
 class MonadTrans t => MonadTransControl t where
     -- | The portion of the result of executing a computation of @t@ that is
-    -- independent of @m@ and which is not an updated value for the
+    -- independent of @m@ and which is not an updated value of the
     -- 'LayerState'.
     --
     -- Note: On versions of GHC prior to 7.4, 'LayerResult' is an associated
@@ -348,13 +349,13 @@ class MonadTrans t => MonadTransControl t where
 #endif
 
     -- | 'peel' takes a computation in the monad @t m a@, and returns a
-    -- function that takes a @'LayerState' t m@ (given by 'suspend') and
+    -- function that takes a @'LayerState' t m@ (given by 'capture') and
     -- returns a @'LayerResult' t a@ and an updated @'LayerState' t m@, which
     -- can then be 'restore'd back into @t m a@.
     --
     -- Instances should satisfy the following law:
     --
-    -- [Preservation] @'suspend' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
+    -- [Preservation] @'capture' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
     peel :: Monad m => t m a -> LayerState t m -> m (Layer t m a)
 
     -- | Reconstruct a @t m@ computation from the 'LayerResult' and
@@ -362,14 +363,14 @@ class MonadTrans t => MonadTransControl t where
     --
     -- Instances should satisfy the following law:
     --
-    -- [Preservation] @'suspend' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
+    -- [Preservation] @'capture' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
     restore :: Monad m => Layer t m a -> t m a
 
     -- | Captures the current @'LayerState' t m@ of @t@ for the monad @t m@.
     -- This value is passed to the function returned by 'peel'.
     --
-    -- [Preservation] @'suspend' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
-    suspend :: Monad m => t m (LayerState t m)
+    -- [Preservation] @'capture' '>>=' 'lift' '.' 'peel' t '>>=' 'restore' ≡ t@
+    capture :: Monad m => t m (LayerState t m)
 
     -- | 'extract' inspects a @'LayerResult' t a@ value and tries to
     -- \"extract\" an @a@ value from it, if possible. This can be used to
@@ -403,14 +404,14 @@ instance Error e => MonadTransControl (ErrorT e) where
     type LayerState (ErrorT e) m = ()
     peel (ErrorT m) _ = liftM (\a -> (a, ())) m
     restore (a, _) = ErrorT $ return a
-    suspend = return ()
+    capture = return ()
     extract _ = either (const Nothing) Just
 #else
     newtype LayerResult (ErrorT e) a = ER (Either e a)
     newtype LayerState (ErrorT e) m = ES ()
     peel (ErrorT m) _ = liftM (\a -> (ER a, ES ())) m
     restore (ER a, _) = ErrorT $ return a
-    suspend = return (ES ())
+    capture = return (ES ())
     extract _ (ER e) = either (const Nothing) Just e
 #endif
 
@@ -422,14 +423,14 @@ instance MonadTransControl IdentityT where
     type LayerState IdentityT m = ()
     peel (IdentityT m) _ = liftM (\a -> (Identity a, ())) m
     restore (Identity a, _) = IdentityT $ return a
-    suspend = return ()
+    capture = return ()
     extract _ (Identity a) = Just a
 #else
     newtype LayerResult IdentityT a = IR a
     newtype LayerState IdentityT m = IS ()
     peel (IdentityT m) _ = liftM (\a -> (IR a, IS ())) m
     restore (IR a, _) = IdentityT $ return a
-    suspend = return (IS ())
+    capture = return (IS ())
     extract _ (IR a) = Just a
 #endif
 
@@ -441,14 +442,14 @@ instance MonadTransControl ListT where
     type LayerState ListT m = ()
     peel (ListT m) _ = liftM (\a -> (a, ())) m
     restore (a, _) = ListT $ return a
-    suspend = return ()
+    capture = return ()
     extract _ = foldr (const . Just) Nothing
 #else
     newtype LayerResult ListT a = LR [a]
     newtype LayerState ListT m = LS ()
     peel (ListT m) _ = liftM (\a -> (LR a, LS ())) m
     restore (LR a, _) = ListT $ return a
-    suspend = return (LS ())
+    capture = return (LS ())
     extract _ (LR xs) = foldr (const . Just) Nothing xs
 #endif
 
@@ -460,14 +461,14 @@ instance MonadTransControl MaybeT where
     type LayerState MaybeT m = ()
     peel (MaybeT m) _ = liftM (\a -> (a, ())) m
     restore (a, _) = MaybeT $ return a
-    suspend = return ()
+    capture = return ()
     extract _ = id
 #else
     newtype LayerResult MaybeT a = MR (Maybe a)
     newtype LayerState MaybeT m = MS ()
     peel (MaybeT m) _ = liftM (\a -> (MR a, MS ())) m
     restore (MR a, _) = MaybeT $ return a
-    suspend = return (MS ())
+    capture = return (MS ())
     extract _ (MR a) = a
 #endif
 
@@ -479,14 +480,14 @@ instance MonadTransControl (ReaderT r) where
     type LayerState (ReaderT r) m = r
     peel (ReaderT m) r = liftM (\a -> (Identity a, r)) (m r)
     restore (Identity a, _) = ReaderT $ \_ -> return a
-    suspend = ReaderT $ \r -> return r
+    capture = ReaderT $ \r -> return r
     extract _ (Identity a) = Just a
 #else
     newtype LayerResult (ReaderT r) a = RR a
     newtype LayerState (ReaderT r) m = RS r
     peel (ReaderT m) (RS r) = liftM (\a -> (RR a, RS r)) (m r)
     restore (RR a, _) = ReaderT $ \_ -> return a
-    suspend = ReaderT $ \r -> return (RS r)
+    capture = ReaderT $ \r -> return (RS r)
     extract _ (RR a) = Just a
 #endif
 
@@ -498,14 +499,14 @@ instance MonadTransControl (StateT s) where
     type LayerState (StateT s) m = s
     peel (StateT m) s = liftM (first Identity) (m s)
     restore (Identity a, s) = StateT $ \_ -> return (a, s)
-    suspend = StateT $ \s -> return (s, s)
+    capture = StateT $ \s -> return (s, s)
     extract _ (Identity a) = Just a
 #else
     newtype LayerResult (StateT s) a = SR a
     newtype LayerState (StateT s) m = SS s
     peel (StateT m) (SS s) = liftM (SR *** SS) (m s)
     restore (SR a, SS s) = StateT $ \_ -> return (a, s)
-    suspend = StateT $ \s -> return (SS s, s)
+    capture = StateT $ \s -> return (SS s, s)
     extract _ (SR a) = Just a
 #endif
 
@@ -517,14 +518,14 @@ instance MonadTransControl (L.StateT s) where
     type LayerState (L.StateT s) m = s
     peel (L.StateT m) s = liftM (first Identity) (m s)
     restore (Identity a, s) = L.StateT $ \_ -> return (a, s)
-    suspend = L.StateT $ \s -> return (s, s)
+    capture = L.StateT $ \s -> return (s, s)
     extract _ (Identity a) = Just a
 #else
     newtype LayerResult (L.StateT s) a = SR' a
     newtype LayerState (L.StateT s) m = SS' s
     peel (L.StateT m) (SS' s) = liftM (SR' *** SS') (m s)
     restore (SR' a, SS' s) = L.StateT $ \_ -> return (a, s)
-    suspend = L.StateT $ \s -> return (SS' s, s)
+    capture = L.StateT $ \s -> return (SS' s, s)
     extract _ (SR' a) = Just a
 #endif
 
@@ -536,7 +537,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     type LayerState (RWST r w s) m = (r, s)
     peel (RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     restore ((w, a), (_, s)) = RWST $ \_ _ -> return (a, s, w)
-    suspend = RWST $ \r s -> return ((r, s), s, mempty)
+    capture = RWST $ \r s -> return ((r, s), s, mempty)
     extract _ (_, a) = Just a
 #else
     newtype LayerResult (RWST r w s) a = RWSR (a, w)
@@ -544,7 +545,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     peel (RWST m) (RWSS (r, s)) =
         liftM (\(a, s', w) -> (RWSR (a, w), RWSS (r, s'))) (m r s)
     restore (RWSR (a, w),  RWSS (_, s)) = RWST $ \_ _ -> return (a, s, w)
-    suspend = RWST $ \r s -> return (RWSS (r, s), s, mempty)
+    capture = RWST $ \r s -> return (RWSS (r, s), s, mempty)
     extract _ (RWSR (a, _)) = Just a
 #endif
 
@@ -556,7 +557,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
     type LayerState (L.RWST r w s) m = (r, s)
     peel (L.RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     restore ((w, a), (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
-    suspend = L.RWST $ \r s -> return ((r, s), s, mempty)
+    capture = L.RWST $ \r s -> return ((r, s), s, mempty)
     extract _ (_, a) = Just a
 #else
     newtype LayerResult (L.RWST r w s) a = RWSR' (a, w)
@@ -564,7 +565,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
     peel (L.RWST m) (RWSS' (r, s)) =
         liftM (\(a, s', w) -> (RWSR' (a, w), RWSS' (r, s'))) (m r s)
     restore (RWSR' (a, w), RWSS' (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
-    suspend = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
+    capture = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
     extract _ (RWSR' (a, _)) = Just a
 #endif
 
@@ -576,14 +577,14 @@ instance Monoid w => MonadTransControl (WriterT w) where
     type LayerState (WriterT w) m = ()
     peel (WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     restore ((w, a), _) = WriterT $ return (a, w)
-    suspend = return ()
+    capture = return ()
     extract _ (_, a) = Just a
 #else
     newtype LayerResult (WriterT w) a = WR (a, w)
     newtype LayerState (WriterT w) m = WS ()
     peel (WriterT m) _ = liftM (\a -> (WR a, WS ())) m
     restore (WR a, _) = WriterT $ return a
-    suspend = return (WS ())
+    capture = return (WS ())
     extract _ (WR (a, _)) = Just a
 #endif
 
@@ -595,14 +596,14 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
     type LayerState (L.WriterT w) m = ()
     peel (L.WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     restore ((w, a), _) = L.WriterT $ return (a, w)
-    suspend = return ()
+    capture = return ()
     extract _ (_, a) = Just a
 #else
     newtype LayerResult (L.WriterT w) a = WR' (a, w)
     newtype LayerState (L.WriterT w) m = WS' ()
     peel (L.WriterT m) _ = liftM (\a -> (WR' a, WS' ())) m
     restore ((WR' a), _) = L.WriterT $ return a
-    suspend = return (WS' ())
+    capture = return (WS' ())
     extract _ (WR' (a, _)) = Just a
 #endif
 
@@ -616,11 +617,11 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
 result :: forall t m a. (MonadTransControl t, Monad (t m), Monad m)
     => t m a
     -> t m (LayerResult t a)
-result t = suspend >>= lift . liftM fst . peel t
+result t = capture >>= lift . liftM fst . peel t
 
 
 ------------------------------------------------------------------------------
--- | 'liftControl' is a composition of 'suspend', 'peel' and 'lift' provided
+-- | 'liftControl' is a composition of 'capture', 'peel' and 'lift' provided
 -- for convenience (and compability with
 -- @<http://hackage.haskell.org/package/monad-control monad-control>@).
 --
@@ -630,7 +631,7 @@ result t = suspend >>= lift . liftM fst . peel t
 liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m a)
     -> t m a
-liftControl f = suspend >>= \s -> lift $ f (flip peel s)
+liftControl f = capture >>= \s -> lift $ f (flip peel s)
 {-# INLINABLE liftControl #-}
 
 
@@ -838,10 +839,10 @@ instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
 -- using 'liftControl''.
 class MonadLift i m => MonadLiftControl i m where
     -- | Given the current \"state\" of the monad @m@ relative to @i@ (given
-    -- by 'suspend''), 'peel'' unwraps the @m@ and returns the result and the
+    -- by 'capture''), 'peel'' unwraps the @m@ and returns the result and the
     -- new state of @m@ (relative to @i@) wrapped in @i@. 'liftControl'', a
     -- more often used operation, is defined in terms of 'peel'' and
-    -- 'suspend''. See "Documentation.Layers.Overview" for more information.
+    -- 'capture''. See "Documentation.Layers.Overview" for more information.
     --
     -- Instances should satisfy thw following laws:
     --
@@ -865,7 +866,7 @@ class MonadLift i m => MonadLiftControl i m where
     -- | Captures the current \"state\" of the monad @m@ relative to @i@. See
     -- the explanation in "Documentation.Layers.Overview" for what this
     -- actually means.
-    suspend' :: proxy i -> m (LiftState i m)
+    capture' :: proxy i -> m (LiftState i m)
 
     -- | 'extract'' inspects a @'LiftResult' i m a@ value and tries to
     -- \"extract\" an @a@ value from it, if possible. This can be used to
@@ -916,11 +917,14 @@ type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> *
     LiftResult m m = Identity
     LiftResult i (t m) = ComposeResult i t m
     LiftResult i m = Any'
+-- closed type families are only supported on GHC 7.8 and above
 #else
 type instance LiftResult i m = Any'
 #endif
 #else
 type LiftResult i m = Any'
+-- we can't use a type family on GHC 7.2 and older because we run into GHC
+-- bug #5595, so we use a type synonym instead
 #endif
 
 
@@ -941,11 +945,14 @@ type family LiftState (i :: * -> *) (m :: * -> *) :: *
     LiftState m m = ()
     LiftState i (t m) = (LayerState t m, LiftState i m)
     LiftState i m = Any
+-- closed type families are only supported on GHC 7.8 and above
 #else
 type instance LiftState i m = Any
 #endif
 #else
 type LiftState i m = Any
+-- we can't use a type family on GHC 7.2 and older because we run into GHC
+-- bug #5595, so we use a type synonym instead
 #endif
 
 
@@ -992,7 +999,7 @@ fromAny' (Any' x) = fromAny x
 instance MonadLift m m => MonadLiftControl m m where
     peel' m _ = liftM (\a -> (to' $ Identity a, to ())) m
     restore' _ (r, _) = let Identity a = from' r in return a
-    suspend' _ = return $ to ()
+    capture' _ = return $ to ()
     extract' _ _ r = let Identity a = from' r in Just a
 
 
@@ -1001,7 +1008,7 @@ instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
   where
     peel' m _ = liftM (\a -> (to' $ Identity a, to ())) m
     restore' _ (r, _) = let Identity a = from' r in return a
-    suspend' _ = return $ to ()
+    capture' _ = return $ to ()
     extract' _ _ r = let Identity a = from' r in Just a
 
 
@@ -1032,9 +1039,9 @@ instance
         lift (restore' p (r', s')) >>= restore
     {-# INLINE restore' #-}
 
-    suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b ->
+    capture' p = capture >>= \a -> lift (capture' p) >>= \b ->
         return $ to (a, b)
-    {-# INLINE suspend' #-}
+    {-# INLINE capture' #-}
 
     extract' _ _ (r :: LiftResult i (t m) a) =
         let ComposeResult r' = (from' r :: ComposeResult i t m a) in join $
@@ -1062,7 +1069,7 @@ result' :: forall proxy m i a. MonadLiftControl i m
     -> m a
     -> m (LiftResult i m a)
 result' p m
-    = suspend' p >>= \s -> lift' (liftM fst (peel' m s :: i (Lift i m a)))
+    = capture' p >>= \s -> lift' (liftM fst (peel' m s :: i (Lift i m a)))
 
 
 ------------------------------------------------------------------------------
@@ -1087,7 +1094,7 @@ result' p m
 liftControl' :: forall i m a. MonadLiftControl i m
     => ((forall b. m b -> i (Lift i m b)) -> i a)
     -> m a
-liftControl' f = suspend' (Pm :: Pm i) >>= \s -> lift' $
+liftControl' f = capture' (Pm :: Pm i) >>= \s -> lift' $
     f (flip peel' s)
 {-# INLINABLE liftControl' #-}
 
@@ -1218,7 +1225,7 @@ possible to automatically derive instances of 'MonadLiftControl' the way it is
 for the other classes in the 'MonadLift' familiy.
 
 Rather than lose this useful feature altogether, the operations
-'defaultPeel'', 'defaultRestore'', 'defaultSuspend'' and 'defaultExtract''
+'defaultPeel'', 'defaultRestore'', 'defaultCapture'' and 'defaultExtract''
 are provided. These operations can be used to implement an instance
 @'MonadLiftControl' i n@ for some inner monad @i@, if @n@ is isomorphic to an
 @m@ for which there exists an instance @'MonadLiftControl' i m@ (e.g., if @n@
@@ -1250,7 +1257,7 @@ newtype MyMonad a = MyMonad { runMyMonad :: 'StateT' ['Int'] 'IO' a }
 instance 'MonadLiftControl' 'IO' MyMonad where
     'peel''    = 'defaultPeel'' runMyMonad
     'restore'' = 'defaultRestore'' MyMonad
-    'suspend'' = 'defaultSuspend'' MyMonad
+    'capture'' = 'defaultCapture'' MyMonad
     'extract'' = 'defaultExtract'' MyMonad
 @
 
@@ -1303,13 +1310,13 @@ defaultRestore' nu p (r, s) = nu (restore' p (fromAny' r, fromAny s))
 -- @n@ must be isomorphic to a monad @m@ which is already an instance of
 -- @'MonadLiftControl' i@.
 --
--- 'defaultSuspend'' takes the @m -> n@ half of the isomorphism.
-defaultSuspend'
+-- 'defaultCapture'' takes the @m -> n@ half of the isomorphism.
+defaultCapture'
     :: (MonadLiftControl i m, LiftState i n ~ Any)
     => (forall b. m b -> n b)
     -> proxy i
     -> n (LiftState i n)
-defaultSuspend' nu p = nu (liftM toAny (suspend' p))
+defaultCapture' nu p = nu (liftM toAny (capture' p))
 
 
 ------------------------------------------------------------------------------

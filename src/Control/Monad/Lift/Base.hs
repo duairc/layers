@@ -24,7 +24,7 @@ module Control.Monad.Lift.Base
     , MonadBaseControl
     , peelBase
     , restoreBase
-    , suspendBase
+    , captureBase
     , extractBase
     , resultBase
     , liftBaseControl
@@ -67,7 +67,7 @@ import           Control.Monad.Lift
                      , LiftState
                      , peel'
                      , restore'
-                     , suspend'
+                     , capture'
                      , extract'
                      , result'
                      , liftControl'
@@ -162,8 +162,8 @@ restoreBase = restore' (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-suspendBase :: forall b m. MonadBaseControl b m => m (LiftState b m)
-suspendBase = suspend' (Pm :: Pm b)
+captureBase :: forall b m. MonadBaseControl b m => m (LiftState b m)
+captureBase = capture' (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------

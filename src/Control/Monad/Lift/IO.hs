@@ -44,7 +44,7 @@ module Control.Monad.Lift.IO
     , MonadControlIO
     , peelIO
     , restoreIO
-    , suspendIO
+    , captureIO
     , extractIO
     , resultIO
     , liftControlIO
@@ -69,7 +69,7 @@ import           Control.Monad.Lift
                      , LiftState
                      , peel'
                      , restore'
-                     , suspend'
+                     , capture'
                      , extract'
                      , result'
                      , liftControl'
@@ -142,8 +142,8 @@ restoreIO = restore' (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-suspendIO :: MonadControlIO m => m (LiftState IO m)
-suspendIO = suspend' (Pm :: Pm IO)
+captureIO :: MonadControlIO m => m (LiftState IO m)
+captureIO = capture' (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
