@@ -96,6 +96,17 @@ class MonadMask m => MonadTry m where
     -- was given to @mtry@ would have short-circuited, it returns @Left m@,
     -- otherwise it returns @Right a@, where @a@ is the value returned by the
     -- computation @m@.
+    --
+    -- Instances should satisfy the following laws:
+    --
+    -- [Preserve-Unit]
+    --     @'mtry' ('return' a) ≡ 'return' ('Right' a)@
+    --
+    -- [Implies-Non-Zero]
+    --     @('mtry' m ≡ 'liftM' 'Right' m) ⇒ (∃f. m '>>=' f ≢ m)@
+    --
+    -- [Implies-Zero]
+    --     @('mtry' m ≡ 'liftM' ('const' ('Left' m)) m) ⇒ (∀f. m '>>=' f ≡ m)@
     mtry :: m a -> m (Either (m a) a)
     mtry = liftM Right
 
