@@ -14,13 +14,12 @@
 
 {-|
 
-This module is the core of the
+This module houses the core machinery of the
 @<http://hackage.haskell.org/package/layers layers>@ package. It exports
-everything you
-need for to implement monad transformers compatible with
-@<http://hackage.haskell.org/package/layers layers>@' monad interfaces, and
-everything that you need to lift computations, operations and morphisms
-through arbitrarily complicated stacks of monad transformers.
+everything you need to implement monad transformers compatible with
+@<http://hackage.haskell.org/package/layers layers>@' modular monad
+interfaces, and everything that you need to lift computations, operations and
+morphisms through arbitrarily complicated stacks of monad transformers.
 
 The @<http://hackage.haskell.org/package/layers layers>@ machinery is built
 upon two twin families of interfaces. The 'MonadTrans' family of interfaces is
@@ -29,11 +28,13 @@ transformer stack. That is, it lifts computations from @m a@ to @t m a@. The
 'MonadLift' family of interfaces is for lifting computations, operations and
 morphisms from any level of the transformer stack to the top of the
 transformer stack. That is, it lifts computations from @i a@ to @m a@ (where
-@m@ is a monad built from a stack of transformers and @i@ is the constraint
-@'MonadLift' i m@ holds). The 'MonadTrans' family of interfaces is mainly used
-by libraries that implement monad transformers and monad interfaces, while the
-'MonadLift' family is used by applications make use of (stacks of) these
-transformers.
+@m@ is a monad built from a stack of transformers and @i@ is some inner monad
+of @m@). Each of the 'MonadLift' interfaces is defined recursively in terms of
+its 'MonadTrans' counterpart.
+
+The 'MonadTrans' family of interfaces is mainly used by libraries that
+implement monad transformers and monad interfaces, while the 'MonadLift'
+family is used by applications make use of (stacks of) these transformers.
 
 -}
 
@@ -107,9 +108,7 @@ import           Control.Arrow (first)
 import           Control.Arrow ((***))
 import           Control.Monad (join, liftM)
 import           Data.Monoid (Monoid, mempty)
-#if __GLASGOW_HASKELL__ < 707
 import           GHC.Exts (Any)
-#endif
 import           Unsafe.Coerce (unsafeCoerce)
 
 
@@ -202,8 +201,8 @@ operations reflect this relationship.
 -- There are several ways to lift control operations through monad
 -- transformers, depending on the exact type of the operation to be lifted.
 -- The thing that all \"control\" operations have in common is that they have
--- take a monadic argument somewhere in a contravariant position (otherwise
--- they could be lifted with just 'lift'). For example, let's say you have a
+-- a monadic argument somewhere in a contravariant position (otherwise they
+-- could be lifted with just 'lift'). For example, let's say you have a
 -- control operation @f :: m a -> m b@, and you want to make a lifted version
 -- @f' :: t m a -> t m b@. @f'@ needs to somehow \"lower\" its argument from
 -- @t m a@ to @m a@ so that it can be passed to the original @f@. We call this
@@ -294,7 +293,7 @@ operations reflect this relationship.
 -- 'LayerResult' and updated 'LayerState' returned by that function and
 -- recovers the monadic state in @t@ that they represent. Taken together, we
 -- can use these operations to define @f'@, the lifted version of the @f@
--- operation we talked about earlier.
+-- operation described above.
 --
 -- @
 -- f' :: ('MonadTransControl' t, 'Monad' (t m), 'Monad' m) => t m a -> t m b
@@ -314,11 +313,17 @@ operations reflect this relationship.
 -- @
 class MonadTrans t => MonadTransControl t where
     -- | The portion of the result of executing a computation of @t@ that is
-    -- independent of @m@ and which is not the new 'LayerState'.
+    -- independent of @m@ and which is not an updated value for the
+    -- 'LayerState'.
     --
     -- Note: On versions of GHC prior to 7.4, 'LayerResult' is an associated
     -- /data/ type instead of an associated type synonym due to GHC bug
-    -- <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>.
+    -- <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>. If you're
+    -- defining an instance of 'MonadTransControl' and you want your code to
+    -- work on older versions of GHC as well, you're unfortunately going to
+    -- have to write two versions of the instance, once using associated type
+    -- synonyms, the other using associated data types, and then use @CPP@
+    -- pragmas to switch between them.
 #if __GLASGOW_HASKELL__ >= 704
     type LayerResult t :: * -> *
 #else
@@ -330,7 +335,12 @@ class MonadTrans t => MonadTransControl t where
     --
     -- Note: On versions of GHC prior to 7.4, 'LayerState' is an associated
     -- /data/ type instead of an associated type synonym due to GHC bug
-    -- <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>.
+    -- <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>. If you're
+    -- defining an instance of 'MonadTransControl' and you want your code to
+    -- work on older versions of GHC as well, you're unfortunately going to
+    -- have to write two versions of the instance, once using associated type
+    -- synonyms, the other using associated data types, and then use @CPP@
+    -- pragmas to switch between them.
 #if __GLASGOW_HASKELL__ >= 704
     type LayerState t (m :: * -> *) :: *
 #else
@@ -371,12 +381,12 @@ class MonadTrans t => MonadTransControl t where
     -- Instances should satisfy the following laws:
     --
     -- [Preservation]
-    --     @'liftM' ('extract' ('Proxy' :: 'Proxy' t)) ('result' ('return' a))
+    --     @'liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' ('return' a))
     --         ≡ 'return' ('Just' a)@
     --
     -- [Zero]
-    --     @('liftM' ('extract' ('Proxy' :: 'Proxy' t)) ('result' m)
-    --         ≡ 'return' 'Nothing') ⇒ (m '>>=' f ≡ m)@
+    --     @('liftM' ('extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t)) ('result' m)
+    --         ≡ 'return' 'Nothing') ⇒ (m '>>=' _ ≡ m)@
     extract :: proxy t -> LayerResult t a -> Maybe a
 
 
@@ -616,7 +626,7 @@ result t = suspend >>= lift . liftM fst . peel t
 --
 -- It takes a continuation, to which it passes a version of 'peel', which can
 -- be used to effectively \"lower\" a computation in the monad @t m a@ to
--- @m a@ (storing the captured state of @t@ in the return value).
+-- @m a@ (storing the captured side-effects of @t@ in the return value).
 liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (Layer t m b)) -> m a)
     -> t m a
@@ -626,7 +636,7 @@ liftControl f = suspend >>= \s -> lift $ f (flip peel s)
 
 ------------------------------------------------------------------------------
 -- | A version of 'liftControl' that automatically restores to the outer monad
--- the captured state returned from the continuation.
+-- the captured side-effects returned from the continuation.
 --
 -- @
 -- catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
@@ -708,8 +718,8 @@ class MInvariant t where
     --             'hoistiso' (f '.' f') (g' '.' g)@
     --
     -- Note: The homomorphism produced by @'hoistiso' f g@ is only valid if
-    -- @f@ and @g@ form a valid isomorphism, i.e., @f '.' g ≡ id@ and
-    -- @g '.' f ≡ id@.
+    -- @f@ and @g@ form a valid isomorphism, i.e., @f '.' g ≡ 'id'@ and
+    -- @g '.' f ≡ 'id'@.
     hoistiso :: Monad m
         => (forall b. m b -> n b)
         -> (forall b. n b -> m b)
@@ -878,6 +888,11 @@ class MonadLift i m => MonadLiftControl i m where
 
 
 ------------------------------------------------------------------------------
+-- | A higher-kinded version of 'Any'.
+newtype Any' (a :: *) = Any' Any
+
+
+------------------------------------------------------------------------------
 -- | A type synonym that makes some of the type signatures a little bit less
 -- scary.
 type Lift i m a = (LiftResult i m a, LiftState i m)
@@ -887,12 +902,20 @@ type Lift i m a = (LiftResult i m a, LiftState i m)
 -- | The portion of the result of executing a computation of @m@ relative to
 -- @i@ that is independent of @m@ (and all layers down to @i@) and which is
 -- not the new 'LiftState'.
+--
+-- Note: On GHC 7.8 and up, this is implemented as a
+-- <http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type family>.
+-- Older versions of GHC do not support closed type families, but we use
+-- various hacks involving 'Any' and 'unsafeCoerce' to provide the same
+-- interface. You should not need to worry about this; I am pretty sure it is
+-- safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family LiftResult (i :: * -> *) (m :: * -> *) :: * -> *
 #if __GLASGOW_HASKELL__ >= 707
   where
     LiftResult m m = Identity
     LiftResult i (t m) = ComposeResult i t m
+    LiftResult i m = Any'
 #else
 type instance LiftResult i m = Any'
 #endif
@@ -901,21 +924,23 @@ type LiftResult i m = Any'
 #endif
 
 
-#if __GLASGOW_HASKELL__ < 707
-------------------------------------------------------------------------------
-newtype Any' (a :: *) = Any' Any
-
-
-#endif
 ------------------------------------------------------------------------------
 -- | The \"state\" needed to 'peel'' a computation of @m@ back to @i@. Running
 -- a peeled computation returns a 'LiftResult' and an updated 'LiftState'.
+--
+-- Note: On GHC 7.8 and up, this is implemented as a
+-- <http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type family>.
+-- Older versions of GHC do not support closed type families, but we use
+-- various hacks involving 'Any' and 'unsafeCoerce' to provide the same
+-- interface. You should not need to worry about this; I am pretty sure it is
+-- safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family LiftState (i :: * -> *) (m :: * -> *) :: *
 #if __GLASGOW_HASKELL__ >= 707
   where
     LiftState m m = ()
     LiftState i (t m) = (LayerState t m, LiftState i m)
+    LiftState i m = Any
 #else
 type instance LiftState i m = Any
 #endif
@@ -931,30 +956,53 @@ newtype ComposeResult i t m a
 
 ------------------------------------------------------------------------------
 #if __GLASGOW_HASKELL__ >= 707
-coerce :: a -> a
-coerce = id
+to, from, to', from' :: a -> a
+to = id; from = id; to' = id; from' = id
 #else
-coerce :: a -> b
-coerce = unsafeCoerce
+to :: a -> Any; to' :: a -> Any' x; from :: Any -> a; from' :: Any' x -> a
+to = toAny; to' = toAny'; from = fromAny; from' = fromAny'
 #endif
-{-# INLINE coerce #-}
+{-# INLINE to #-}
+{-# INLINE to' #-}
+{-# INLINE from #-}
+{-# INLINE from' #-}
+
+
+------------------------------------------------------------------------------
+toAny :: a -> Any
+toAny = unsafeCoerce
+
+
+------------------------------------------------------------------------------
+fromAny :: Any -> a
+fromAny = unsafeCoerce
+
+
+------------------------------------------------------------------------------
+toAny' :: a -> Any' x
+toAny' = Any' . toAny
+
+
+------------------------------------------------------------------------------
+fromAny' :: Any' x -> a
+fromAny' (Any' x) = fromAny x
 
 
 ------------------------------------------------------------------------------
 instance MonadLift m m => MonadLiftControl m m where
-    peel' m _ = liftM (\a -> (coerce $ Identity a, coerce ())) m
-    restore' _ (r, _) = let Identity a = coerce r in return a
-    suspend' _ = return $ coerce ()
-    extract' _ _ r = let Identity a = coerce r in Just a
+    peel' m _ = liftM (\a -> (to' $ Identity a, to ())) m
+    restore' _ (r, _) = let Identity a = from' r in return a
+    suspend' _ = return $ to ()
+    extract' _ _ r = let Identity a = from' r in Just a
 
 
 ------------------------------------------------------------------------------
 instance (Monad m, MonadLift (t m) (t m)) => MonadLiftControl (t m) (t m)
   where
-    peel' m _ = liftM (\a -> (coerce $ Identity a, coerce ())) m
-    restore' _ (r, _) = let Identity a = coerce r in return a
-    suspend' _ = return $ coerce ()
-    extract' _ _ r = let Identity a = coerce r in Just a
+    peel' m _ = liftM (\a -> (to' $ Identity a, to ())) m
+    restore' _ (r, _) = let Identity a = from' r in return a
+    suspend' _ = return $ to ()
+    extract' _ _ r = let Identity a = from' r in Just a
 
 
 ------------------------------------------------------------------------------
@@ -972,24 +1020,24 @@ instance
     MonadLiftControl i (t m)
   where
     peel' (m :: t m a) s = do
-        let (lys, lis) = coerce s
+        let (lys, lis) = from s
         let compose lir = ComposeResult lir :: ComposeResult i t m a
-        let f (lir, lis') = (coerce (compose lir), coerce (lys, lis'))
+        let f (lir, lis') = (to' (compose lir), to (lys, lis'))
         liftM f $ peel' (peel m lys) lis
     {-# INLINE peel' #-}
 
     restore' p ((r, s) :: Lift i (t m) a) = do
-        let ComposeResult r' = (coerce r :: ComposeResult i t m a)
-        let (_, s') = coerce s
+        let ComposeResult r' = (from' r :: ComposeResult i t m a)
+        let (_, s') = from s
         lift (restore' p (r', s')) >>= restore
     {-# INLINE restore' #-}
 
     suspend' p = suspend >>= \a -> lift (suspend' p) >>= \b ->
-        return $ coerce (a, b)
+        return $ to (a, b)
     {-# INLINE suspend' #-}
 
     extract' _ _ (r :: LiftResult i (t m) a) =
-        let ComposeResult r' = (coerce r :: ComposeResult i t m a) in join $
+        let ComposeResult r' = (from' r :: ComposeResult i t m a) in join $
             fmap (extract (Pt :: Pt t) . fst) $
                 extract' (Pm :: Pm i) (Pm :: Pm m) r'
     {-# INLINE extract' #-}
@@ -1046,7 +1094,7 @@ liftControl' f = suspend' (Pm :: Pm i) >>= \s -> lift' $
 
 ------------------------------------------------------------------------------
 -- | A version of 'liftControl'' that automatically restores to the outer
--- monad the captured state returned from the continuation.
+-- monad the captured side-effects returned from the continuation.
 --
 -- @
 -- catch' :: ('Control.Exception.Exception' e, 'MonadLiftControl' 'IO' m) => m b -> (e -> m b) -> m b
@@ -1187,7 +1235,6 @@ Here is an example that (safely) uses these operations:
 
 import "Control.Applicative"
 import "Control.Monad.Lift"
-import "Control.Monad.Lift.Unsafe"
 import "Control.Monad.Trans.State.Strict"
 
 newtype MyMonad a = MyMonad { runMyMonad :: 'StateT' ['Int'] 'IO' a }
@@ -1223,13 +1270,13 @@ operations to manually define an instance (as above) rather than using on the
 -- @'MonadLiftControl' i@.
 --
 -- 'defaultPeel'' takes the @n -> m@ half of the isomorphism.
-defaultPeel' :: MonadLiftControl i m
+defaultPeel'
+    :: (MonadLiftControl i m, LiftResult i n ~ Any', LiftState i n ~ Any)
     => (forall b. n b -> m b)
     -> n a
     -> LiftState i n
     -> i (Lift i n a)
-defaultPeel' un m s = liftM (unsafeCoerce *** unsafeCoerce) $
-    peel' (un m) (unsafeCoerce s)
+defaultPeel' un m s = liftM (toAny' *** toAny) $ peel' (un m) (fromAny s)
 
 
 ------------------------------------------------------------------------------
@@ -1240,12 +1287,13 @@ defaultPeel' un m s = liftM (unsafeCoerce *** unsafeCoerce) $
 -- @'MonadLiftControl' i@.
 --
 -- 'defaultRestore'' takes the @m -> n@ half of the isomorphism.
-defaultRestore' :: MonadLiftControl i m
+defaultRestore'
+    :: (MonadLiftControl i m, LiftResult i n ~ Any', LiftState i n ~ Any)
     => (forall b. m b -> n b)
     -> proxy i
     -> Lift i n a
     -> n a
-defaultRestore' nu p (r, s) = nu (restore' p (unsafeCoerce r, unsafeCoerce s))
+defaultRestore' nu p (r, s) = nu (restore' p (fromAny' r, fromAny s))
 
 
 ------------------------------------------------------------------------------
@@ -1256,11 +1304,12 @@ defaultRestore' nu p (r, s) = nu (restore' p (unsafeCoerce r, unsafeCoerce s))
 -- @'MonadLiftControl' i@.
 --
 -- 'defaultSuspend'' takes the @m -> n@ half of the isomorphism.
-defaultSuspend' :: MonadLiftControl i m
+defaultSuspend'
+    :: (MonadLiftControl i m, LiftState i n ~ Any)
     => (forall b. m b -> n b)
     -> proxy i
     -> n (LiftState i n)
-defaultSuspend' nu p = nu (liftM unsafeCoerce (suspend' p))
+defaultSuspend' nu p = nu (liftM toAny (suspend' p))
 
 
 ------------------------------------------------------------------------------
@@ -1271,13 +1320,17 @@ defaultSuspend' nu p = nu (liftM unsafeCoerce (suspend' p))
 -- @'MonadLiftControl' i@.
 --
 -- 'defaultExtract'' takes the @m -> n@ half of the isomorphism.
-defaultExtract' :: forall proxy i m n a. MonadLiftControl i m
+defaultExtract'
+    :: forall proxy proxy' i m n a.
+        ( MonadLiftControl i m
+        , LiftResult i n ~ Any'
+        )
     => (forall b. m b -> n b)
     -> proxy i
-    -> proxy n
+    -> proxy' n
     -> LiftResult i n a
     -> Maybe a
-defaultExtract' _ p _ r = extract' p (Pm :: Pm m) (unsafeCoerce r)
+defaultExtract' _ p _ r = extract' p (Pm :: Pm m) (fromAny' r)
 
 
 ------------------------------------------------------------------------------
@@ -1287,7 +1340,7 @@ defaultExtract' _ p _ r = extract' p (Pm :: Pm m) (unsafeCoerce r)
 class Monad i => MonadLiftInvariant i m where
     -- | 'hoistiso'' represents an invariant endofunctor in the category of
     -- monads. It takes a transformation @f@ of an inner monad @i@ and its
-    -- inverse @g@ (such that @g . f = id@) and returns transformation of @m@
+    -- inverse @g@ (such that @g '.' f = 'id'@) and returns transformation of @m@
     -- analogous to @f@. (i.e., @hoistiso'@ lifts an automorphism in @i@
     -- to an endomorphism in @m@).
     --
@@ -1300,8 +1353,8 @@ class Monad i => MonadLiftInvariant i m where
     --             'hoistiso'' (f '.' f') (g' '.' g)@
     --
     -- Note: The endomorphism produced by @'hoistiso'' f g@ is only valid if
-    -- @f@ and @g@ form a valid isomorphism, i.e., @f '.' g ≡ id@ and
-    -- @g '.' f ≡ id@.
+    -- @f@ and @g@ form a valid isomorphism, i.e., @f '.' g ≡ 'id'@ and
+    -- @g '.' f ≡ 'id'@.
     --
     -- There are two main differences between 'hoistiso'' and 'hoistiso'. The
     -- first is that 'hoistiso' only lifts from the monad directly beneath the
