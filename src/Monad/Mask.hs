@@ -71,7 +71,9 @@ import           Control.Exception (block, unblock, blocked)
 #endif
 import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
-
+#if MIN_VERSION_base(4, 7, 0)
+import           Data.Proxy (Proxy)
+#endif
 #if MIN_VERSION_base(4, 3, 0)
 import           GHC.Base
                      ( maskAsyncExceptions#
@@ -185,6 +187,12 @@ instance MonadMask (L.ST s)
 instance MonadMask STM
 
 
+#if MIN_VERSION_base(4, 7, 0)
+------------------------------------------------------------------------------
+instance MonadMask Proxy
+
+
+#endif
 ------------------------------------------------------------------------------
 instance MonadMask IO where
 #if MIN_VERSION_base(4, 3, 0)
@@ -199,7 +207,6 @@ instance MonadMask IO where
     setMaskingState MaskedInterruptible = block
     setMaskingState MaskedUninterruptible = block
 #endif
-
 
 
 ------------------------------------------------------------------------------

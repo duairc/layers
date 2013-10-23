@@ -130,5 +130,5 @@ instance (MonadRecover e f, MonadRecover e g) => MonadRecover e (Product f g)
 instance (MonadTransControl t, MonadRecover e m, MonadAbort e (t m)) =>
     MonadRecover e (t m)
   where
-    recover m h = control (\run -> recover (run m) (run . h))
+    recover m h = control (\peel -> recover (peel m) (peel . h))
     {-# INLINE recover #-}

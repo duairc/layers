@@ -22,11 +22,10 @@ module Control.Monad.Lift.Base
     ( MonadBase
     , liftBase
     , MonadBaseControl
-    , peelBase
-    , restoreBase
+    , suspendBase
+    , resumeBase
     , captureBase
     , extractBase
-    , resultBase
     , liftBaseControl
     , controlBase
     , liftBaseOp
@@ -62,14 +61,13 @@ import           Control.Monad.Lift
                      , MonadLift
                      , lift'
                      , MonadLiftControl
-                     , Lift
+                     , LiftEffects
                      , LiftResult
                      , LiftState
-                     , peel'
-                     , restore'
+                     , suspend'
+                     , resume'
                      , capture'
                      , extract'
-                     , result'
                      , liftControl'
                      , control'
                      , liftOp'
@@ -152,13 +150,13 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-peelBase :: MonadBaseControl b m => m a -> LiftState b m -> b (Lift b m a)
-peelBase = peel'
+suspendBase :: MonadBaseControl b m => m a -> LiftState b m -> b (LiftEffects b m a)
+suspendBase = suspend'
 
 
 ------------------------------------------------------------------------------
-restoreBase :: forall b m a. MonadBaseControl b m => Lift b m a -> m a
-restoreBase = restore' (Pm :: Pm b)
+resumeBase :: forall b m a. MonadBaseControl b m => LiftEffects b m a -> m a
+resumeBase = resume' (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
@@ -172,27 +170,22 @@ extractBase = extract' (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-resultBase :: forall b m a. MonadBaseControl b m => m a -> m (LiftResult b m a)
-resultBase = result' (Pm :: Pm b)
-
-
-------------------------------------------------------------------------------
-liftBaseControl :: MonadBaseControl b m => ((forall c. m c -> b (Lift b m c)) -> b a) -> m a
+liftBaseControl :: MonadBaseControl b m => ((forall c. m c -> b (LiftEffects b m c)) -> b a) -> m a
 liftBaseControl = liftControl'
 
 
 ------------------------------------------------------------------------------
-controlBase :: MonadBaseControl b m => ((forall c. m c -> b (Lift b m c)) -> b (Lift b m a)) -> m a
+controlBase :: MonadBaseControl b m => ((forall c. m c -> b (LiftEffects b m c)) -> b (LiftEffects b m a)) -> m a
 controlBase = control'
 
 
 ------------------------------------------------------------------------------
-liftBaseOp :: MonadBaseControl b m => ((a -> b (Lift b m c)) -> b (Lift b m d)) -> (a -> m c) -> m d
+liftBaseOp :: MonadBaseControl b m => ((a -> b (LiftEffects b m c)) -> b (LiftEffects b m d)) -> (a -> m c) -> m d
 liftBaseOp = liftOp'
 
 
 ------------------------------------------------------------------------------
-liftBaseOp_ :: MonadBaseControl b m => (b (Lift b m a) -> b (Lift b m c)) -> m a -> m c
+liftBaseOp_ :: MonadBaseControl b m => (b (LiftEffects b m a) -> b (LiftEffects b m c)) -> m a -> m c
 liftBaseOp_ = liftOp_'
 
 

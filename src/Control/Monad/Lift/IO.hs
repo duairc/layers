@@ -42,11 +42,10 @@ module Control.Monad.Lift.IO
     ( MonadIO
     , liftIO
     , MonadControlIO
-    , peelIO
-    , restoreIO
+    , suspendIO
+    , resumeIO
     , captureIO
     , extractIO
-    , resultIO
     , liftControlIO
     , controlIO
     , liftIOOp
@@ -64,14 +63,13 @@ import           Control.Monad.Lift
                      ( MonadLift
                      , lift'
                      , MonadLiftControl
-                     , Lift
+                     , LiftEffects
                      , LiftResult
                      , LiftState
-                     , peel'
-                     , restore'
+                     , suspend'
+                     , resume'
                      , capture'
                      , extract'
-                     , result'
                      , liftControl'
                      , control'
                      , liftOp'
@@ -132,13 +130,13 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-peelIO :: MonadControlIO m => m a -> LiftState IO m -> IO (Lift IO m a)
-peelIO = peel'
+suspendIO :: MonadControlIO m => m a -> LiftState IO m -> IO (LiftEffects IO m a)
+suspendIO = suspend'
 
 
 ------------------------------------------------------------------------------
-restoreIO :: MonadControlIO m => Lift IO m a -> m a
-restoreIO = restore' (Pm :: Pm IO)
+resumeIO :: MonadControlIO m => LiftEffects IO m a -> m a
+resumeIO = resume' (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
@@ -152,27 +150,22 @@ extractIO = extract' (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-resultIO :: MonadControlIO m => m a -> m (LiftResult IO m a)
-resultIO = result' (Pm :: Pm IO)
-
-
-------------------------------------------------------------------------------
-liftControlIO :: MonadControlIO m => ((forall b. m b -> IO (Lift IO m b)) -> IO a) -> m a
+liftControlIO :: MonadControlIO m => ((forall b. m b -> IO (LiftEffects IO m b)) -> IO a) -> m a
 liftControlIO = liftControl'
 
 
 ------------------------------------------------------------------------------
-controlIO :: MonadControlIO m => ((forall b. m b -> IO (Lift IO m b)) -> IO (Lift IO m a)) -> m a
+controlIO :: MonadControlIO m => ((forall b. m b -> IO (LiftEffects IO m b)) -> IO (LiftEffects IO m a)) -> m a
 controlIO = control'
 
 
 ------------------------------------------------------------------------------
-liftIOOp :: MonadControlIO m => ((a -> IO (Lift IO m b)) -> IO (Lift IO m c)) -> (a -> m b) -> m c
+liftIOOp :: MonadControlIO m => ((a -> IO (LiftEffects IO m b)) -> IO (LiftEffects IO m c)) -> (a -> m b) -> m c
 liftIOOp = liftOp'
 
 
 ------------------------------------------------------------------------------
-liftIOOp_ :: MonadControlIO m => (IO (Lift IO m a) -> IO (Lift IO m b)) -> m a -> m b
+liftIOOp_ :: MonadControlIO m => (IO (LiftEffects IO m a) -> IO (LiftEffects IO m b)) -> m a -> m b
 liftIOOp_ = liftOp_'
 
 

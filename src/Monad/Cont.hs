@@ -32,7 +32,7 @@ import           Control.Monad.Lift
                     ( MonadTransControl
                     , lift
                     , liftControl
-                    , restore
+                    , resume
                     )
 
 
@@ -83,6 +83,6 @@ instance Monad m => MonadCont (ContT r m) where
 ------------------------------------------------------------------------------
 instance (MonadTransControl t, MonadCont m, Monad (t m)) => MonadCont (t m)
   where
-    callCC f = liftControl (\run -> callCC $ \c -> run . f $ \a ->
-        lift (run (return a) >>= c)) >>= restore
+    callCC f = liftControl (\peel -> callCC $ \c -> peel . f $ \a ->
+        lift (peel (return a) >>= c)) >>= resume
     {-# INLINE callCC #-}

@@ -52,6 +52,9 @@ import           GHC.Conc.Sync (STM, catchSTM, throwSTM)
 #else
 import           GHC.Conc (STM, catchSTM, unsafeIOToSTM)
 #endif
+#if MIN_VERSION_base(4, 7, 0)
+import           Data.Proxy (Proxy)
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -65,8 +68,8 @@ import           Control.Monad.Lift
                      ( MonadTransControl
                      , extract
                      , lift
-                     , peel
-                     , restore
+                     , suspend
+                     , resume
                      , capture
                      )
 
@@ -84,8 +87,9 @@ import           Control.Monad.Lift
 --
 -- Nearly every monad should have an instance of @MonadTry@, with the
 -- exception of CPS-style monads whose (possible) short-circuiting is
--- impossible to observe. Instances for every base monad in the @base@ and
--- @transformers@ packages. @mtry@ has a default definition that only needs
+-- impossible to observe. Instances are provided for every base monad in the
+-- @base@ and
+-- @transformers@ packages. 'mtry' has a default definition that only needs
 -- to be overridden for monads which actually short-circuit, so it costs
 -- very little to add an instance of @MonadTry@ to a monad.
 --
@@ -93,9 +97,9 @@ import           Control.Monad.Lift
 class MonadMask m => MonadTry m where
     -- | 'mtry' takes a monadic action in @m@ and returns a new monadic value
     -- in @m@ which is guaranteed not to short-circuit. If the action @m@ that
-    -- was given to @mtry@ would have short-circuited, it returns @Left m@,
-    -- otherwise it returns @Right a@, where @a@ is the value returned by the
-    -- computation @m@.
+    -- was given to 'mtry' would have short-circuited, it returns @'Left' m@,
+    -- otherwise it returns @'Right' a@, where @a@ is the value returned by
+    -- the computation @m@.
     --
     -- Instances should satisfy the following laws:
     --
@@ -106,7 +110,7 @@ class MonadMask m => MonadTry m where
     --     @('mtry' m ≡ 'liftM' 'Right' m) ⇒ (∃f. m '>>=' f ≢ m)@
     --
     -- [Implies-Zero]
-    --     @('mtry' m ≡ 'liftM' ('const' ('Left' m)) m) ⇒ (∀f. m '>>=' f ≡ m)@
+    --     @('mtry' m ≡ 'return' ('Left' m)) ⇒ (∀f. m '>>=' f ≡ m)@
     mtry :: m a -> m (Either (m a) a)
     mtry = liftM Right
 
@@ -169,8 +173,14 @@ instance MonadTry STM where
         try' m' = catchSTM (liftM Right m') (return . Left)
 
 
+#if MIN_VERSION_base(4, 7, 0)
 ------------------------------------------------------------------------------
-data P (t :: (* -> *) -> * -> *) = P
+instance MonadTry Proxy
+
+
+#endif
+------------------------------------------------------------------------------
+data Pt (t :: (* -> *) -> * -> *) = Pt
 
 
 ------------------------------------------------------------------------------
@@ -178,12 +188,12 @@ instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
   where
     mtry (m :: t m a) = do
         state <- capture
-        ma <- lift . mtry $ peel m state
+        ma <- lift . mtry $ suspend m state
         case ma of
-            Left m' -> return . Left $ lift m' >>= restore
-            Right (result, state') -> case extract (P :: P t) result of
-                Nothing ->  return . Left $ restore (result, state')
-                Just _ -> liftM Right $ restore (result, state')
+            Left m' -> return . Left $ lift m' >>= resume
+            Right (result, state') -> case extract (Pt :: Pt t) result of
+                Nothing ->  return . Left $ resume (result, state')
+                Just _ -> liftM Right $ resume (result, state')
     {-# INLINE mtry #-}
 
 
@@ -212,9 +222,9 @@ bracket :: MonadTry m
     -> (a -> m b)  -- ^ computation to run last (\"release resource\")
     -> (a -> m c)  -- ^ computation to run in-between
     -> m c         -- ^ returns the value from the in-between computation
-bracket acquire release run = mask $ \unmask -> do
+bracket acquire release run = mask $ \restore -> do
     a <- acquire
-    unmask (run a) `finally` release a
+    restore (run a) `finally` release a
 {-# INLINABLE bracket #-}
 
 
@@ -230,9 +240,9 @@ bracket_ acquire release run = bracket acquire (const release) (const run)
 -- | Like 'bracket', but only performs the final action if the monad
 -- short-circuited during the in-between computation.
 bracketOnError :: MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c
-bracketOnError acquire release run = mask $ \unmask -> do
+bracketOnError acquire release run = mask $ \restore -> do
     a <- acquire
-    unmask (run a) `onException` release a
+    restore (run a) `onException` release a
 {-# INLINABLE bracketOnError #-}
 
 
@@ -240,8 +250,8 @@ bracketOnError acquire release run = mask $ \unmask -> do
 -- | A specialised variant of 'bracket' with just a computation to run
 -- afterward.
 finally :: MonadTry m => m a -> m b -> m a
-finally m sequel = mask $ \unmask -> do
-    r <- unmask m `onException` sequel
+finally m sequel = mask $ \restore -> do
+    r <- restore m `onException` sequel
     _ <- sequel
     return r
 {-# INLINABLE finally #-}
@@ -251,6 +261,6 @@ finally m sequel = mask $ \unmask -> do
 -- | Like 'finally', but only performs the final action if the monad
 -- short-circuited during the computation.
 onException :: MonadTry m => m a -> m b -> m a
-onException m sequel = mask $ \unmask -> do
-    mtry (unmask m) >>= either (sequel >>) return
+onException m sequel = mask $ \restore -> do
+    mtry (restore m) >>= either (sequel >>) return
 {-# INLINABLE onException #-}
