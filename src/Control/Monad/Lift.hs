@@ -22,15 +22,16 @@ interfaces, and everything that you need to lift computations, operations and
 morphisms through arbitrarily complicated stacks of monad transformers.
 
 The @<http://hackage.haskell.org/package/layers layers>@ machinery is built
-upon two twin families of interfaces. The 'MonadTrans' family of interfaces is
-for lifting computations, operations and morphisms up exactly one level in the
-transformer stack. That is, it lifts computations from @m a@ to @t m a@. The
-'MonadLift' family of interfaces is for lifting computations, operations and
-morphisms from any level of the transformer stack to the top of the
-transformer stack. That is, it lifts computations from @i a@ to @m a@ (where
-@m@ is a monad built from a stack of transformers and @i@ is some inner monad
-of @m@). Each of the 'MonadLift' interfaces is defined recursively in terms of
-its 'MonadTrans' counterpart.
+upon two twin families of interfaces. The 'MonadTrans' family of interfaces
+provides operations for lifting computations, operations and morphisms up
+exactly one level in the transformer stack. That is, it lifts computations
+from @m a@ to @t m a@. The 'MonadLift' family of interfaces provides
+operations for lifting computations, operations and morphisms from any level
+of the transformer stack to the top of the transformer stack. That is, it
+lifts computations from @i a@ to @m a@ (where @m@ is a monad built from a
+stack of transformers and @i@ is some inner monad of @m@). Each of the
+'MonadLift' interfaces is defined recursively in terms of its 'MonadTrans'
+counterpart.
 
 The 'MonadTrans' family of interfaces is mainly used by libraries that
 implement monad transformers and monad interfaces, while the 'MonadLift'
@@ -190,10 +191,12 @@ operations reflect this relationship.
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadTransControl' t@ holds if @t@ is a monad
--- transformer through which control operations can be lifted.
+-- transformer through which control operations can be lifted. There are a
+-- variety of operations for doing so, depending on the exact type of the
+-- control operation in question, including 'liftControl', 'control',
+-- 'liftOp', 'liftOp_' and 'liftDiscard'. These are all built on top of the
+-- more primitive 'capture', 'suspend' and 'resume' operations.
 --
--- There are several ways to lift control operations through monad
--- transformers, depending on the exact type of the operation to be lifted.
 -- The thing that all \"control\" operations have in common is that they have
 -- a monadic argument somewhere in a contravariant position (otherwise they
 -- could be lifted with just 'lift'). For example, let's say you have a
@@ -265,9 +268,9 @@ operations reflect this relationship.
 -- peel :: 'ErrorT' e m a -> 'LayerState' ('ErrorT' e) m -> m ('Either' e a)
 -- @
 --
--- Again, we can use associated type synonyms to define a pattern that
--- abstracts this into a single operation. We call this one 'LayerResult'.
--- Here are some of its instances:
+-- Again, we can use an associated type synonym to make all of these
+-- operations fit a single pattern. We call this one 'LayerResult'. Here are
+-- some of its instances:
 --
 -- @
 -- type 'LayerResult' 'IdentityT' = 'Identity'
@@ -276,16 +279,16 @@ operations reflect this relationship.
 -- type 'LayerResult' ('RWST' r w s) = (,) w
 -- @
 --
--- How exactly is it decided what the type of @'LayerResult' t@ should be for
--- a particular monad transformer? There are several things to consider. Let's
--- say we have a monad transformer @t@ that we want to make an instance of
+-- How exactly is it decided what @'LayerResult' t@ should be for a particular
+-- monad transformer? There are several things to consider. Let's say we have
+-- a monad transformer @t@ that we want to make an instance of
 -- 'MonadTransControl'. Let's also assume that its 'LayerState' is @()@ (like
 -- 'ErrorT', 'IdentityT' and 'MaybeT'), because this is easier to explain
--- first. The goal should be for @'LayerResult' t a@ to resolve to a type
--- which is isomorphic to the type inside the @m@ computation wrapped by your
+-- first. The goal should be for @'LayerResult' t a@ to expand to a type
+-- which is isomorphic to the type inside the @m@ computation wrapped by our
 -- monad transformer. To take 'MaybeT' as an example again, it wraps an @m@
 -- computation the type inside of which is @'Maybe' a@. Therefore we want
--- @'LayerResult' 'MaybeT' a@ to resolve to @'Maybe' a@, which it does,
+-- @'LayerResult' 'MaybeT' a@ to expands to @'Maybe' a@, which it does,
 -- because @'LayerResult' 'MaybeT' = 'Maybe'@ as shown above.
 --
 -- The next thing to consider is that 'LayerResult' is a type family which
@@ -309,9 +312,9 @@ operations reflect this relationship.
 --
 -- Now, what if our monad transformer has a 'LayerState' that isn't just @()@?
 -- Let's consider 'RWST' again. The type inside the @m@ computation wrapped by
--- 'RWST' is @(a, s, w)@, but its 'LayerResult' is @(,) w@. Now, @(,) w a@ is
--- @(w, a@), which is isomorphic to @(a, w)@, but what about the @s@ in the
--- middle?
+-- 'RWST' is @(a, s, w)@, but its 'LayerResult' is @(,) w@. Now, @(,) w a@
+-- expands to @(w, a@), which is isomorphic to @(a, w)@, but what about the
+-- @s@ in the middle?
 --
 -- The answer is that monad transformers which have a 'LayerState' value often
 -- update all or part of it as one of the side-effects of their computations.
@@ -330,10 +333,10 @@ operations reflect this relationship.
 -- type 'LayerEffects' t m a = ('LayerResult' t a, 'LayerState' t m)
 -- @
 --
--- (The 'LayerEffects' type synonym has two functions: it makes the type
--- signatures of 'suspend' and other operatoins a little bit less scary, and
--- it also communicates that the combination of a 'LayerResult' and a
--- 'LayerState' together encapsulate the side-effects of a monad transformer.)
+-- (The purpose of the 'LayerEffects' type synonym is twofold: it makes the
+-- type signatures of 'suspend' and other operatoins a little bit less scary,
+-- and it also communicates that the combination of a 'LayerResult' and a
+-- 'LayerState' together reify the side-effects of a monad transformer.)
 --
 -- There are two important operations in the 'MonadTransControl' that we have
 -- only alluded to so far: 'capture' and 'resume'.
@@ -344,10 +347,10 @@ operations reflect this relationship.
 -- @
 --
 -- 'capture' captures the current @'LayerState' t m@ for the monad @t m@. This
--- is where the 'LayerState' that 'suspend' wants comes from. 'resume' is the
--- inverse of 'suspend': it takes the 'suspend'ed side-effects of a monad
--- transformer @t@ encapsulated by a @'LayerEffects' t m a@ value, and returns
--- a returns a reconstructed computation of type @t m a@ with those
+-- is where the 'LayerState' that 'suspend' takes as its argument comes from.
+-- 'resume' is the inverse of 'suspend': it takes the suspended side-effects
+-- of a monad transformer @t@ reified by a @'LayerEffects' t m a@ value, and
+-- returns a returns a reconstructed computation of type @t m a@ with those
 -- side-effects.
 --
 -- Taken together, we can use these operations to define @f'@, a lifted
@@ -370,8 +373,8 @@ operations reflect this relationship.
 --     'extract' _ (_, a) = 'Just' a
 -- @
 class MonadTrans t => MonadTransControl t where
-    -- | A type which encapsulates the side-effects of @t@ (other than the
-    -- implicit side-effect of updating the 'LayerState' of @t@).
+    -- | The part of the result type of the inner function of @t@ which is not
+    -- part of the (updated) 'LayerState'.
     --
     -- Note: On versions of GHC prior to 7.4, 'LayerResult' is an associated
     -- /data/ type instead of an associated type synonym due to GHC bug
@@ -387,7 +390,11 @@ class MonadTrans t => MonadTransControl t where
     data LayerResult t :: * -> *
 #endif
 
-    -- | The \"state\" needed to 'suspend' the 'LayerEffects' of @t@ in @m@.
+    -- | The parameters needed by the inner function of @t@ to return a
+    -- computation in the monad @m@. We call these parameters \"state\",
+    -- because a component of the return value of the @m@-computation returned
+    -- by @t@'s inner function is often meant to update one or more of these
+    -- parameters, like a 'Control.Monad.Trans.State.Strict.State' monad.
     --
     -- Note: On versions of GHC prior to 7.4, 'LayerState' is an associated
     -- /data/ type instead of an associated type synonym due to GHC bug
@@ -403,12 +410,13 @@ class MonadTrans t => MonadTransControl t where
     data LayerState t :: (* -> *) -> *
 #endif
 
-    -- | 'suspend' takes a computation @m@ of type @t m a@ and returns a
-    -- function which, given the current 'LayerState' of @t m@ (captured by
-    -- 'capture'), suspends the side-effects in @t@ of @m@, encapsulating them
-    -- in a @'LayerEffects' t m a@ value, and returns a computation in the
-    -- monad @m@. This gives a version of @m@ which can be passed to control
-    -- operations in the monad @m@.
+    -- | 'suspend', given a computation @m@ of type @t m a@ and the current
+    -- 'LayerState' of the monad @t m@ (given by 'capture'), suspends the
+    -- side-effects of @m@ which come from the monad transformer @t@ by
+    -- returning a computation in the monad @m@ that returns these reified
+    -- side-effects (i.e., a @'LayerEffects' t m a@ value). This gives a
+    -- version of @m@ which can be passed to control operations in the monad
+    -- @m@.
     --
     -- The suspended side-effects of @t@ can later be recovered by 'resume'.
     -- This is expressed in the following law:
@@ -416,34 +424,34 @@ class MonadTrans t => MonadTransControl t where
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
     suspend :: Monad m => t m a -> LayerState t m -> m (LayerEffects t m a)
 
-    -- | Recover the suspended side-effects in @t@ encapsulated by a
-    -- @'LayerEffects' t m a@ value by constructing a computation @t m a@ with
-    -- those side-effects.
+    -- | Reconstructs a compuation @t m a@ with the same side-effects in monad
+    -- transformer @t@ as those reified by the given @'LayerEffects' t m a@
+    -- value.
     --
     -- Instances should satisfy the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
     resume :: Monad m => LayerEffects t m a -> t m a
 
-    -- | Captures the current @'LayerState' t m@ of @t@ for the monad @t m@.
-    -- This value is passed to the function returned by 'suspend'.
+    -- | Captures the current 'LayerState' of the monad transformer @t@ in the
+    -- monad @t m@. This can be passed to 'suspend' along with a computation
+    -- in the monad @t m@ to suspend its side-effects in @t@.
+    --
+    -- Instances should satisfy the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
     capture :: Monad m => t m (LayerState t m)
 
-    -- | 'extract' inspects a @'LayerResult' t a@ value (given by a suspended
-    -- @t m a@ computation) and tries to \"extract\" an @a@ value
-    -- from it, if possible. If not, this means that one of the side-effects
-    -- of @t@ (encapsulated by the given 'LayerResult') is a short-circuit.
+    -- | 'extract' inspects a @'LayerResult' t a@ value (a component of the
+    -- reified side-effects of the monad transformer @t@ given by 'suspend')
+    -- and tries to \"extract\" an @a@ value from it, if possible. If not,
+    -- this means that one of the side-effects reified by the given value is a
+    -- short-circuit.
     --
     -- Instances should satisfy the following laws:
     --
     -- [Preserve-Unit]
     --     @extractResult ('return' a) ≡ 'return' ('Just' a)@
-    --
-    -- [Implies-Non-Zero]
-    --     @(extractResult m
-    --         ≡ 'liftM' 'Just' m) ⇒ (∃f. m '>>=' f ≢ m)@
     --
     -- [Implies-Zero]
     --     @(extractResult m
@@ -466,8 +474,9 @@ class MonadTrans t => MonadTransControl t where
 
 
 ------------------------------------------------------------------------------
--- | The side-effects in @t@ of a computation of type @t m a@ can be
--- encapsulated by a @'LayerResult' t a@ and an updated @'LayerState' t m@.
+-- | We can reify the side-effects in the monad transformer @t@ of a
+-- computation of type @t m a@ with a combination of its  @'LayerResult' t a@
+-- and an updated @'LayerState' t m@.
 type LayerEffects t m a = (LayerResult t a, LayerState t m)
 
 
@@ -687,9 +696,10 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
 -- provided for convenience (and compability with
 -- @<http://hackage.haskell.org/package/monad-control monad-control>@).
 --
--- It takes a continuation, to which it passes a version of 'suspend', which
--- can be used to effectively \"lower\" a computation in the monad @t m a@ to
--- @m a@ (storing the captured side-effects of @t@ in the return value).
+-- It takes a continuation, to which it passes a version of 'suspend' (usually
+-- called @peel@), which can be used to effectively \"lower\" a computation
+-- in the monad @t m a@ to @m a@ (storing the captured side-effects of @t@ in
+-- the return value).
 liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m a)
     -> t m a
@@ -698,8 +708,8 @@ liftControl f = capture >>= \s -> lift $ f (flip suspend s)
 
 
 ------------------------------------------------------------------------------
--- | A version of 'liftControl' that automatically restores to the outer monad
--- the captured side-effects returned from the continuation.
+-- | A version of 'liftControl' that automatically resumes the captured
+-- side-effects returned from the continuation.
 --
 -- @
 -- catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
@@ -856,8 +866,8 @@ instance MInvariant (L.WriterT w) where
 -- 'lift''. If @m@ is a monad built from a monad transformer stack, then it
 -- supports lifting operations from any monad @i@ anywhere in the stack.
 class (Monad i, Monad m) => MonadLift i m where
-    -- | 'lift'' takes a computation from an inner monad @i@ and lifts it into
-    -- the \"outer\" monad @m@.
+    -- | 'lift'' takes a computation from an inner monad @i@ of @m@ and lifts
+    -- it into @m@.
     --
     -- The following laws hold for valid instances of 'MonadLift':
     --
@@ -897,63 +907,83 @@ instance (MonadTrans t, Monad (t m), MonadLift i m) => MonadLift i (t m) where
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadLiftControl' i m@ holds when @i@ is an inner monad
--- of @m@ such that it is possible to lift control operations from @i@ to @m@
--- using 'liftControl''.
+-- of @m@ such that it is possible to lift control operations from @i@ to @m@.
+-- There are a variety of operations for doing so, depending on the exact type
+-- of the control operation in question, including 'liftControl'', 'control'',
+-- 'liftOp'', 'liftOp_'' and 'liftDiscard''. These are all built on top of
+-- the more primitive 'capture'', 'suspend'' and 'resume'' operations.
 class MonadLift i m => MonadLiftControl i m where
-    -- | Given the current \"state\" of the monad @m@ relative to @i@ (given
-    -- by 'capture''), 'peel'' unwraps the @m@ and returns the result and the
-    -- new state of @m@ (relative to @i@) wrapped in @i@. 'liftControl'', a
-    -- more often used operation, is defined in terms of 'peel'' and
-    -- 'capture''. See "Documentation.Layers.Overview" for more information.
+    -- | 'suspend'', given a computation @m@ of type @m a@ and the current
+    -- @'LiftState' i@ of the monad @m@ (given by calling 'capture' with a
+    -- proxy argument to select the @i@), suspends the side-effects of @m@
+    -- which come from the monad layers between the monads @i@ and @m@ by
+    -- returning a computation in the monad @i@ that returns these reified
+    -- side-effects (i.e., a @'LiftEffects' i m a@ value). This gives a
+    -- version of @m@ which can be passed to control operations in the monad
+    -- @i@.
     --
-    -- Instances should satisfy thw following laws:
+    -- The suspended side-effects of @m@ can later be recovered by 'resume''.
+    -- This is expressed in the following law:
     --
-    -- [Identity] @'liftControl'' . const . return ≡ return@
-    --
-    -- [Composition]
-    --     @'liftControl'' (const m) >>= 'liftControl'' . const . f ≡
-    --         'liftControl'' (const (m >>= f))@
+    -- [Preservation] @'capture'' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) '>>=' 'lift'' '.' 'suspend'' t '>>=' 'resume'' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ≡ t@
     suspend' :: m a -> LiftState i m -> i (LiftEffects i m a)
 
-    -- | Reconstruct an @m@ computation from the monadic state of @m@
-    -- (realtive to @i@) that is returned from the 'peel'' operation.
+    -- | Reconstructs a compuation @m a@ with the same side-effects in the
+    -- monad layers between the monads @i@ and @m@ as those reified by the
+    -- given @'LiftEffects' i m a@ value.
     --
     -- Instances should satisfy the following law:
     --
-    -- [Preservation]
-    --     @'liftControl'' (\\peel -> peel t) >>= 'restore'' (Proxy :: Proxy i)
-    --         ≡ t@
+    -- [Preservation] @'capture'' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) '>>=' 'lift'' '.' 'suspend'' t '>>=' 'resume'' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ≡ t@
     resume' :: proxy i -> LiftEffects i m a -> m a
 
-    -- | Captures the current \"state\" of the monad @m@ relative to @i@. See
-    -- the explanation in "Documentation.Layers.Overview" for what this
-    -- actually means.
+    -- | Captures the current 'LiftState' of the monad layers between @i@ and
+    -- @m@ in the monad @m@. This can be passed to 'suspend'' along with a
+    -- computation in the monad @m@ to suspend its side-effects in monad
+    -- layers between @i@ and @m@.
+    --
+    -- Instances should satisfy the following law:
+    --
+    -- [Preservation] @'capture'' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) '>>=' 'lift'' '.' 'suspend'' t '>>=' 'resume'' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ≡ t@
     capture' :: proxy i -> m (LiftState i m)
 
-    -- | 'extract'' inspects a @'LiftResult' i m a@ value and tries to
-    -- \"extract\" an @a@ value from it, if possible. This can be used to
-    -- detect if any of the monad layers betweem @i@ and @m@ short-circuited
-    -- when the 'LiftResult' was captured (if they did, 'extract'' returns
-    -- @Nothing@).
+    -- | 'extract'' inspects a @'LiftResult' i m a@ value (a component of the
+    -- reified side-effects of the monad layers between @i@ and @m@ given by
+    -- 'suspend'') and tries to \"extract\" an @a@ value from it, if possible.
+    -- If not, this means that one of the side-effects reified by the given
+    -- value is a short-circuit.
     --
     -- Instances should satisfy the following laws:
     --
-    -- [Preservation]
-    --     @'liftM' ('extract'' ('Proxy' :: 'Proxy' i) ('Proxy' :: 'Proxy' m))
-    --         ('result'' ('Proxy' :: 'Proxy' i) ('return' a))
-    --             ≡ 'return' ('Just' a)@
+    -- [Preserve-Unit]
+    --     @extractResult' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ('return' a)
+    --         ≡ 'return' ('Just' a)@
     --
-    -- [Zero]
-    --     @('liftM' ('extract'' ('Proxy' :: 'Proxy' i) ('Proxy' :: 'Proxy' m))
-    --         ('result' ('Proxy' :: 'Proxy' i) m)
-    --             ≡ 'return' 'Nothing') ⇒ (m '>>=' _ ≡ m)@
+    -- [Implies-Zero]
+    --     @(extractResult' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) m
+    --         ≡ 'liftM' ('const' 'Nothing') m) ⇒ (∀f. m '>>=' f ≡ m)@
+    --
+    -- The @extractResult'@ operation in terms of which these laws are defined
+    -- is given by:
+    --
+    -- @
+    -- extractResult' :: forall proxy i m a. 'MonadLiftControl' i m
+    --     => proxy i
+    --     -> m a
+    --     -> m ('Maybe' a)
+    -- extractResult' i m = do
+    --     state <- 'capture'' i
+    --     'lift'' '$' do
+    --         (result, _) <- 'suspend'' m state
+    --         'return' '$' 'extract'' i ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' m) result
+    -- @
     extract' :: proxy i -> proxy' m -> LiftResult i m a -> Maybe a
 
 
 ------------------------------------------------------------------------------
--- | The side-effects of the monad layers between @i@ and @m@ of a computation
--- of type @m a@ (where @i@ is an inner monad of @m@) can be encapsulated by
--- a @'LiftResult' i m a@ and an updated @'LiftState' i m@.
+-- | We can reify the side-effects in the monad layers between @i@ and @m@ of
+-- computation of type @m a@ (where @i@ is an inner monad of @m@) with a
+-- combination of its @'LiftResult' i m a@ and an updated @'LiftState' i m@.
 type LiftEffects i m a = (LiftResult i m a, LiftState i m)
 
 
@@ -1005,7 +1035,7 @@ type family LiftState (i :: * -> *) (m :: * -> *) :: *
   where
     LiftState m m = ()
     LiftState i (t m) = (LayerState t m, LiftState i m)
-    LiftState i m = LiftState_ i m
+    LiftState i m = LiftState_ i m -- this is only for newtypes, see defaults
 -- closed type families are only supported on GHC 7.8 and above
 #else
 type instance LiftState i m = LiftState_ i m
@@ -1124,8 +1154,8 @@ data Pt (t :: (* -> *) -> * -> *) = Pt
 ------------------------------------------------------------------------------
 -- | 'liftControl'' is a version of 'lift'' that makes it possible to lift
 -- control operations from the inner monad @i@ to the outer monad @m@. It
--- takes a continuation, to which it passes a version of 'peel'', which is
--- kind of an \"inverse\" of 'lift''.
+-- takes a continuation, to which it passes a version of 'suspend'' (usually
+-- called @peel@), which is kind of an \"inverse\" of 'lift''.
 --
 -- The difference between 'liftControl'' and 'liftControl' is that
 -- 'liftControl' only lifts from the monad directly beneath the top of the
@@ -1311,7 +1341,7 @@ instance 'MonadLiftControl' 'IO' MyMonad where
 
 If you rely on a derived instance of 'MonadLiftControl' on a @newtype@, and
 you want your code to work with GHC 7.8 and above, you should use these
-operations to manually define an instance (as above) rather than using on the
+operations to manually define an instance (as above) rather than using the
 @GeneralizedNewtypeDeriving@ extension.
 
 -}
@@ -1410,13 +1440,11 @@ defaultExtract' _ p _ r = extract' p (Pm :: Pm m) (fromLiftResult_ r)
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadLiftInvariant' i m@ holds when @i@ is an inner
 -- monad of @m@ such that it is possible to lift monad automorphisms of @i@ to
--- monad endomorphisms of @m@ using 'hoistiso''.
+-- monad endomorphisms of @m@ using 'hoistiso''. In other words,
+-- @'MonadLiftInvariant' i m@ implies the existence of an invariant functor
+-- in the category of monads between @i@ and @m@.
 class Monad i => MonadLiftInvariant i m where
-    -- | 'hoistiso'' represents an invariant endofunctor in the category of
-    -- monads. It takes a transformation @f@ of an inner monad @i@ and its
-    -- inverse @g@ (such that @g '.' f = 'id'@) and returns transformation of @m@
-    -- analogous to @f@. (i.e., @hoistiso'@ lifts an automorphism in @i@
-    -- to an endomorphism in @m@).
+    -- | Lift an automorphism of @i@ to an endomorphism of @m@.
     --
     -- The following laws hold for valid instances of 'MonadLiftInvariant':
     --
@@ -1477,12 +1505,11 @@ instance (MInvariant t, Monad m, MonadLiftInvariant i m) =>
 -- of @m@ such that it is possible to lift monad morphisms of @i@ to monad
 -- morphisms of @m@ using 'hoist''. 'hoist'' is more powerful than
 -- 'hoistiso'' because 'hoist'' can lift morphisms which do not have an
--- inverse, while 'hoistiso'' can only lift isomorphisms.
+-- inverse, while 'hoistiso'' can only lift isomorphisms. In other words,
+-- @'MonadLiftInvariant' i m@ implies the existence of a functor in the
+-- category of monads between @i@ and @m@.
 class MonadLiftInvariant i m => MonadLiftFunctor i m where
-    -- | 'hoist'' represents an endofunctor in the category of monads. It
-    -- takes a transformation @f@ of an inner monad @i@ returns a
-    -- transformation of @m@ analogous to @f@. (i.e., @hoist@ lifts an
-    -- endomorphism of @i@ to an endomorphism of @m@).
+    -- | Lift an endomorphism of @i@ to an endomorphism of @m@.
     --
     -- The following laws hold for valid instances of 'MonadLiftFunctor':
     --
