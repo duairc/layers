@@ -54,7 +54,11 @@ Library
   hs-source-dirs:
     src
 
+  include-dirs:
+    include
+
   exposed-modules:
+    Documentation.Layers.Glossary
     Documentation.Layers.Overview
     Control.Monad.Lift
     Control.Monad.Lift.Base
