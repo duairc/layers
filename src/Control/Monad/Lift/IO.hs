@@ -8,6 +8,8 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include "macros.h"
+
 {-|
 
 This module defines the 'MonadIO' family of interfaces, which consist of:
@@ -21,18 +23,17 @@ This module defines the 'MonadIO' family of interfaces, which consist of:
     * 'MFunctorIO'
 
 All the constraints and operations in the 'MonadIO' family of interfaces are
-exactly identical to constraints and operations from the 'MonadLift' family,
+exactly identical to constraints and operations from the 'MonadInner' family,
 except that the type of the inner monad is fixed to 'IO'. In many cases the
-operations in the 'MonadLift' family are too polymorphic to be usable without
+operations in the 'MonadInner' family are too polymorphic to be usable without
 type signatures everywhere, so if you know that the monad from which you want
 to lift is definitely 'IO', you will have a much easier time if you use these
 operations.
 
-(The point of 'MonadLift' is that it only needs to be written once, and then
+(The point of 'MonadInner' is that it only needs to be written once, and then
 'MonadIO', 'Control.Monad.Lift.Base.MonadBase' and all the rest come for free.
-With @<http://hackage.haskell.org/package/transformers transformers>@ and
-@<http://hackage.haskell.org/package/transformers-base transformers-base>@,
-instances of 'Control.Monad.IO.Class.MonadIO' and
+With H(transformers) and H(transformers-base), instances of
+'Control.Monad.IO.Class.MonadIO' and
 @<http://hackage.haskell.org/package/transformers-base/docs/Control-Monad-Base.html#t:MonadBase MonadBase>@
 have to be manually written for every monad transformer.)
 
@@ -60,25 +61,25 @@ where
 
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
-                     ( MonadLift
-                     , lift'
-                     , MonadLiftControl
-                     , LiftEffects
-                     , LiftResult
-                     , LiftState
-                     , suspend'
-                     , resume'
-                     , capture'
-                     , extract'
-                     , liftControl'
-                     , control'
-                     , liftOp'
-                     , liftOp_'
-                     , liftDiscard'
-                     , MonadLiftInvariant
-                     , hoistiso'
-                     , MonadLiftFunctor
-                     , hoist'
+                     ( MonadInner
+                     , liftI
+                     , MonadInnerControl
+                     , OuterEffects
+                     , OuterResult
+                     , OuterState
+                     , suspendI
+                     , resumeI
+                     , captureI
+                     , extractI
+                     , liftControlI
+                     , controlI
+                     , liftOpI
+                     , liftOpI_
+                     , liftDiscardI
+                     , MonadInnerInvariant
+                     , hoistisoI
+                     , MonadInnerFunctor
+                     , hoistI
                      )
 
 
@@ -88,22 +89,22 @@ import           Control.Monad.Lift
 -- 'liftIO'.
 --
 -- It is neither possible nor necessary to manually write instances of
--- 'MonadIO'. It's simply a constraint synonym for @'MonadLift' 'IO'@. Any
+-- 'MonadIO'. It's simply a constraint synonym for @'MonadInner' 'IO'@. Any
 -- monad built from stack of monad transformers with 'IO' at its
 -- <Control-Monad-Lift-Base.html base> (or indeed any \"base\" monad @m@ that
--- satisfies the constraint @'MonadLift' 'IO' m@) is automatically an instance
+-- satisfies the constraint @'MonadInner' 'IO' m@) is automatically an instance
 -- of 'MonadIO'.
 #if LANGUAGE_ConstraintKinds
-type MonadIO = MonadLift IO
+type MonadIO = MonadInner IO
 #else
-class MonadLift IO m => MonadIO m
-instance MonadLift IO m => MonadIO m
+class MonadInner IO m => MonadIO m
+instance MonadInner IO m => MonadIO m
 #endif
 
 
 ------------------------------------------------------------------------------
 liftIO :: MonadIO m => IO a -> m a
-liftIO = lift'
+liftIO = liftI
 
 
 ------------------------------------------------------------------------------
@@ -112,16 +113,16 @@ liftIO = lift'
 -- 'liftIO'.
 --
 -- It is neither possible nor necessary to manually write instances of
--- 'MonadIO'. It's simply a constraint synonym for @'MonadLift' 'IO'@. Any
+-- 'MonadIO'. It's simply a constraint synonym for @'MonadInner' 'IO'@. Any
 -- monad built from stack of monad transformers with 'IO' at its
 -- <Control-Monad-Lift-Base.html base> (or indeed any \"base\" monad @m@ that
--- satisfies the constraint @'MonadLift' 'IO' m@) is automatically an instance
+-- satisfies the constraint @'MonadInner' 'IO' m@) is automatically an instance
 -- of 'MonadIO'.
 #if LANGUAGE_ConstraintKinds
-type MonadControlIO = MonadLiftControl IO
+type MonadControlIO = MonadInnerControl IO
 #else
-class MonadLiftControl IO m => MonadControlIO m
-instance MonadLiftControl IO m => MonadControlIO m
+class MonadInnerControl IO m => MonadControlIO m
+instance MonadInnerControl IO m => MonadControlIO m
 #endif
 
 
@@ -130,73 +131,73 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-suspendIO :: MonadControlIO m => m a -> LiftState IO m -> IO (LiftEffects IO m a)
-suspendIO = suspend'
+suspendIO :: MonadControlIO m => m a -> OuterState IO m -> IO (OuterEffects IO m a)
+suspendIO = suspendI
 
 
 ------------------------------------------------------------------------------
-resumeIO :: MonadControlIO m => LiftEffects IO m a -> m a
-resumeIO = resume' (Pm :: Pm IO)
+resumeIO :: MonadControlIO m => OuterEffects IO m a -> m a
+resumeIO = resumeI (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-captureIO :: MonadControlIO m => m (LiftState IO m)
-captureIO = capture' (Pm :: Pm IO)
+captureIO :: MonadControlIO m => m (OuterState IO m)
+captureIO = captureI (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-extractIO :: MonadControlIO m => proxy m -> LiftResult IO m a -> Maybe a
-extractIO = extract' (Pm :: Pm IO)
+extractIO :: MonadControlIO m => proxy m -> OuterResult IO m a -> Maybe a
+extractIO = extractI (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-liftControlIO :: MonadControlIO m => ((forall b. m b -> IO (LiftEffects IO m b)) -> IO a) -> m a
-liftControlIO = liftControl'
+liftControlIO :: MonadControlIO m => ((forall b. m b -> IO (OuterEffects IO m b)) -> IO a) -> m a
+liftControlIO = liftControlI
 
 
 ------------------------------------------------------------------------------
-controlIO :: MonadControlIO m => ((forall b. m b -> IO (LiftEffects IO m b)) -> IO (LiftEffects IO m a)) -> m a
-controlIO = control'
+controlIO :: MonadControlIO m => ((forall b. m b -> IO (OuterEffects IO m b)) -> IO (OuterEffects IO m a)) -> m a
+controlIO = controlI
 
 
 ------------------------------------------------------------------------------
-liftIOOp :: MonadControlIO m => ((a -> IO (LiftEffects IO m b)) -> IO (LiftEffects IO m c)) -> (a -> m b) -> m c
-liftIOOp = liftOp'
+liftIOOp :: MonadControlIO m => ((a -> IO (OuterEffects IO m b)) -> IO (OuterEffects IO m c)) -> (a -> m b) -> m c
+liftIOOp = liftOpI
 
 
 ------------------------------------------------------------------------------
-liftIOOp_ :: MonadControlIO m => (IO (LiftEffects IO m a) -> IO (LiftEffects IO m b)) -> m a -> m b
-liftIOOp_ = liftOp_'
+liftIOOp_ :: MonadControlIO m => (IO (OuterEffects IO m a) -> IO (OuterEffects IO m b)) -> m a -> m b
+liftIOOp_ = liftOpI_
 
 
 ------------------------------------------------------------------------------
 liftIODiscard :: MonadControlIO m => (IO () -> IO a) -> m () -> m a
-liftIODiscard = liftDiscard'
+liftIODiscard = liftDiscardI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MInvariantIO = MonadLiftInvariant IO
+type MInvariantIO = MonadInnerInvariant IO
 #else
-class MonadLiftInvariant IO m => MInvariantIO m
-instance MonadLiftInvariant IO m => MInvariantIO m
+class MonadInnerInvariant IO m => MInvariantIO m
+instance MonadInnerInvariant IO m => MInvariantIO m
 #endif
 
 
 ------------------------------------------------------------------------------
 hoistisoIO :: MInvariantIO m => (forall b. IO b -> IO b) -> (forall b. IO b -> IO b) -> m a -> m a
-hoistisoIO = hoistiso'
+hoistisoIO = hoistisoI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MFunctorIO = MonadLiftFunctor IO
+type MFunctorIO = MonadInnerFunctor IO
 #else
-class MonadLiftFunctor IO m => MFunctorIO m
-instance MonadLiftFunctor IO m => MFunctorIO m
+class MonadInnerFunctor IO m => MFunctorIO m
+instance MonadInnerFunctor IO m => MFunctorIO m
 #endif
 
 
 ------------------------------------------------------------------------------
 hoistIO :: MFunctorIO m => (forall b. IO b -> IO b) -> m a -> m a
-hoistIO = hoist'
+hoistIO = hoistI

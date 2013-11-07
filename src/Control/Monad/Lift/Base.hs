@@ -58,30 +58,30 @@ import           Data.Functor.Identity (Identity)
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
                      ( MonadTrans
-                     , MonadLift
-                     , lift'
-                     , MonadLiftControl
-                     , LiftEffects
-                     , LiftResult
-                     , LiftState
-                     , suspend'
-                     , resume'
-                     , capture'
-                     , extract'
-                     , liftControl'
-                     , control'
-                     , liftOp'
-                     , liftOp_'
-                     , liftDiscard'
-                     , MonadLiftInvariant
-                     , hoistiso'
-                     , MonadLiftFunctor
-                     , hoist'
+                     , MonadInner
+                     , liftI
+                     , MonadInnerControl
+                     , OuterEffects
+                     , OuterResult
+                     , OuterState
+                     , suspendI
+                     , resumeI
+                     , captureI
+                     , extractI
+                     , liftControlI
+                     , controlI
+                     , liftOpI
+                     , liftOpI_
+                     , liftDiscardI
+                     , MonadInnerInvariant
+                     , hoistisoI
+                     , MonadInnerFunctor
+                     , hoistI
                      )
 
 
 ------------------------------------------------------------------------------
-class MonadLift b m => MonadBase b m | m -> b
+class MonadInner b m => MonadBase b m | m -> b
 
 
 ------------------------------------------------------------------------------
@@ -127,21 +127,21 @@ instance MonadBase Proxy Proxy
 
 #endif
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MonadBase b m, MonadLift b (t m), Monad (t m)) =>
+instance (MonadTrans t, MonadBase b m, MonadInner b (t m), Monad (t m)) =>
     MonadBase b (t m)
 
 
 ------------------------------------------------------------------------------
 liftBase :: MonadBase b m => b a -> m a
-liftBase = lift'
+liftBase = liftI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadBaseControl b m = (MonadLiftControl b m, MonadBase b m)
+type MonadBaseControl b m = (MonadInnerControl b m, MonadBase b m)
 #else
-class (MonadLiftControl b m, MonadBase b m) => MonadBaseControl b m | m -> b
-instance (MonadLiftControl b m, MonadBase b m) => MonadBaseControl b m
+class (MonadInnerControl b m, MonadBase b m) => MonadBaseControl b m | m -> b
+instance (MonadInnerControl b m, MonadBase b m) => MonadBaseControl b m
 #endif
 
 
@@ -150,73 +150,73 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-suspendBase :: MonadBaseControl b m => m a -> LiftState b m -> b (LiftEffects b m a)
-suspendBase = suspend'
+suspendBase :: MonadBaseControl b m => m a -> OuterState b m -> b (OuterEffects b m a)
+suspendBase = suspendI
 
 
 ------------------------------------------------------------------------------
-resumeBase :: forall b m a. MonadBaseControl b m => LiftEffects b m a -> m a
-resumeBase = resume' (Pm :: Pm b)
+resumeBase :: forall b m a. MonadBaseControl b m => OuterEffects b m a -> m a
+resumeBase = resumeI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-captureBase :: forall b m. MonadBaseControl b m => m (LiftState b m)
-captureBase = capture' (Pm :: Pm b)
+captureBase :: forall b m. MonadBaseControl b m => m (OuterState b m)
+captureBase = captureI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-extractBase :: forall proxy b m a. MonadBaseControl b m => proxy m -> LiftResult b m a -> Maybe a
-extractBase = extract' (Pm :: Pm b)
+extractBase :: forall proxy b m a. MonadBaseControl b m => proxy m -> OuterResult b m a -> Maybe a
+extractBase = extractI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-liftBaseControl :: MonadBaseControl b m => ((forall c. m c -> b (LiftEffects b m c)) -> b a) -> m a
-liftBaseControl = liftControl'
+liftBaseControl :: MonadBaseControl b m => ((forall c. m c -> b (OuterEffects b m c)) -> b a) -> m a
+liftBaseControl = liftControlI
 
 
 ------------------------------------------------------------------------------
-controlBase :: MonadBaseControl b m => ((forall c. m c -> b (LiftEffects b m c)) -> b (LiftEffects b m a)) -> m a
-controlBase = control'
+controlBase :: MonadBaseControl b m => ((forall c. m c -> b (OuterEffects b m c)) -> b (OuterEffects b m a)) -> m a
+controlBase = controlI
 
 
 ------------------------------------------------------------------------------
-liftBaseOp :: MonadBaseControl b m => ((a -> b (LiftEffects b m c)) -> b (LiftEffects b m d)) -> (a -> m c) -> m d
-liftBaseOp = liftOp'
+liftBaseOp :: MonadBaseControl b m => ((a -> b (OuterEffects b m c)) -> b (OuterEffects b m d)) -> (a -> m c) -> m d
+liftBaseOp = liftOpI
 
 
 ------------------------------------------------------------------------------
-liftBaseOp_ :: MonadBaseControl b m => (b (LiftEffects b m a) -> b (LiftEffects b m c)) -> m a -> m c
-liftBaseOp_ = liftOp_'
+liftBaseOp_ :: MonadBaseControl b m => (b (OuterEffects b m a) -> b (OuterEffects b m c)) -> m a -> m c
+liftBaseOp_ = liftOpI_
 
 
 ------------------------------------------------------------------------------
 liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> m () -> m a
-liftBaseDiscard = liftDiscard'
+liftBaseDiscard = liftDiscardI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadBaseInvariant b m = (MonadLiftInvariant b m, MonadBase b m)
+type MonadBaseInvariant b m = (MonadInnerInvariant b m, MonadBase b m)
 #else
-class (MonadLiftInvariant b m, MonadBase b m) => MonadBaseInvariant b m | m -> b
-instance (MonadLiftInvariant b m, MonadBase b m) => MonadBaseInvariant b m
+class (MonadInnerInvariant b m, MonadBase b m) => MonadBaseInvariant b m | m -> b
+instance (MonadInnerInvariant b m, MonadBase b m) => MonadBaseInvariant b m
 #endif
 
 
 ------------------------------------------------------------------------------
 hoistisoBase :: MonadBaseInvariant b m => (forall c. b c -> b c) -> (forall c. b c -> b c) -> m a -> m a
-hoistisoBase = hoistiso'
+hoistisoBase = hoistisoI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadBaseFunctor b m = (MonadLiftFunctor b m, MonadBase b m)
+type MonadBaseFunctor b m = (MonadInnerFunctor b m, MonadBase b m)
 #else
-class (MonadLiftFunctor b m, MonadBase b m) => MonadBaseFunctor b m | m -> b
-instance (MonadLiftFunctor b m, MonadBase b m) => MonadBaseFunctor b m
+class (MonadInnerFunctor b m, MonadBase b m) => MonadBaseFunctor b m | m -> b
+instance (MonadInnerFunctor b m, MonadBase b m) => MonadBaseFunctor b m
 #endif
 
 
 ------------------------------------------------------------------------------
 hoistBase :: MonadBaseFunctor b m => (forall c. b c -> b c) -> m a -> m a
-hoistBase = hoist'
+hoistBase = hoistI
