@@ -54,7 +54,7 @@ module Documentation.Layers.Glossary
       -- | #layerffects#
 
       -- * Layer effects
-      -- $layereffects
+      -- $layereffectss
 
       -- | #layerresult#
 
@@ -81,6 +81,16 @@ module Documentation.Layers.Glossary
       -- * Monad interface
       -- $monadinterface
 
+      -- | #monadlayer#
+
+      -- * Monad layer
+      -- $monadlayer
+
+      -- | #monadtransformer#
+
+      -- * Monad transformer
+      -- $monadtransformer
+
       -- | #monadtransformerstack#
 
       -- * Monad transformer stack
@@ -90,6 +100,12 @@ module Documentation.Layers.Glossary
 
       -- * Monadic type
       -- $monadictype
+
+      -- | #opentypeclass#
+      -- | #closedtypeclass#
+
+      -- * Open and closed type classes
+      -- $opentypeclass
 
       -- | #outerlayers#
 
@@ -105,6 +121,11 @@ module Documentation.Layers.Glossary
 
       -- * Short circuit
       -- $shortcircuit
+
+      -- | #sideeffect#
+
+      -- * Side-effect
+      -- $sideeffect
 
       -- | #universalpassthroughinstance#
 
@@ -156,7 +177,7 @@ This concept is implemented using functional dependencies in the module "Control
 
 -}
 
-{-$layereffects
+{-$layereffectss
 
 
 
@@ -165,13 +186,18 @@ This concept is implemented using functional dependencies in the module "Control
 
 {-$layerresult
 
-
+The part of the result type of the inner function of @t@ which is not
+part of the (updated) 'LayerState'.
 
 -}
 
 {-$layerstate
 
-
+The parameters needed by the inner function of @t@ to return a computation in
+the monad @m@. We call these parameters \"state\", because a component of the
+return value of the @m@-computation returned by @t@'s inner function is often
+meant to update one or more of these parameters, like a
+'Control.Monad.Trans.State.Strict.State' monad.
 
 -}
 
@@ -193,6 +219,18 @@ This concept is implemented using functional dependencies in the module "Control
 
 -}
 
+{-$monadlayer
+
+
+
+-}
+
+{-$monadtransformer
+
+
+
+-}
+
 {-$monadtransformerstack
 
 
@@ -200,6 +238,12 @@ This concept is implemented using functional dependencies in the module "Control
 -}
 
 {-$monadictype
+
+
+
+-}
+
+{-$opentypeclass
 
 
 
@@ -218,6 +262,12 @@ This concept is implemented using functional dependencies in the module "Control
 -}
 
 {-$shortcircuit
+
+
+
+-}
+
+{-$sideeffect
 
 
 

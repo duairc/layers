@@ -20,21 +20,21 @@
 
 module Control.Monad.Lift.Base
     ( MonadBase
-    , liftBase
+    , liftB
     , MonadBaseControl
-    , suspendBase
-    , resumeBase
-    , captureBase
-    , extractBase
-    , liftBaseControl
-    , controlBase
-    , liftBaseOp
-    , liftBaseOp_
-    , liftBaseDiscard
-    , MonadBaseInvariant
-    , hoistisoBase
-    , MonadBaseFunctor
-    , hoistBase
+    , suspendB
+    , resumeB
+    , captureB
+    , extractB
+    , liftControlB
+    , controlB
+    , liftOpB
+    , liftOpB_
+    , liftDiscardB
+    , MonadBaseMonoInvariant
+    , hoistautoB
+    , MonadBaseMonoFunctor
+    , hoistendoB
     )
 where
 
@@ -73,10 +73,10 @@ import           Control.Monad.Lift
                      , liftOpI
                      , liftOpI_
                      , liftDiscardI
-                     , MonadInnerInvariant
-                     , hoistisoI
-                     , MonadInnerFunctor
-                     , hoistI
+                     , MonadInnerMonoInvariant
+                     , hoistautoI
+                     , MonadInnerMonoFunctor
+                     , hoistendoI
                      )
 
 
@@ -132,8 +132,8 @@ instance (MonadTrans t, MonadBase b m, MonadInner b (t m), Monad (t m)) =>
 
 
 ------------------------------------------------------------------------------
-liftBase :: MonadBase b m => b a -> m a
-liftBase = liftI
+liftB :: MonadBase b m => b a -> m a
+liftB = liftI
 
 
 ------------------------------------------------------------------------------
@@ -150,73 +150,73 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-suspendBase :: MonadBaseControl b m => m a -> OuterState b m -> b (OuterEffects b m a)
-suspendBase = suspendI
+suspendB :: MonadBaseControl b m => m a -> OuterState b m -> b (OuterEffects b m a)
+suspendB = suspendI
 
 
 ------------------------------------------------------------------------------
-resumeBase :: forall b m a. MonadBaseControl b m => OuterEffects b m a -> m a
-resumeBase = resumeI (Pm :: Pm b)
+resumeB :: forall b m a. MonadBaseControl b m => OuterEffects b m a -> m a
+resumeB = resumeI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-captureBase :: forall b m. MonadBaseControl b m => m (OuterState b m)
-captureBase = captureI (Pm :: Pm b)
+captureB :: forall b m. MonadBaseControl b m => m (OuterState b m)
+captureB = captureI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-extractBase :: forall proxy b m a. MonadBaseControl b m => proxy m -> OuterResult b m a -> Maybe a
-extractBase = extractI (Pm :: Pm b)
+extractB :: forall proxy b m a. MonadBaseControl b m => proxy m -> OuterResult b m a -> Maybe a
+extractB = extractI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-liftBaseControl :: MonadBaseControl b m => ((forall c. m c -> b (OuterEffects b m c)) -> b a) -> m a
-liftBaseControl = liftControlI
+liftControlB :: MonadBaseControl b m => ((forall c. m c -> b (OuterEffects b m c)) -> b a) -> m a
+liftControlB = liftControlI
 
 
 ------------------------------------------------------------------------------
-controlBase :: MonadBaseControl b m => ((forall c. m c -> b (OuterEffects b m c)) -> b (OuterEffects b m a)) -> m a
-controlBase = controlI
+controlB :: MonadBaseControl b m => ((forall c. m c -> b (OuterEffects b m c)) -> b (OuterEffects b m a)) -> m a
+controlB = controlI
 
 
 ------------------------------------------------------------------------------
-liftBaseOp :: MonadBaseControl b m => ((a -> b (OuterEffects b m c)) -> b (OuterEffects b m d)) -> (a -> m c) -> m d
-liftBaseOp = liftOpI
+liftOpB :: MonadBaseControl b m => ((a -> b (OuterEffects b m c)) -> b (OuterEffects b m d)) -> (a -> m c) -> m d
+liftOpB = liftOpI
 
 
 ------------------------------------------------------------------------------
-liftBaseOp_ :: MonadBaseControl b m => (b (OuterEffects b m a) -> b (OuterEffects b m c)) -> m a -> m c
-liftBaseOp_ = liftOpI_
+liftOpB_ :: MonadBaseControl b m => (b (OuterEffects b m a) -> b (OuterEffects b m c)) -> m a -> m c
+liftOpB_ = liftOpI_
 
 
 ------------------------------------------------------------------------------
-liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> m () -> m a
-liftBaseDiscard = liftDiscardI
-
-
-------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadBaseInvariant b m = (MonadInnerInvariant b m, MonadBase b m)
-#else
-class (MonadInnerInvariant b m, MonadBase b m) => MonadBaseInvariant b m | m -> b
-instance (MonadInnerInvariant b m, MonadBase b m) => MonadBaseInvariant b m
-#endif
-
-
-------------------------------------------------------------------------------
-hoistisoBase :: MonadBaseInvariant b m => (forall c. b c -> b c) -> (forall c. b c -> b c) -> m a -> m a
-hoistisoBase = hoistisoI
+liftDiscardB :: MonadBaseControl b m => (b () -> b a) -> m () -> m a
+liftDiscardB = liftDiscardI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadBaseFunctor b m = (MonadInnerFunctor b m, MonadBase b m)
+type MonadBaseMonoInvariant b m = (MonadInnerMonoInvariant b m, MonadBase b m)
 #else
-class (MonadInnerFunctor b m, MonadBase b m) => MonadBaseFunctor b m | m -> b
-instance (MonadInnerFunctor b m, MonadBase b m) => MonadBaseFunctor b m
+class (MonadInnerMonoInvariant b m, MonadBase b m) => MonadBaseMonoInvariant b m | m -> b
+instance (MonadInnerMonoInvariant b m, MonadBase b m) => MonadBaseMonoInvariant b m
 #endif
 
 
 ------------------------------------------------------------------------------
-hoistBase :: MonadBaseFunctor b m => (forall c. b c -> b c) -> m a -> m a
-hoistBase = hoistI
+hoistautoB :: MonadBaseMonoInvariant b m => (forall c. b c -> b c) -> (forall c. b c -> b c) -> m a -> m a
+hoistautoB = hoistautoI
+
+
+------------------------------------------------------------------------------
+#if LANGUAGE_ConstraintKinds
+type MonadBaseMonoFunctor b m = (MonadInnerMonoFunctor b m, MonadBase b m)
+#else
+class (MonadInnerMonoFunctor b m, MonadBase b m) => MonadBaseMonoFunctor b m | m -> b
+instance (MonadInnerMonoFunctor b m, MonadBase b m) => MonadBaseMonoFunctor b m
+#endif
+
+
+------------------------------------------------------------------------------
+hoistendoB :: MonadBaseMonoFunctor b m => (forall c. b c -> b c) -> m a -> m a
+hoistendoB = hoistendoI
