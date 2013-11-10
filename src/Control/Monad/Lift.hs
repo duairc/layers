@@ -1595,7 +1595,7 @@ defaultHoistisoI :: MonadInnerFunctor i m i m
     -> (forall b. i b -> i b)
     -> n a
     -> n a
-defaultHoistisoI nat tan_ f g m = nat (hoistisoI f g (tan_ m)) 
+defaultHoistisoI nu un f g m = nu (hoistisoI f g (un m)) 
 
 
 ------------------------------------------------------------------------------
@@ -1605,4 +1605,4 @@ defaultHoistI :: MonadInnerFunctor i m i m
     -> (forall b. i b -> i b)
     -> n a  
     -> n a
-defaultHoistI nat tan_ f m = nat (hoistI f (tan_ m))
+defaultHoistI nu un f m = nu (hoistI f (un m))

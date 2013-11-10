@@ -108,8 +108,8 @@ liftIO = liftI
 
 
 ------------------------------------------------------------------------------
--- | The constraint @'MonadIOControl' m@ holds when 'IO' is an inner monad of @m@
--- such that it is possible to lift computations in 'IO' into @m@ using
+-- | The constraint @'MonadIOControl' m@ holds when 'IO' is an inner monad of
+-- @m@ such that it is possible to lift computations in 'IO' into @m@ using
 -- 'liftIO'.
 --
 -- It is neither possible nor necessary to manually write instances of
@@ -131,17 +131,23 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-suspendIO :: MonadIOControl m => m a -> OuterState IO m -> IO (OuterEffects IO m a)
+suspendIO :: MonadIOControl m
+    => m a
+    -> OuterState IO m
+    -> IO (OuterEffects IO m a)
 suspendIO = suspendI
 
 
 ------------------------------------------------------------------------------
-resumeIO :: MonadIOControl m => OuterEffects IO m a -> m a
+resumeIO :: MonadIOControl m
+    => OuterEffects IO m a
+    -> m a
 resumeIO = resumeI (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-captureIO :: MonadIOControl m => m (OuterState IO m)
+captureIO :: MonadIOControl m
+    => m (OuterState IO m)
 captureIO = captureI (Pm :: Pm IO)
 
 
@@ -151,22 +157,33 @@ extractIO = extractI (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-liftControlIO :: MonadIOControl m => ((forall b. m b -> IO (OuterEffects IO m b)) -> IO a) -> m a
+liftControlIO :: MonadIOControl m
+    => ((forall b. m b -> IO (OuterEffects IO m b)) -> IO a)
+    -> m a
 liftControlIO = liftControlI
 
 
 ------------------------------------------------------------------------------
-controlIO :: MonadIOControl m => ((forall b. m b -> IO (OuterEffects IO m b)) -> IO (OuterEffects IO m a)) -> m a
+controlIO :: MonadIOControl m
+    => ((forall b. m b -> IO (OuterEffects IO m b))
+        -> IO (OuterEffects IO m a))
+    -> m a
 controlIO = controlI
 
 
 ------------------------------------------------------------------------------
-liftOpIO :: MonadIOControl m => ((a -> IO (OuterEffects IO m b)) -> IO (OuterEffects IO m c)) -> (a -> m b) -> m c
+liftOpIO :: MonadIOControl m
+    => ((a -> IO (OuterEffects IO m b)) -> IO (OuterEffects IO m c))
+    -> (a -> m b)
+    -> m c
 liftOpIO = liftOpI
 
 
 ------------------------------------------------------------------------------
-liftOpIO_ :: MonadIOControl m => (IO (OuterEffects IO m a) -> IO (OuterEffects IO m b)) -> m a -> m b
+liftOpIO_ :: MonadIOControl m
+    => (IO (OuterEffects IO m a) -> IO (OuterEffects IO m b))
+    -> m a
+    -> m b
 liftOpIO_ = liftOpI_
 
 
@@ -179,14 +196,21 @@ liftDiscardIO = liftDiscardI
 #if LANGUAGE_ConstraintKinds
 type MonadIOInvariant j n = MonadInnerInvariant j n IO
 #else
-class MonadInnerInvariant j n IO m => MonadIOInvariant j n m
-    | j m -> n, j n -> m, n m -> j
+class MonadInnerInvariant j n IO m =>
+    MonadIOInvariant j n m
+        | j m -> n
+        , j n -> m
+        , n m -> j
 instance MonadInnerInvariant j n IO m => MonadIOInvariant j n m
 #endif
 
 
 ------------------------------------------------------------------------------
-hoistisoIO :: MonadIOInvariant j n m => (forall b. IO b -> j b) -> (forall b. j b -> IO b) -> m a -> n a
+hoistisoIO :: MonadIOInvariant j n m
+    => (forall b. IO b -> j b)
+    -> (forall b. j b -> IO b)
+    -> m a
+    -> n a
 hoistisoIO = hoistisoI
 
 
@@ -194,8 +218,11 @@ hoistisoIO = hoistisoI
 #if LANGUAGE_ConstraintKinds
 type MonadIOFunctor j n = MonadInnerFunctor j n IO
 #else
-class MonadInnerFunctor j n IO m => MonadIOFunctor j n m
-    | j m -> n, j n -> m, n m -> j
+class MonadInnerFunctor j n IO m =>
+    MonadIOFunctor j n m
+        | j m -> n
+        , j n -> m
+        , n m -> j
 instance MonadInnerFunctor j n IO m => MonadIOFunctor j n m
 #endif
 
