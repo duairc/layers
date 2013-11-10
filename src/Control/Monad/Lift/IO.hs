@@ -18,9 +18,9 @@ This module defines the 'MonadIO' family of interfaces, which consist of:
 
     * 'MonadIOControl'
 
-    * 'MonadIOMonoInvariant'
+    * 'MonadIOInvariant'
 
-    * 'MonadIOMonoFunctor'
+    * 'MonadIOFunctor'
 
 All the constraints and operations in the 'MonadIO' family of interfaces are
 exactly identical to constraints and operations from the 'MonadInner' family,
@@ -52,10 +52,10 @@ module Control.Monad.Lift.IO
     , liftOpIO
     , liftOpIO_
     , liftDiscardIO
-    , MonadIOMonoInvariant
-    , hoistautoIO
-    , MonadIOMonoFunctor
-    , hoistendoIO
+    , MonadIOInvariant
+    , hoistisoIO
+    , MonadIOFunctor
+    , hoistIO
     )
 where
 
@@ -76,10 +76,10 @@ import           Control.Monad.Lift
                      , liftOpI
                      , liftOpI_
                      , liftDiscardI
-                     , MonadInnerMonoInvariant
-                     , hoistautoI
-                     , MonadInnerMonoFunctor
-                     , hoistendoI
+                     , MonadInnerInvariant
+                     , hoistisoI
+                     , MonadInnerFunctor
+                     , hoistI
                      )
 
 
@@ -92,7 +92,7 @@ import           Control.Monad.Lift
 -- 'MonadIO'. It's simply a constraint synonym for @'MonadInner' 'IO'@. Any
 -- monad built from stack of monad transformers with 'IO' at its
 -- <Control-Monad-Lift-Base.html base> (or indeed any \"base\" monad @m@ that
--- satisfies the constraint @'MonadInner' 'IO' m@) is automatically an instance
+-- satisfies the constraint @'MonadInner' 'IO' m@) is isomatically an instance
 -- of 'MonadIO'.
 #if LANGUAGE_ConstraintKinds
 type MonadIO = MonadInner IO
@@ -116,7 +116,7 @@ liftIO = liftI
 -- 'MonadIO'. It's simply a constraint synonym for @'MonadInner' 'IO'@. Any
 -- monad built from stack of monad transformers with 'IO' at its
 -- <Control-Monad-Lift-Base.html base> (or indeed any \"base\" monad @m@ that
--- satisfies the constraint @'MonadInner' 'IO' m@) is automatically an instance
+-- satisfies the constraint @'MonadInner' 'IO' m@) is isomatically an instance
 -- of 'MonadIO'.
 #if LANGUAGE_ConstraintKinds
 type MonadIOControl = MonadInnerControl IO
@@ -177,27 +177,29 @@ liftDiscardIO = liftDiscardI
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadIOMonoInvariant = MonadInnerMonoInvariant IO
+type MonadIOInvariant j n = MonadInnerInvariant j n IO
 #else
-class MonadInnerMonoInvariant IO m => MonadIOMonoInvariant m
-instance MonadInnerMonoInvariant IO m => MonadIOMonoInvariant m
+class MonadInnerInvariant j n IO m => MonadIOInvariant j n m
+    | j m -> n, j n -> m, n m -> j
+instance MonadInnerInvariant j n IO m => MonadIOInvariant j n m
 #endif
 
 
 ------------------------------------------------------------------------------
-hoistautoIO :: MonadIOMonoInvariant m => (forall b. IO b -> IO b) -> (forall b. IO b -> IO b) -> m a -> m a
-hoistautoIO = hoistautoI
+hoistisoIO :: MonadIOInvariant j n m => (forall b. IO b -> j b) -> (forall b. j b -> IO b) -> m a -> n a
+hoistisoIO = hoistisoI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadIOMonoFunctor = MonadInnerMonoFunctor IO
+type MonadIOFunctor j n = MonadInnerFunctor j n IO
 #else
-class MonadInnerMonoFunctor IO m => MonadIOMonoFunctor m
-instance MonadInnerMonoFunctor IO m => MonadIOMonoFunctor m
+class MonadInnerFunctor j n IO m => MonadIOFunctor j n m
+    | j m -> n, j n -> m, n m -> j
+instance MonadInnerFunctor j n IO m => MonadIOFunctor j n m
 #endif
 
 
 ------------------------------------------------------------------------------
-hoistendoIO :: MonadIOMonoFunctor m => (forall b. IO b -> IO b) -> m a -> m a
-hoistendoIO = hoistendoI
+hoistIO :: MonadIOFunctor j n m => (forall b. IO b -> j b) -> m a -> n a
+hoistIO = hoistI

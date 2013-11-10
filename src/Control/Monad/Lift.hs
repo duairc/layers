@@ -1,15 +1,15 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-#if LANGUAGE_DefaultSignatures
+#ifdef LANGUAGE_DefaultSignatures
 {-# LANGUAGE DefaultSignatures #-}
 #endif
 #if __GLASGOW_HASKELL__ >= 707
@@ -93,16 +93,22 @@ module Control.Monad.Lift
     , liftOpI_
     , liftDiscardI
 
-    -- *** Defaults
+    -- ** Lifting morphisms
+    , MonadInnerInvariant (hoistisoI)
+    , MonadInnerFunctor (hoistI)
+
+    -- ** Defaults
     -- $defaults
+
+    -- *** Control operations
     , defaultSuspendI
     , defaultResumeI
     , defaultExtractI
     , defaultCaptureI
 
-    -- ** Lifting morphisms
-    , MonadInnerMonoInvariant (hoistautoI)
-    , MonadInnerMonoFunctor (hoistendoI)
+    -- *** Morphisms
+    , defaultHoistisoI
+    , defaultHoistI
     )
 where
 
@@ -800,7 +806,7 @@ class MInvariant t where
         -> (forall b. n b -> m b)
         -> t m a
         -> t n a
-#if LANGUAGE_DefaultSignatures
+#ifdef LANGUAGE_DefaultSignatures
     default hoistiso :: (MFunctor t, Monad m)
         => (forall b. m b -> n b)
         -> (forall b. n b -> m b)
@@ -1013,7 +1019,7 @@ type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 -- safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterResult m m = Identity
     OuterResult i (t m) = ComposeResult i t m
@@ -1047,7 +1053,7 @@ newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
 -- safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family OuterState (i :: * -> *) (m :: * -> *) :: *
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterState m m = ()
     OuterState i (t m) = (LayerState t m, OuterState i m)
@@ -1075,7 +1081,7 @@ newtype ComposeResult i t m a
 
 
 ------------------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
 toS, fromS, toR, fromR :: a -> a
 toS = id; fromS = id; toR = id; fromR = id
 #else
@@ -1133,7 +1139,7 @@ instance
     , Monad (t m)
     , MonadInner i (t m)
     , MonadInnerControl i m
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
     , OuterResult i (t m) ~ ComposeResult i t m
     , OuterState i (t m) ~ (LayerState t m, OuterState i m)
 #endif
@@ -1251,6 +1257,191 @@ liftDiscardI f = \m -> liftControlI $ \peel -> f $ liftM (const ()) $ peel m
 {-# INLINABLE liftDiscardI #-}
 
 
+{-
+------------------------------------------------------------------------------
+-- | The constraint @'MonadInnerMonoInvariant' i m@ holds when @i@ is an
+-- G(innermonad, inner monad) of @m@ such that it is possible to lift
+-- G(moprhism, monad automorphisms) of @i@ to G(morphism, monad endomorphisms)
+-- of @m@ using 'hoisautoI'. In other words, @'MonadInnerInvariant' i m@
+-- implies the existence of a
+-- G(morphism, monomorphic invariant functor in the category of monads) from
+-- @i@ to @m@.
+class MonadInner i m => MonadInnerMonoInvariant i m where
+    -- | Lift an G(morphism, automorphism) of @i@ to an
+    -- G(morphism, endomorphism) of @m@.
+    --
+    -- The following laws hold for valid instances of
+    -- 'MonadInnerMonoInvariant':
+    --
+    --     [Identity] @'hoistautoI' 'id' 'id' ≡ 'id'@
+    --
+    --     [Composition]
+    --         @'hoistautoI' f g '.' 'hoistautoI' f' g' ≡
+    --             'hoistautoI' (f '.' f') (g' '.' g)@
+    --
+    -- Note: The G(morphism, endomorphism) produced by @'hoistautoI' f g@ is
+    -- only valid if @f@ and @g@ form a valid G(morphism, automorphism), i.e.,
+    -- @f '.' g ≡ 'id'@ and @g '.' f ≡ 'id'@.
+    hoistautoI
+        :: (forall b. i b -> i b)
+        -> (forall b. i b -> i b)
+        -> m a
+        -> m a
+
+
+------------------------------------------------------------------------------
+instance MonadInner m m => MonadInnerMonoInvariant m m where
+    hoistautoI f _ = f
+
+
+------------------------------------------------------------------------------
+instance (Monad m, MonadInner (t m) (t m)) =>
+    MonadInnerMonoInvariant (t m) (t m)
+  where
+    hoistautoI f _ = f
+
+
+------------------------------------------------------------------------------
+instance
+    ( MInvariant t
+    , Monad m
+    , MonadInnerMonoInvariant i m
+    , MonadInner i (t m)
+    )
+  =>
+    MonadInnerMonoInvariant i (t m)
+  where
+    hoistautoI f g = hoistiso (hoistautoI f g) (hoistautoI g f)
+    {-# INLINABLE hoistautoI #-}
+
+
+------------------------------------------------------------------------------
+-- | The constraint @'MonadInnerMonoFunctor' i m@ holds when @i@ is an
+-- G(innermonad, inner monad) of @m@ such that it is possible to lift
+-- G(morphism, monad isomorphisms) of @i@ to G(morphism, monad morphisms)
+-- of @m@ using 'hoistendoI'. 'hoistendoI' is more powerful than 'hoistautoI'
+-- because 'hoistendoI' can lift G(morphism, endomorphisms) which do not have
+-- an inverse, while 'hoistautoI' can only lift G(morphism, automorphisms). In
+-- other words, @'MonadInnerMonoFunctor' i m@ implies the existence of a
+-- G(morphism, monomorphic functor in the category of monads) from @i@ to @m@.
+class MonadInnerMonoInvariant i m => MonadInnerMonoFunctor i m where
+    -- | Lift an G(morphism, endomorphism) of @i@ to an
+    -- G(morphism, endomorphism) of @m@.
+    --
+    -- The following laws hold for valid instances of
+    -- 'MonadInnerMonoFunctor':
+    --
+    --     [Identity] @'hoistendoI' 'id' ≡ 'id'@
+    --
+    --     [Composition] @'hoistendoI' f '.' 'hoistendoI' g ≡ 'hoistendoI' (f '.' g)@
+    hoistendoI :: (forall b. i b -> i b) -> m a -> m a
+
+
+------------------------------------------------------------------------------
+instance MonadInnerMonoInvariant m m => MonadInnerMonoFunctor m m where
+    hoistendoI f = f
+
+
+------------------------------------------------------------------------------
+instance (Monad m, MonadInnerMonoInvariant (t m) (t m)) =>
+    MonadInnerMonoFunctor (t m) (t m)
+  where
+    hoistendoI f = f
+
+
+------------------------------------------------------------------------------
+instance
+    ( MInvariant t
+    , MFunctor t
+    , Monad m
+    , MonadInnerMonoInvariant i (t m)
+    , MonadInnerMonoFunctor i m
+    )
+  =>
+    MonadInnerMonoFunctor i (t m)
+  where
+    hoistendoI f = hoist (hoistendoI f)
+    {-# INLINABLE hoistendoI #-}
+-}
+
+------------------------------------------------------------------------------
+-- | The constraint @'MonadInnerInvariant' i m@ holds when @i@ is an
+-- G(innermonad, inner monad) of @m@ such that it is possible to lift
+-- G(moprhism, monad automorphisms) of @i@ to G(morphism, monad endomorphisms)
+-- of @m@ using 'hoistisoI'. In other words, @'MonadInnerInvariant' i m@
+-- implies the existence of a
+-- G(morphism, invariant functor in the category of monads) from
+-- @i@ to @m@.
+class (MonadInner i m, MonadInner j n) => MonadInnerInvariant j n i m
+    | i j m -> n, i j n -> m, j n m -> i, i n m -> j
+  where
+    hoistisoI
+        :: (forall b. i b -> j b)
+        -> (forall b. j b -> i b)
+        -> m a
+        -> n a
+
+
+------------------------------------------------------------------------------
+instance (MonadInner m m, MonadInner n n) => MonadInnerInvariant n n m m where
+    hoistisoI f _ = f
+
+
+------------------------------------------------------------------------------
+instance (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
+    MonadInnerInvariant n n (t m) (t m)
+  where
+    hoistisoI f _ = f
+
+
+------------------------------------------------------------------------------
+instance
+    ( MInvariant t
+    , MonadInner i (t m)
+    , MonadInner j (t n)
+    , MonadInnerInvariant j n i m
+    , MonadInnerInvariant i m j n
+    )
+  =>
+    MonadInnerInvariant j (t n) i (t m)
+  where
+    hoistisoI f g = hoistiso (hoistisoI f g) (hoistisoI g f)
+    {-# INLINABLE hoistisoI #-}
+
+
+------------------------------------------------------------------------------
+class MonadInnerInvariant j n i m => MonadInnerFunctor j n i m
+    | i j m -> n, i j n -> m, j n m -> i, i n m -> j
+  where
+    hoistI :: (forall b. i b -> j b) -> m a -> n a
+
+
+------------------------------------------------------------------------------
+instance MonadInnerInvariant n n m m => MonadInnerFunctor n n m m where
+    hoistI f = f
+
+
+------------------------------------------------------------------------------
+instance (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
+    MonadInnerFunctor n n (t m) (t m)
+  where
+    hoistI f = f
+
+
+------------------------------------------------------------------------------
+instance
+    ( MFunctor t
+    , MonadInnerFunctor j n i m
+    , MonadInnerInvariant j (t n) i (t m)
+    )
+  =>
+    MonadInnerFunctor j (t n) i (t m)
+  where
+    hoistI f = hoist (hoistI f)
+    {-# INLINABLE hoistI #-}
+
+
+------------------------------------------------------------------------------
 {-$defaults
 
 The changes to the behaviour of the @GeneralizedNewtypeDeriving@ extension
@@ -1317,7 +1508,7 @@ operations to manually define an instance (as above) rather than using the
 defaultSuspendI
     :: forall i m n a.
         ( MonadInnerControl i m
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
         , OuterResult i n ~ OuterResult_ i n
         , OuterState i n ~ OuterState_ i n
 #endif
@@ -1341,7 +1532,7 @@ defaultSuspendI un m s = liftM (toOuterResult_ *** toOuterState_) $
 defaultResumeI
     :: forall proxy i n m a.
         ( MonadInnerControl i m
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
         , OuterResult i n ~ OuterResult_ i n
         , OuterState i n ~ OuterState_ i n
 #endif
@@ -1363,7 +1554,7 @@ defaultResumeI nu p = nu . resumeI p . (fromOuterResult_ *** fromOuterState_)
 -- 'defaultCaptureI' takes the @m -> n@ half of the G(moprhism, isomorphism).
 defaultCaptureI :: forall proxy i m n.
         ( MonadInnerControl i m
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
         , OuterState i n ~ OuterState_ i n
 #endif
         )
@@ -1384,7 +1575,7 @@ defaultCaptureI nu p = nu (liftM toOuterState_ (captureI p))
 defaultExtractI
     :: forall proxy proxy' i m n a.
         ( MonadInnerControl i m
-#if __GLASGOW_HASKELL__ >= 707
+#ifdef LANGUAGE_ClosedTypeFamilies
         , OuterResult i n ~ OuterResult_ i n
 #endif
         )
@@ -1397,106 +1588,21 @@ defaultExtractI _ p _ r = extractI p (Pm :: Pm m) (fromOuterResult_ r)
 
 
 ------------------------------------------------------------------------------
--- | The constraint @'MonadInnerMonoInvariant' i m@ holds when @i@ is an
--- G(innermonad, inner monad) of @m@ such that it is possible to lift
--- G(moprhism, monad automorphisms) of @i@ to G(morphism, monad endomorphisms)
--- of @m@ using 'hoistisoI'. In other words, @'MonadInnerInvariant' i m@
--- implies the existence of a
--- G(morphism, monomorphic invariant functor in the category of monads) from
--- @i@ to @m@.
-class MonadInner i m => MonadInnerMonoInvariant i m where
-    -- | Lift an G(morphism, automorphism) of @i@ to an
-    -- G(morphism, endomorphism) of @m@.
-    --
-    -- The following laws hold for valid instances of
-    -- 'MonadInnerMonoInvariant':
-    --
-    --     [Identity] @'hoistautoI' 'id' 'id' ≡ 'id'@
-    --
-    --     [Composition]
-    --         @'hoistautoI' f g '.' 'hoistautoI' f' g' ≡
-    --             'hoistautoI' (f '.' f') (g' '.' g)@
-    --
-    -- Note: The G(morphism, endomorphism) produced by @'hoistautoI' f g@ is
-    -- only valid if @f@ and @g@ form a valid G(morphism, automorphism), i.e.,
-    -- @f '.' g ≡ 'id'@ and @g '.' f ≡ 'id'@.
-    hoistautoI
-        :: (forall b. i b -> i b)
-        -> (forall b. i b -> i b)
-        -> m a
-        -> m a
+defaultHoistisoI :: MonadInnerFunctor i m i m
+    => (forall b. m b -> n b)
+    -> (forall b. n b -> m b)
+    -> (forall b. i b -> i b)
+    -> (forall b. i b -> i b)
+    -> n a
+    -> n a
+defaultHoistisoI nat tan_ f g m = nat (hoistisoI f g (tan_ m)) 
 
 
 ------------------------------------------------------------------------------
-instance MonadInner m m => MonadInnerMonoInvariant m m where
-    hoistautoI f _ = f
-
-
-------------------------------------------------------------------------------
-instance (Monad m, MonadInner (t m) (t m)) =>
-    MonadInnerMonoInvariant (t m) (t m)
-  where
-    hoistautoI f _ = f
-
-
-------------------------------------------------------------------------------
-instance
-    ( MInvariant t
-    , Monad m
-    , MonadInnerMonoInvariant i m
-    , MonadInner i (t m)
-    )
-  =>
-    MonadInnerMonoInvariant i (t m)
-  where
-    hoistautoI f g = hoistiso (hoistautoI f g) (hoistautoI g f)
-    {-# INLINABLE hoistautoI #-}
-
-
-------------------------------------------------------------------------------
--- | The constraint @'MonadInnerMonoFunctor' i m@ holds when @i@ is an
--- G(innermonad, inner monad) of @m@ such that it is possible to lift
--- G(morphism, monad endomorphisms) of @i@ to G(morphism, monad endomorphisms)
--- of @m@ using 'hoistendoI'. 'hoistendoI' is more powerful than 'hoistautoI'
--- because 'hoistendoI' can lift G(morphism, endomorphisms) which do not have
--- an inverse, while 'hoistautoI' can only lift G(morphism, automorphisms). In
--- other words, @'MonadInnerMonoFunctor' i m@ impliies the existence of a
--- G(morphism, monomorphic functor in the category of monads) from @i@ to @m@.
-class MonadInnerMonoInvariant i m => MonadInnerMonoFunctor i m where
-    -- | Lift an G(morphism, endomorphism) of @i@ to an
-    -- G(morphism, endomorphism) of @m@.
-    --
-    -- The following laws hold for valid instances of
-    -- 'MonadInnerMonoFunctor':
-    --
-    --     [Identity] @'hoistendoI' 'id' ≡ 'id'@
-    --
-    --     [Composition] @'hoistendoI' f '.' 'hoistendoI' g ≡ 'hoistendoI' (f '.' g)@
-    hoistendoI :: (forall b. i b -> i b) -> m a -> m a
-
-
-------------------------------------------------------------------------------
-instance MonadInnerMonoInvariant m m => MonadInnerMonoFunctor m m where
-    hoistendoI f = f
-
-
-------------------------------------------------------------------------------
-instance (Monad m, MonadInnerMonoInvariant (t m) (t m)) =>
-    MonadInnerMonoFunctor (t m) (t m)
-  where
-    hoistendoI f = f
-
-
-------------------------------------------------------------------------------
-instance
-    ( MInvariant t
-    , MFunctor t
-    , Monad m
-    , MonadInnerMonoInvariant i (t m)
-    , MonadInnerMonoFunctor i m
-    )
-  =>
-    MonadInnerMonoFunctor i (t m)
-  where
-    hoistendoI f = hoist (hoistendoI f)
-    {-# INLINABLE hoistendoI #-}
+defaultHoistI :: MonadInnerFunctor i m i m
+    => (forall b. m b -> n b)
+    -> (forall b. n b -> m b)
+    -> (forall b. i b -> i b)
+    -> n a  
+    -> n a
+defaultHoistI nat tan_ f m = nat (hoistI f (tan_ m))

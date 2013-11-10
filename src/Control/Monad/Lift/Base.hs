@@ -31,10 +31,10 @@ module Control.Monad.Lift.Base
     , liftOpB
     , liftOpB_
     , liftDiscardB
-    , MonadBaseMonoInvariant
-    , hoistautoB
-    , MonadBaseMonoFunctor
-    , hoistendoB
+    , MonadBaseInvariant
+    , hoistisoB
+    , MonadBaseFunctor
+    , hoistB
     )
 where
 
@@ -73,10 +73,10 @@ import           Control.Monad.Lift
                      , liftOpI
                      , liftOpI_
                      , liftDiscardI
-                     , MonadInnerMonoInvariant
-                     , hoistautoI
-                     , MonadInnerMonoFunctor
-                     , hoistendoI
+                     , MonadInnerInvariant
+                     , hoistisoI
+                     , MonadInnerFunctor
+                     , hoistI
                      )
 
 
@@ -196,27 +196,29 @@ liftDiscardB = liftDiscardI
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadBaseMonoInvariant b m = (MonadInnerMonoInvariant b m, MonadBase b m)
+type MonadBaseInvariant j n b m = (MonadInnerInvariant j n b m, MonadBase b m)
 #else
-class (MonadInnerMonoInvariant b m, MonadBase b m) => MonadBaseMonoInvariant b m | m -> b
-instance (MonadInnerMonoInvariant b m, MonadBase b m) => MonadBaseMonoInvariant b m
+class (MonadInnerInvariant j n b m, MonadBase b m) => MonadBaseInvariant j n b m
+    | m -> b, j m -> n, b j n -> m, n m -> j
+instance (MonadInnerInvariant j n b m, MonadBase b m) => MonadBaseInvariant j n b m
 #endif
 
 
 ------------------------------------------------------------------------------
-hoistautoB :: MonadBaseMonoInvariant b m => (forall c. b c -> b c) -> (forall c. b c -> b c) -> m a -> m a
-hoistautoB = hoistautoI
+hoistisoB :: MonadBaseInvariant j n b m => (forall c. b c -> j c) -> (forall c. j c -> b c) -> m a -> n a
+hoistisoB = hoistisoI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadBaseMonoFunctor b m = (MonadInnerMonoFunctor b m, MonadBase b m)
+type MonadBaseFunctor j n b m = (MonadInnerFunctor j n b m, MonadBase b m)
 #else
-class (MonadInnerMonoFunctor b m, MonadBase b m) => MonadBaseMonoFunctor b m | m -> b
-instance (MonadInnerMonoFunctor b m, MonadBase b m) => MonadBaseMonoFunctor b m
+class (MonadInnerFunctor j n b m, MonadBase b m) => MonadBaseFunctor j n b m
+    | m -> b, j m -> n, b j n -> m, n m -> j
+instance (MonadInnerFunctor j n b m, MonadBase b m) => MonadBaseFunctor j n b m
 #endif
 
 
 ------------------------------------------------------------------------------
-hoistendoB :: MonadBaseMonoFunctor b m => (forall c. b c -> b c) -> m a -> m a
-hoistendoB = hoistendoI
+hoistB :: MonadBaseFunctor j n b m => (forall c. b c -> j c) -> m a -> n a
+hoistB = hoistI
