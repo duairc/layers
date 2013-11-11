@@ -9,6 +9,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#if LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 #if __GLASGOW_HASKELL__ >= 707
 {-# LANGUAGE ImpredicativeTypes #-}
 #endif
@@ -93,7 +96,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTrans, MInvariant, lift, hoistiso)
+import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
 
 
 ------------------------------------------------------------------------------
@@ -210,14 +213,12 @@ instance MonadMask IO where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MInvariant t, Monad (t m), MonadMask m) =>
-    MonadMask (t m)
-  where
-    getMaskingState = lift getMaskingState
-    {-# INLINE getMaskingState #-}
-    setMaskingState s m = lift getMaskingState >>= \s' ->
-        hoistiso (setMaskingState s) (setMaskingState s') m
-    {-# INLINE setMaskingState #-}
+instance (MonadTopInvariant m t m, MonadMask m) => MonadMask (t m) where
+    getMaskingState = liftT getMaskingState
+    {-# INLINABLE getMaskingState #-}
+    setMaskingState s m = liftT getMaskingState >>= \s' ->
+        hoistisoT (setMaskingState s) (setMaskingState s') m
+    {-# INLINABLE setMaskingState #-}
 
 
 ------------------------------------------------------------------------------

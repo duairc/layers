@@ -6,6 +6,9 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 
 {-|
 
@@ -45,7 +48,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTrans, MInvariant, lift, hoistiso)
+import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
 
 
 ------------------------------------------------------------------------------
@@ -111,12 +114,14 @@ instance (MonadReader r f, MonadReader r g) =>
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MInvariant t, MonadReader r m, Monad (t m)) =>
-    MonadReader r (t m)
+instance (MonadTopInvariant m t m, MonadReader r m) => MonadReader r (t m)
   where
-    reader = lift . reader
-    ask = lift ask
-    local f m = lift ask >>= \r -> hoistiso (local f) (local (const r)) m
+    reader = liftT . reader
+    {-# INLINABLE reader #-}
+    ask = liftT ask
+    {-# INLINABLE ask #-}
+    local f m = liftT ask >>= \r -> hoistisoT (local f) (local (const r)) m
+    {-# INLINABLE local #-}
 
 
 ------------------------------------------------------------------------------

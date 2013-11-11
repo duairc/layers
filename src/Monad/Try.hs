@@ -7,6 +7,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#if LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 
 {-|
 
@@ -64,13 +67,13 @@ import           Data.Functor.Product (Product (Pair))
 
 -- layers --------------------------------------------------------------------
 import           Monad.Mask (MonadMask, mask)
-import           Control.Monad.Lift
-                     ( MonadTransControl
-                     , extract
-                     , lift
-                     , suspend
-                     , resume
-                     , capture
+import           Control.Monad.Lift.Top
+                     ( MonadTopControl
+                     , extractT
+                     , liftT
+                     , suspendT
+                     , resumeT
+                     , captureT
                      )
 
 
@@ -184,16 +187,21 @@ data Pt (t :: (* -> *) -> * -> *) = Pt
 
 
 ------------------------------------------------------------------------------
-instance (MonadTransControl t, MonadMask (t m), MonadTry m) => MonadTry (t m)
+data Pm (m :: * -> *) = Pm
+
+
+------------------------------------------------------------------------------
+instance (MonadTopControl t m, MonadMask (t m), MonadTry m) => MonadTry (t m)
   where
     mtry (m :: t m a) = do
-        state <- capture
-        ma <- lift . mtry $ suspend m state
+        state <- captureT
+        ma <- liftT . mtry $ suspendT m state
         case ma of
-            Left m' -> return . Left $ lift m' >>= resume
-            Right (result, state') -> case extract (Pt :: Pt t) result of
-                Nothing ->  return . Left $ resume (result, state')
-                Just _ -> liftM Right $ resume (result, state')
+            Left m' -> return . Left $ liftT m' >>= resumeT
+            Right (result, state') ->
+                case extractT (Pt :: Pt t) (Pm :: Pm m) result of
+                    Nothing ->  return . Left $ resumeT (result, state')
+                    Just _ -> liftM Right $ resumeT (result, state')
     {-# INLINE mtry #-}
 
 

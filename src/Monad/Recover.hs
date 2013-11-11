@@ -2,9 +2,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 
 {-|
 
@@ -45,7 +49,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTransControl, control)
+import           Control.Monad.Lift.Top (MonadTopControl, controlT)
 import           Monad.Abort (MonadAbort)
 
 
@@ -127,8 +131,8 @@ instance (MonadRecover e f, MonadRecover e g) => MonadRecover e (Product f g)
 
 
 ------------------------------------------------------------------------------
-instance (MonadTransControl t, MonadRecover e m, MonadAbort e (t m)) =>
+instance (MonadTopControl t m, MonadRecover e m, MonadAbort e (t m)) =>
     MonadRecover e (t m)
   where
-    recover m h = control (\peel -> recover (peel m) (peel . h))
-    {-# INLINE recover #-}
+    recover m h = controlT (\peel -> recover (peel m) (peel . h))
+    {-# INLINABLE recover #-}

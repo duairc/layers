@@ -5,6 +5,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 
 {-|
 
@@ -50,7 +53,7 @@ import           Data.Functor.Product (Product (Pair))
 
         
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTransControl, liftDiscard)
+import           Control.Monad.Lift.Top (MonadTopControl, liftDiscardT)
 import           Monad.Mask
                      ( MonadMask
                      , MaskingState (Unmasked)
@@ -128,13 +131,13 @@ instance (MonadFork f, MonadFork g) => MonadFork (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTransControl t, MonadFork m, MonadMask (t m)) =>
+instance (MonadTopControl t m, MonadFork m, MonadMask (t m)) =>
     MonadFork (t m)
   where
-    fork = liftDiscard fork
-    {-# INLINE fork #-}
-    forkOn = liftDiscard . forkOn
-    {-# INLINE forkOn #-}
+    fork = liftDiscardT fork
+    {-# INLINABLE fork #-}
+    forkOn = liftDiscardT . forkOn
+    {-# INLINABLE forkOn #-}
 
 
 ------------------------------------------------------------------------------

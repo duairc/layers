@@ -42,7 +42,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import          Control.Monad.Lift (MonadTrans, lift)
+import          Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ instance (MonadAbort e f, MonadAbort e g) => MonadAbort e (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MonadAbort e m, Monad (t m)) => MonadAbort e (t m)
+instance (MonadTop t m, MonadAbort e m) => MonadAbort e (t m)
   where
-    abort = lift . abort
-    {-# INLINE abort #-}
+    abort = liftT . abort
+    {-# INLINABLE abort #-}

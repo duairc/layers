@@ -47,7 +47,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTrans, lift)
+import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -120,14 +120,14 @@ instance (MonadState s f, MonadState s g) => MonadState s (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MonadState s m, Monad (t m)) => MonadState s (t m)
+instance (MonadTop t m, MonadState s m) => MonadState s (t m)
   where
-    state = lift . state
-    {-# INLINE state #-}
-    get = lift get
-    {-# INLINE get #-}
-    put = lift . put
-    {-# INLINE put #-}
+    state = liftT . state
+    {-# INLINABLE state #-}
+    get = liftT get
+    {-# INLINABLE get #-}
+    put = liftT . put
+    {-# INLINABLE put #-}
 
 
 ------------------------------------------------------------------------------

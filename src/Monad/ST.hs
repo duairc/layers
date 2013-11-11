@@ -68,7 +68,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTrans, lift)
+import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -157,15 +157,15 @@ instance (MonadST ref f, MonadST ref g) => MonadST ref (Product f g) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, Monad (t m), MonadST ref m) => MonadST ref (t m) where
-    newRef = lift . newRef
-    {-# INLINE newRef #-}
-    readRef = lift . readRef
-    {-# INLINE readRef #-}
-    writeRef ref = lift . writeRef ref
-    {-# INLINE writeRef #-}
-    atomicModifyRef ref = lift . atomicModifyRef ref
-    {-# INLINE atomicModifyRef #-}
+instance (MonadTop t m, MonadST ref m) => MonadST ref (t m) where
+    newRef = liftT . newRef
+    {-# INLINABLE newRef #-}
+    readRef = liftT . readRef
+    {-# INLINABLE readRef #-}
+    writeRef ref = liftT . writeRef ref
+    {-# INLINABLE writeRef #-}
+    atomicModifyRef ref = liftT . atomicModifyRef ref
+    {-# INLINABLE atomicModifyRef #-}
 
 
 ------------------------------------------------------------------------------

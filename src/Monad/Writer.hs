@@ -49,7 +49,7 @@ import           Data.Functor.Product (Product (Pair))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift (MonadTrans, lift)
+import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -135,16 +135,16 @@ instance (MonadWriter w f, MonadWriter w g) =>
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MonadWriter w m, Monad (t m)) => MonadWriter w (t m)
+instance (MonadTop t m, MonadWriter w m) => MonadWriter w (t m)
   where
-    writer = lift . writer
-    {-# INLINE writer #-}
-    tell = lift . tell
-    {-# INLINE tell #-}
-    listen m = m >>= lift . listen . return
-    {-# INLINE listen #-}
-    pass m = m >>= lift . pass . return
-    {-# INLINE pass #-}
+    writer = liftT . writer
+    {-# INLINABLE writer #-}
+    tell = liftT . tell
+    {-# INLINABLE tell #-}
+    listen m = m >>= liftT . listen . return
+    {-# INLINABLE listen #-}
+    pass m = m >>= liftT . pass . return
+    {-# INLINABLE pass #-}
 
 
 ------------------------------------------------------------------------------

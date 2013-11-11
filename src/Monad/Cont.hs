@@ -4,6 +4,9 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 
 {-|
 
@@ -28,11 +31,11 @@ import           Control.Monad.Trans.Cont (ContT (ContT))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift
-                    ( MonadTransControl
-                    , lift
-                    , liftControl
-                    , resume
+import           Control.Monad.Lift.Top
+                    ( MonadTopControl
+                    , liftT
+                    , liftControlT
+                    , resumeT
                     )
 
 
@@ -81,8 +84,7 @@ instance Monad m => MonadCont (ContT r m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTransControl t, MonadCont m, Monad (t m)) => MonadCont (t m)
-  where
-    callCC f = liftControl (\peel -> callCC $ \c -> peel . f $ \a ->
-        lift (peel (return a) >>= c)) >>= resume
-    {-# INLINE callCC #-}
+instance (MonadTopControl t m, MonadCont m) => MonadCont (t m) where
+    callCC f = liftControlT (\peel -> callCC $ \c -> peel . f $ \a ->
+        liftT (peel (return a) >>= c)) >>= resumeT
+    {-# INLINABLE callCC #-}

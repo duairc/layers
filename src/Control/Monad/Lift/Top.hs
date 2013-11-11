@@ -66,8 +66,8 @@ import           Control.Monad.Lift
 #if LANGUAGE_ConstraintKinds
 type MonadTop t m = MonadInner m (t m)
 #else
-class MonadInner t (t m) => MonadTop t m
-instance MonadInner t (t m) => MonadTop t m
+class MonadInner m (t m) => MonadTop t m
+instance MonadInner m (t m) => MonadTop t m
 #endif
 
 

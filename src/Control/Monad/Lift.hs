@@ -1153,10 +1153,10 @@ instance
   =>
     MonadInnerControl m (t m)
   where
-    suspendI = suspend
-    resumeI _ = resume
-    captureI _ = capture
-    extractI _ _ = extract (Pt :: Pt t)
+    suspendI m s = liftM (toR *** toS) $ suspend m (fromS s)
+    resumeI _ = resume . (fromR *** fromS)
+    captureI _ = liftM toS capture
+    extractI _ _ r = extract (Pt :: Pt t) (fromR r)
 
 
 ------------------------------------------------------------------------------
