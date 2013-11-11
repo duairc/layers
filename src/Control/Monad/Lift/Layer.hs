@@ -20,29 +20,27 @@
 
 module Control.Monad.Lift.Layer
     ( MonadLayer
-    , liftT
+    , liftL
     , MonadLayerControl
-    , suspendT
-    , resumeT
-    , captureT
-    , extractT
-    , liftControlT
-    , controlT
-    , liftOpT
-    , liftOpT_
-    , liftDiscardT
+    , suspendL
+    , resumeL
+    , captureL
+    , extractL
+    , liftControlL
+    , controlL
+    , liftOpL
+    , liftOpL_
+    , liftDiscardL
     , MonadLayerInvariant
-    , hoistisoT
+    , hoistisoL
     , MonadLayerFunctor
-    , hoistT
+    , hoistL
     )
 where
 
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
-                     ( MonadTrans
-                     , MonadTransControl
-                     , MonadInner
+                     ( MonadInner
                      , liftI
                      , MonadInnerControl
                      , OuterEffects
@@ -65,32 +63,30 @@ import           Control.Monad.Lift
 
 
 ------------------------------------------------------------------------------
-class (MonadInner (t i) m, MonadTrans t) => MonadLayer i t m
+class (MonadInner (t i) m, MonadInner i (t i)) => MonadLayer i t m
     | t m -> i, i m -> t
 
 
 ------------------------------------------------------------------------------
-instance (Monad i, Monad (t i), MonadTrans t) => MonadLayer i t (t i)
+instance MonadInner i (t i) => MonadLayer i t (t i)
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer i s m, MonadInner (s i) (t m), Monad (t m), MonadTrans t)
+instance (MonadLayer i s m, MonadInner (s i) (t m), MonadInner m (t m))
     => MonadLayer i s (t m)
 
 
 ------------------------------------------------------------------------------
-liftT :: MonadLayer i t m => t i a -> m a
-liftT = liftI
+liftL :: MonadLayer i t m => t i a -> m a
+liftL = liftI
 
 
 ------------------------------------------------------------------------------
 #if LANGUAGE_ConstraintKinds
-type MonadLayerControl i t m =
-    (MonadInnerControl (t i) m, MonadTransControl t, MonadLayer i t m)
+type MonadLayerControl i t m = (MonadInnerControl (t i) m, MonadLayer i t m)
 #else
-class (MonadInnerControl (t i) m, MonadTransControl t, MonadLayer i t m) =>
-    MonadLayerControl i t m
-instance (MonadInnerControl (t i) m, MonadTransControl t, MonadLayer i t m) =>
+class (MonadInnerControl (t i) m, MonadLayer i t m) => MonadLayerControl i t m
+instance (MonadInnerControl (t i) m, MonadLayer i t m) =>
     MonadLayerControl i t m
 #endif
 
@@ -100,71 +96,71 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-suspendT :: MonadLayerControl i t m
+suspendL :: MonadLayerControl i t m
     => m a
     -> OuterState (t i) m
     -> t i (OuterEffects (t i) m a)
-suspendT = suspendI
+suspendL = suspendI
 
 
 ------------------------------------------------------------------------------
-resumeT :: forall proxy i t m a. MonadLayerControl i t m
+resumeL :: forall proxy i t m a. MonadLayerControl i t m
     => proxy t
     -> OuterEffects (t i) m a
     -> m a
-resumeT _ = resumeI (Pm :: Pm (t i))
+resumeL _ = resumeI (Pm :: Pm (t i))
 
 
 ------------------------------------------------------------------------------
-captureT :: forall proxy i t m. MonadLayerControl i t m
+captureL :: forall proxy i t m. MonadLayerControl i t m
     => proxy t
     -> m (OuterState (t i) m)
-captureT _ = captureI (Pm :: Pm (t i))
+captureL _ = captureI (Pm :: Pm (t i))
 
 
 ------------------------------------------------------------------------------
-extractT :: forall proxy proxy' i t m a. MonadLayerControl i t m
+extractL :: forall proxy proxy' i t m a. MonadLayerControl i t m
     => proxy t
     -> proxy' m
     -> OuterResult (t i) m a
     -> Maybe a
-extractT _ = extractI (Pm :: Pm (t i))
+extractL _ = extractI (Pm :: Pm (t i))
 
 
 ------------------------------------------------------------------------------
-liftControlT :: MonadLayerControl i t m
+liftControlL :: MonadLayerControl i t m
     => ((forall b. m b -> t i (OuterEffects (t i) m b)) -> t i a)
     -> m a
-liftControlT = liftControlI
+liftControlL = liftControlI
 
 
 ------------------------------------------------------------------------------
-controlT :: MonadLayerControl i t m
+controlL :: MonadLayerControl i t m
     => ((forall b. m b -> t i (OuterEffects (t i) m b))
         -> t i (OuterEffects (t i) m a))
     -> m a
-controlT = controlI
+controlL = controlI
 
 
 ------------------------------------------------------------------------------
-liftOpT :: MonadLayerControl i t m
+liftOpL :: MonadLayerControl i t m
     => ((a -> t i (OuterEffects (t i) m b)) -> t i (OuterEffects (t i) m c))
     -> (a -> m b)
     -> m c
-liftOpT = liftOpI
+liftOpL = liftOpI
 
 
 ------------------------------------------------------------------------------
-liftOpT_ :: MonadLayerControl i t m
-    => (t i (OuterEffects (t i) m a) -> t i (OuterEffects (t i) m c))
+liftOpL_ :: MonadLayerControl i t m
+    => (t i (OuterEffects (t i) m a) -> t i (OuterEffects (t i) m b))
     -> m a
-    -> m c
-liftOpT_ = liftOpI_
+    -> m b
+liftOpL_ = liftOpI_
 
 
 ------------------------------------------------------------------------------
-liftDiscardT :: MonadLayerControl i t m => (t i () -> t i a) -> m () -> m a
-liftDiscardT = liftDiscardI
+liftDiscardL :: MonadLayerControl i t m => (t i () -> t i a) -> m () -> m a
+liftDiscardL = liftDiscardI
 
 
 ------------------------------------------------------------------------------
@@ -188,12 +184,12 @@ instance (MonadInnerInvariant j n (t i) m, MonadLayer i t m) =>
 
 
 ------------------------------------------------------------------------------
-hoistisoT :: MonadLayerInvariant j n i t m
+hoistisoL :: MonadLayerInvariant j n i t m
     => (forall b. t i b -> j b)
     -> (forall b. j b -> t i b)
     -> m a
     -> n a
-hoistisoT = hoistisoI
+hoistisoL = hoistisoI
 
 
 ------------------------------------------------------------------------------
@@ -231,8 +227,8 @@ instance
 
 
 ------------------------------------------------------------------------------
-hoistT :: MonadLayerFunctor j n i t m
+hoistL :: MonadLayerFunctor j n i t m
     => (forall b. t i b -> j b)
     -> m a
     -> n a
-hoistT = hoistI
+hoistL = hoistI

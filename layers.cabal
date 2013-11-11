@@ -64,6 +64,7 @@ Library
     Control.Monad.Lift.Base
     Control.Monad.Lift.IO
     Control.Monad.Lift.Layer
+    Control.Monad.Lift.Top
     Monad.Abort
     Monad.Cont
     Monad.Catch

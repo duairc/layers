@@ -915,9 +915,17 @@ instance (Monad m, Monad (t m)) => MonadInner (t m) (t m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, Monad (t m), MonadInner i m) => MonadInner i (t m)
+instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
+    liftI = lift
+
+
+------------------------------------------------------------------------------
+instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m)
   where
-    liftI = lift . liftI
+    liftI = liftT . liftI
+      where
+        liftT :: MonadInner m (t m) => m a -> t m a
+        liftT = liftI
 
 
 ------------------------------------------------------------------------------
@@ -1022,6 +1030,7 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterResult m m = Identity
+    OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult_ i m -- this is only for newtypes, see
                                        -- the defaults section
@@ -1056,7 +1065,8 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterState m m = ()
-    OuterState i (t m) = (LayerState t m, OuterState i m)
+    OuterState m (t m) = LayerState t m
+    OuterState i (t m) = (OuterState m (t m), OuterState i m)
     OuterState i m = OuterState_ i m -- this is only for newtypes, see
                                      -- the defaults section
 -- closed type families are only supported on GHC 7.8 and above
@@ -1077,7 +1087,7 @@ newtype OuterState_ (i :: * -> *) (m :: * -> *) = OuterState_ Any
 
 ------------------------------------------------------------------------------
 newtype ComposeResult i t m a
-    = ComposeResult (OuterResult i m (LayerResult t a, LayerState t m))
+    = ComposeResult (OuterResult i m (OuterResult m (t m) a, OuterState m (t m)))
 
 
 ------------------------------------------------------------------------------
@@ -1136,12 +1146,27 @@ instance (Monad m, MonadInner (t m) (t m)) => MonadInnerControl (t m) (t m)
 ------------------------------------------------------------------------------
 instance
     ( MonadTransControl t
-    , Monad (t m)
-    , MonadInner i (t m)
+    , MonadInner m (t m)
+    , OuterState m (t m) ~ LayerState t m
+    , OuterResult m (t m) ~ LayerResult t
+    )
+  =>
+    MonadInnerControl m (t m)
+  where
+    suspendI = suspend
+    resumeI _ = resume
+    captureI _ = capture
+    extractI _ _ = extract (Pt :: Pt t)
+
+
+------------------------------------------------------------------------------
+instance
+    ( MonadInner i (t m)
     , MonadInnerControl i m
+    , MonadInnerControl m (t m)
 #ifdef LANGUAGE_ClosedTypeFamilies
     , OuterResult i (t m) ~ ComposeResult i t m
-    , OuterState i (t m) ~ (LayerState t m, OuterState i m)
+    , OuterState i (t m) ~ (OuterState m (t m), OuterState i m)
 #endif
     )
   =>
@@ -1151,20 +1176,46 @@ instance
         let (ls, os) = fromS s
         let compose or_ = ComposeResult or_ :: ComposeResult i t m a
         let f (or_, os') = (toR (compose or_), toS (ls, os'))
-        liftM f $ suspendI (suspend m ls) os
+        liftM f $ suspendI (suspendT m ls) os
+      where
+          suspendT :: MonadInnerControl m (t m)
+              => t m a
+              -> OuterState m (t m)
+              -> m (OuterEffects m (t m) a)
+          suspendT = suspendI
 
     resumeI p ((r, s) :: OuterEffects i (t m) a) = do
         let ComposeResult r' = (fromR r :: ComposeResult i t m a)
         let (_, s') = fromS s
-        lift (resumeI p (r', s')) >>= resume
+        liftT (resumeI p (r', s')) >>= resumeT
+      where
+        liftT :: MonadInner m (t m) => m b -> t m b
+        liftT = liftI
 
-    captureI p = capture >>= \a -> lift (captureI p) >>= \b ->
+        resumeT :: MonadInnerControl m (t m)
+            => OuterEffects m (t m) b
+            -> t m b
+        resumeT = resumeI (Pm :: Pm m)
+
+    captureI p = captureT >>= \a -> liftT (captureI p) >>= \b ->
         return $ toS (a, b)
+      where
+        liftT :: MonadInner m (t m) => m a -> t m a
+        liftT = liftI
+
+        captureT :: MonadInnerControl m (t m) => t m (OuterState m (t m))
+        captureT = captureI (Pm :: Pm m)
 
     extractI _ _ (r :: OuterResult i (t m) a) =
         let ComposeResult r' = (fromR r :: ComposeResult i t m a) in join $
-            fmap (extract (Pt :: Pt t) . fst) $
+            fmap (extractT (Pt :: Pt t) . fst) $
                 extractI (Pm :: Pm i) (Pm :: Pm m) r'
+      where
+        extractT :: MonadInnerControl m (t m)
+            => proxy t
+            -> OuterResult m (t m) b
+            -> Maybe b
+        extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
 
 
 ------------------------------------------------------------------------------
@@ -1395,17 +1446,31 @@ instance (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
 
 
 ------------------------------------------------------------------------------
+instance (MInvariant t, MonadInner m (t m), MonadInner n (t n)) =>
+    MonadInnerInvariant n (t n) m (t m)
+  where
+    hoistisoI = hoistiso
+
+
+------------------------------------------------------------------------------
 instance
-    ( MInvariant t
-    , MonadInner i (t m)
+    ( MonadInner i (t m)
     , MonadInner j (t n)
     , MonadInnerInvariant j n i m
     , MonadInnerInvariant i m j n
+    , MonadInnerInvariant n (t n) m (t m)
     )
   =>
     MonadInnerInvariant j (t n) i (t m)
   where
-    hoistisoI f g = hoistiso (hoistisoI f g) (hoistisoI g f)
+    hoistisoI f g = hoistisoT (hoistisoI f g) (hoistisoI g f)
+      where
+        hoistisoT :: MonadInnerInvariant n (t n) m (t m)
+            => (forall b. m b -> n b)
+            -> (forall b. n b -> m b)
+            -> t m a
+            -> t n a
+        hoistisoT = hoistisoI
     {-# INLINABLE hoistisoI #-}
 
 
@@ -1429,15 +1494,28 @@ instance (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
 
 
 ------------------------------------------------------------------------------
+instance (MFunctor t, MonadInnerInvariant n (t n) m (t m)) =>
+    MonadInnerFunctor n (t n) m (t m)
+  where
+    hoistI = hoist
+
+
+------------------------------------------------------------------------------
 instance
-    ( MFunctor t
-    , MonadInnerFunctor j n i m
+    ( MonadInnerFunctor j n i m
+    , MonadInnerFunctor n (t n) m (t m)
     , MonadInnerInvariant j (t n) i (t m)
     )
   =>
     MonadInnerFunctor j (t n) i (t m)
   where
-    hoistI f = hoist (hoistI f)
+    hoistI f = hoistT (hoistI f)
+      where
+        hoistT :: MonadInnerFunctor n (t n) m (t m)
+            => (forall b. m b -> n b)
+            -> t m a
+            -> t n a
+        hoistT = hoistI
     {-# INLINABLE hoistI #-}
 
 
