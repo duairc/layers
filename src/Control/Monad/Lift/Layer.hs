@@ -135,7 +135,7 @@ extractT _ = extractI (Pm :: Pm (t i))
 liftControlT :: MonadLayerControl i t m
     => ((forall b. m b -> t i (OuterEffects (t i) m b)) -> t i a)
     -> m a
-liftControlT = liftControlT
+liftControlT = liftControlI
 
 
 ------------------------------------------------------------------------------

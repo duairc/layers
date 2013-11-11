@@ -1478,15 +1478,19 @@ newtype MyMonad a = MyMonad { runMyMonad :: 'StateT' ['Int'] 'IO' a }
     , 'Control.Applicative.Applicative'
     , 'Monad'
     , 'Control.Monad.Lift.MonadInner' 'IO'
-    , 'Control.Monad.Lift.MonadInnerInvariant' 'IO'
-    , 'Control.Monad.Lift.MonadInnerFunctor' 'IO'
     )
 
-instance 'MonadInnerControl' 'IO' MyMonad where
+instance MonadInnerControl 'IO' MyMonad where
     'suspendI' = 'defaultSuspendI' runMyMonad
     'resumeI'  = 'defaultResumeI'  MyMonad
     'captureI' = 'defaultCaptureI' MyMonad
     'extractI' = 'defaultExtractI' MyMonad
+
+instance MonadInnerInvariant 'IO' MyMonad 'IO' MyMonad where
+    'hoistisoI' = 'defaultHoistisoI' MyMonad runMyMonad
+
+instance MonadInnerFunctor   'IO' MyMonad 'IO' MyMonad where
+    'hoistI'    = 'defaultHoistI'    MyMonad runMyMonad
 @
 
 If you rely on a derived instance of 'MonadInnerControl' on a @newtype@, and
@@ -1588,21 +1592,41 @@ defaultExtractI _ p _ r = extractI p (Pm :: Pm m) (fromOuterResult_ r)
 
 
 ------------------------------------------------------------------------------
-defaultHoistisoI :: MonadInnerFunctor i m i m
-    => (forall b. m b -> n b)
+-- | Used when manually defining an instance @'MonadInnerInvariant' j n' i n@
+-- for some pair of monads @n@ and @n'@.
+--
+-- @n@ and @n'@ must be G(morphism, isomorphic) to a pair of monads monad @m@
+-- and @m'@ for which there already is an instance
+-- @'MonadInnerInvariant' j m' i m@.
+--
+-- 'defaultHoistisoI' takes the @m' -> n'@ half of the @m' ~ n'@
+-- G(morphism, isomorphism) and the @n -> m@ half of the @m ~ n@
+-- G(morphism, isomorphism).
+defaultHoistisoI :: MonadInnerInvariant j m' i m
+    => (forall b. m' b -> n' b)
     -> (forall b. n b -> m b)
-    -> (forall b. i b -> i b)
-    -> (forall b. i b -> i b)
+    -> (forall b. i b -> j b)
+    -> (forall b. j b -> i b)
     -> n a
-    -> n a
+    -> n' a
 defaultHoistisoI nu un f g m = nu (hoistisoI f g (un m)) 
 
 
 ------------------------------------------------------------------------------
-defaultHoistI :: MonadInnerFunctor i m i m
-    => (forall b. m b -> n b)
+-- | Used when manually defining an instance @'MonadInnerFunctor' j n' i n@
+-- for some pair of monads @n@ and @n'@.
+--
+-- @n@ and @n'@ must be G(morphism, isomorphic) to a pair of monads monad @m@
+-- and @m'@ for which there already is an instance
+-- @'MonadInnerFunctor' j m' i m@.
+--
+-- 'defaultHoistI' takes the @m' -> n'@ half of the @m' ~ n'@
+-- G(morphism, isomorphism) and the @n -> m@ half of the @m ~ n@
+-- G(morphism, isomorphism).
+defaultHoistI :: MonadInnerFunctor j m' i m
+    => (forall b. m' b -> n' b)
     -> (forall b. n b -> m b)
-    -> (forall b. i b -> i b)
-    -> n a  
+    -> (forall b. i b -> j b)
     -> n a
+    -> n' a
 defaultHoistI nu un f m = nu (hoistI f (un m))
