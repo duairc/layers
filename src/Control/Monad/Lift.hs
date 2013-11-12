@@ -9,6 +9,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+#ifdef LANGUAGE_ConstraintKinds
+{-# LANGUAGE ConstraintKinds #-}
+#endif
 #ifdef LANGUAGE_DefaultSignatures
 {-# LANGUAGE DefaultSignatures #-}
 #endif
@@ -99,6 +102,15 @@ module Control.Monad.Lift
 
     -- ** Defaults
     -- $defaults
+    , MonadNewtype (nu, un)
+    , Oldtype
+    , DefaultMonadInner
+    , DefaultMonadInnerControl
+    , DefaultMonadInnerInvariant
+    , DefaultMonadInnerFunctor
+
+    -- *** Computations
+    , defaultLiftI
 
     -- *** Control operations
     , defaultSuspendI
@@ -119,8 +131,10 @@ import           Control.Arrow (first)
 import           Control.Arrow ((***))
 import           Control.Monad (join, liftM)
 import           Data.Monoid (Monoid, mempty)
+#ifndef LANGUAGE_ClosedTypeFamilies
 import           GHC.Exts (Any)
 import           Unsafe.Coerce (unsafeCoerce)
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -806,6 +820,7 @@ class MInvariant t where
         -> (forall b. n b -> m b)
         -> t m a
         -> t n a
+
 #ifdef LANGUAGE_DefaultSignatures
     default hoistiso :: (MFunctor t, Monad m)
         => (forall b. m b -> n b)
@@ -902,6 +917,14 @@ class (Monad i, Monad m) => MonadInner i m where
     -- if you know that the monad from which you want to lift is 'IO' or the
     -- <Control-Monad-Lift-Base.html base monad> of a transformer stack.
     liftI :: i a -> m a
+
+#ifdef LANGUAGE_DefaultSignatures
+-- DefaultSignatures doesn't work with multi-parameter type classes in GHC 7.2
+#if __GLASGOW_HASKELL__ >= 704
+    default liftI :: DefaultMonadInner i m => i a -> m a
+    liftI = defaultLiftI
+#endif
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1006,6 +1029,35 @@ class MonadInner i m => MonadInnerControl i m where
     -- @
     extractI :: proxy i -> proxy' m -> OuterResult i m a -> Maybe a
 
+#ifdef LANGUAGE_DefaultSignatures
+-- DefaultSignatures doesn't work with multi-parameter type classes in GHC 7.2
+#if __GLASGOW_HASKELL__ >= 704
+    default suspendI :: DefaultMonadInnerControl i m
+        => m a
+        -> OuterState i m
+        -> i (OuterEffects i m a)
+    suspendI = defaultSuspendI
+
+    default resumeI :: DefaultMonadInnerControl i m
+        => proxy i
+        -> OuterEffects i m a
+        -> m a
+    resumeI = defaultResumeI
+
+    default captureI :: DefaultMonadInnerControl i m
+        => proxy i
+        -> m (OuterState i m)
+    captureI = defaultCaptureI
+
+    default extractI :: DefaultMonadInnerControl i m
+        => proxy i
+        -> proxy' m
+        -> OuterResult i m a
+        -> Maybe a
+    extractI = defaultExtractI
+#endif
+#endif
+
 
 ------------------------------------------------------------------------------
 -- | The combined G(layereffect, layer effects) of all the
@@ -1032,8 +1084,7 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
     OuterResult m m = Identity
     OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
-    OuterResult i m = OuterResult_ i m -- this is only for newtypes, see
-                                       -- the defaults section
+    OuterResult i m = OuterResult i (Oldtype m)
 -- closed type families are only supported on GHC 7.8 and above
 #else
 type instance OuterResult i m = OuterResult_ i m
@@ -1044,10 +1095,6 @@ type OuterResult i m = OuterResult_ i m
 -- bug <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>, so we use a
 -- type synonym instead
 #endif
-
-
-------------------------------------------------------------------------------
-newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
 
 
 ------------------------------------------------------------------------------
@@ -1067,8 +1114,7 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
     OuterState m m = ()
     OuterState m (t m) = LayerState t m
     OuterState i (t m) = (OuterState m (t m), OuterState i m)
-    OuterState i m = OuterState_ i m -- this is only for newtypes, see
-                                     -- the defaults section
+    OuterState i m = OuterState i (Oldtype m)
 -- closed type families are only supported on GHC 7.8 and above
 #else
 type instance OuterState i m = OuterState_ i m
@@ -1082,48 +1128,35 @@ type OuterState i m = OuterState_ i m
 
 
 ------------------------------------------------------------------------------
-newtype OuterState_ (i :: * -> *) (m :: * -> *) = OuterState_ Any
-
-
-------------------------------------------------------------------------------
 newtype ComposeResult i t m a
     = ComposeResult (OuterResult i m (OuterResult m (t m) a, OuterState m (t m)))
 
 
+
+#ifndef LANGUAGE_ClosedTypeFamilies
+------------------------------------------------------------------------------
+newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
+
+
+------------------------------------------------------------------------------
+newtype OuterState_ (i :: * -> *) (m :: * -> *) = OuterState_ Any
+
+
+#endif
 ------------------------------------------------------------------------------
 #ifdef LANGUAGE_ClosedTypeFamilies
 toS, fromS, toR, fromR :: a -> a
 toS = id; fromS = id; toR = id; fromR = id
 #else
 toS :: x -> OuterState_ i m; toR :: x -> OuterResult_ i m a
-toS = toOuterState_; toR = toOuterResult_;
+toS = OuterState_ . unsafeCoerce; toR = OuterResult_ . unsafeCoerce
 fromS :: OuterState_ i m -> x; fromR :: OuterResult_ i m a -> x
-fromS = fromOuterState_; fromR = fromOuterResult_
+fromS (OuterState_ x) = unsafeCoerce x; fromR (OuterResult_ x) = unsafeCoerce x
 #endif
 {-# INLINE toS #-}
 {-# INLINE toR #-}
 {-# INLINE fromS #-}
 {-# INLINE fromR #-}
-
-
-------------------------------------------------------------------------------
-toOuterState_ :: x -> OuterState_ i m
-toOuterState_ = OuterState_ . unsafeCoerce
-
-
-------------------------------------------------------------------------------
-fromOuterState_ :: OuterState_ i m -> x
-fromOuterState_ (OuterState_ x) = unsafeCoerce x
-
-
-------------------------------------------------------------------------------
-toOuterResult_ :: x -> OuterResult_ i m a
-toOuterResult_ = OuterResult_ . unsafeCoerce
-
-
-------------------------------------------------------------------------------
-fromOuterResult_ :: OuterResult_ i m a -> x
-fromOuterResult_ (OuterResult_ x) = unsafeCoerce x
 
 
 ------------------------------------------------------------------------------
@@ -1147,8 +1180,10 @@ instance (Monad m, MonadInner (t m) (t m)) => MonadInnerControl (t m) (t m)
 instance
     ( MonadTransControl t
     , MonadInner m (t m)
+#ifdef LANGUAGE_ClosedTypeFamilies
     , OuterState m (t m) ~ LayerState t m
     , OuterResult m (t m) ~ LayerResult t
+#endif
     )
   =>
     MonadInnerControl m (t m)
@@ -1423,14 +1458,30 @@ instance
 -- implies the existence of a
 -- G(morphism, invariant functor in the category of monads) from
 -- @i@ to @m@.
-class (MonadInner i m, MonadInner j n) => MonadInnerInvariant j n i m
-    | i j m -> n, i j n -> m, j n m -> i, i n m -> j
+class (MonadInner i m, MonadInner j n) =>
+    MonadInnerInvariant j n i m
+        | i j m -> n
+        , i j n -> m
+        , j n m -> i
+        , i n m -> j
   where
     hoistisoI
         :: (forall b. i b -> j b)
         -> (forall b. j b -> i b)
         -> m a
         -> n a
+
+#ifdef LANGUAGE_DefaultSignatures
+-- DefaultSignatures doesn't work with multi-parameter type classes in GHC 7.2
+#if __GLASGOW_HASKELL__ >= 704
+    default hoistisoI :: DefaultMonadInnerInvariant j n i m
+        => (forall b. i b -> j b)
+        -> (forall b. j b -> i b)
+        -> m a
+        -> n a
+    hoistisoI = defaultHoistisoI
+#endif
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1475,10 +1526,25 @@ instance
 
 
 ------------------------------------------------------------------------------
-class MonadInnerInvariant j n i m => MonadInnerFunctor j n i m
-    | i j m -> n, i j n -> m, j n m -> i, i n m -> j
+class MonadInnerInvariant j n i m => 
+    MonadInnerFunctor j n i m
+        | i j m -> n
+        , i j n -> m
+        , j n m -> i
+        , i n m -> j
   where
     hoistI :: (forall b. i b -> j b) -> m a -> n a
+
+#ifdef LANGUAGE_DefaultSignatures
+-- DefaultSignatures doesn't work with multi-parameter type classes in GHC 7.2
+#if __GLASGOW_HASKELL__ >= 704
+    default hoistI :: DefaultMonadInnerFunctor j n i m
+        => (forall b. i b -> j b)
+        -> m a
+        -> n a
+    hoistI = defaultHoistI
+#endif
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1580,6 +1646,115 @@ operations to manually define an instance (as above) rather than using the
 
 
 ------------------------------------------------------------------------------
+class (Monad m, Monad (Oldtype m)) => MonadNewtype m where
+    type Oldtype m :: * -> *
+    nu :: forall a. Oldtype m a -> m a
+    un :: forall a. m a -> Oldtype m a
+
+
+------------------------------------------------------------------------------
+#ifdef LANGUAGE_ConstraintKinds
+type DefaultMonadInner i m = (MonadNewtype m, MonadInner i (Oldtype m))
+#else
+class (MonadNewtype m, MonadInner i (Oldtype m)) => DefaultMonadInner i m
+instance (MonadNewtype m, MonadInner i (Oldtype m)) => DefaultMonadInner i m
+#endif
+
+
+------------------------------------------------------------------------------
+#ifdef LANGUAGE_ConstraintKinds
+type DefaultMonadInnerControl i m =
+    ( DefaultMonadInner i m
+    , MonadInnerControl i (Oldtype m)
+#ifdef LANGUAGE_ClosedTypeFamilies
+    , OuterResult i m ~ OuterResult i (Oldtype m)
+    , OuterState i m ~ OuterState i (Oldtype m)
+#endif
+    )
+#else
+class
+    ( DefaultMonadInner i m
+    , MonadInnerControl i (Oldtype m)
+    )
+  =>
+    DefaultMonadInnerControl i m
+instance
+    ( DefaultMonadInner i m
+    , MonadInnerControl i (Oldtype m)
+    )
+  =>
+    DefaultMonadInnerControl i m
+#endif
+
+
+------------------------------------------------------------------------------
+#ifdef LANGUAGE_ConstraintKinds
+type DefaultMonadInnerInvariant j n i m =
+    ( DefaultMonadInner i m
+    , DefaultMonadInner j n
+    , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
+    )
+#else
+class
+    ( DefaultMonadInner j n
+    , DefaultMonadInner i m
+    , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
+    )
+  =>
+    DefaultMonadInnerInvariant j n i m
+        | i j m -> n
+        , i j n -> m
+        , j n m -> i
+        , i n m -> j
+instance
+    ( DefaultMonadInner j n
+    , DefaultMonadInner i m
+    , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
+    )
+  =>
+    DefaultMonadInnerInvariant j n i m
+#endif
+
+
+------------------------------------------------------------------------------
+#ifdef LANGUAGE_ConstraintKinds
+type DefaultMonadInnerFunctor j n i m =
+    ( DefaultMonadInnerInvariant j n i m
+    , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
+    )
+#else
+class
+    ( DefaultMonadInnerInvariant j n i m
+    , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
+    )
+  =>
+    DefaultMonadInnerFunctor j n i m
+        | i j m -> n
+        , i j n -> m
+        , j n m -> i
+        , i n m -> j
+instance
+    ( DefaultMonadInnerInvariant j n i m
+    , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
+    )
+  =>
+    DefaultMonadInnerFunctor j n i m
+#endif
+
+
+------------------------------------------------------------------------------
+-- | Used when implementing a custom instance of @'MonadInner' i@ for some
+-- monad @n@.
+--
+-- @n@ must be G(morphism, isomorphic) to a monad @m@ which is already an
+-- instance of @'MonadControl' i@.
+--
+-- 'defaultLiftI' takes the @m -> n@ half of the G(morphism, isomorphism).
+defaultLiftI :: DefaultMonadInner i m => i a -> m a
+defaultLiftI = nu . liftI
+
+
+------------------------------------------------------------------------------
 -- | Used when implementing a custom instance of @'MonadInnerControl' i@ for
 -- some monad @n@.
 --
@@ -1587,20 +1762,11 @@ operations to manually define an instance (as above) rather than using the
 -- instance of @'MonadInnerControl' i@.
 --
 -- 'defaultSuspendI' takes the @n -> m@ half of the G(morphism, isomorphism).
-defaultSuspendI
-    :: forall i m n a.
-        ( MonadInnerControl i m
-#ifdef LANGUAGE_ClosedTypeFamilies
-        , OuterResult i n ~ OuterResult_ i n
-        , OuterState i n ~ OuterState_ i n
-#endif
-        )
-    => (forall b. n b -> m b)
-    -> n a
-    -> OuterState i n
-    -> i (OuterEffects i n a)
-defaultSuspendI un m s = liftM (toOuterResult_ *** toOuterState_) $
-    suspendI (un m) (fromOuterState_ s)
+defaultSuspendI :: DefaultMonadInnerControl i m
+    => m a
+    -> OuterState i m
+    -> i (OuterEffects i m a)
+defaultSuspendI m s = liftM (toR *** toS) $ suspendI (un m) (fromS s)
 
 
 ------------------------------------------------------------------------------
@@ -1611,19 +1777,11 @@ defaultSuspendI un m s = liftM (toOuterResult_ *** toOuterState_) $
 -- instance of @'MonadInnerControl' i@.
 --
 -- 'defaultResumeI' takes the @m -> n@ half of the G(morphism, isomorphism).
-defaultResumeI
-    :: forall proxy i n m a.
-        ( MonadInnerControl i m
-#ifdef LANGUAGE_ClosedTypeFamilies
-        , OuterResult i n ~ OuterResult_ i n
-        , OuterState i n ~ OuterState_ i n
-#endif
-        )
-    => (forall b. m b -> n b)
-    -> proxy i
-    -> OuterEffects i n a
-    -> n a
-defaultResumeI nu p = nu . resumeI p . (fromOuterResult_ *** fromOuterState_)
+defaultResumeI :: DefaultMonadInnerControl i m
+    => proxy i
+    -> OuterEffects i m a
+    -> m a
+defaultResumeI p = nu . resumeI p . (fromR *** fromS)
 
 
 ------------------------------------------------------------------------------
@@ -1634,16 +1792,10 @@ defaultResumeI nu p = nu . resumeI p . (fromOuterResult_ *** fromOuterState_)
 -- instance of @'MonadInnerControl' i@.
 --
 -- 'defaultCaptureI' takes the @m -> n@ half of the G(moprhism, isomorphism).
-defaultCaptureI :: forall proxy i m n.
-        ( MonadInnerControl i m
-#ifdef LANGUAGE_ClosedTypeFamilies
-        , OuterState i n ~ OuterState_ i n
-#endif
-        )
-    => (forall b. m b -> n b)
-    -> proxy i
-    -> n (OuterState i n)
-defaultCaptureI nu p = nu (liftM toOuterState_ (captureI p))
+defaultCaptureI :: DefaultMonadInnerControl i m
+    => proxy i
+    -> m (OuterState i m)
+defaultCaptureI p = nu (liftM toS (captureI p))
 
 
 ------------------------------------------------------------------------------
@@ -1654,19 +1806,12 @@ defaultCaptureI nu p = nu (liftM toOuterState_ (captureI p))
 -- instance of @'MonadInnerControl' i@.
 --
 -- 'defaultExtractI' takes the @m -> n@ half of the G(morphism, isomorphism).
-defaultExtractI
-    :: forall proxy proxy' i m n a.
-        ( MonadInnerControl i m
-#ifdef LANGUAGE_ClosedTypeFamilies
-        , OuterResult i n ~ OuterResult_ i n
-#endif
-        )
-    => (forall b. m b -> n b)
-    -> proxy i
-    -> proxy' n
-    -> OuterResult i n a
+defaultExtractI :: forall proxy proxy' i m a. DefaultMonadInnerControl i m
+    => proxy i
+    -> proxy' m
+    -> OuterResult i m a
     -> Maybe a
-defaultExtractI _ p _ r = extractI p (Pm :: Pm m) (fromOuterResult_ r)
+defaultExtractI p _ r = extractI p (Pm :: Pm (Oldtype m)) (fromR r)
 
 
 ------------------------------------------------------------------------------
@@ -1680,14 +1825,12 @@ defaultExtractI _ p _ r = extractI p (Pm :: Pm m) (fromOuterResult_ r)
 -- 'defaultHoistisoI' takes the @m' -> n'@ half of the @m' ~ n'@
 -- G(morphism, isomorphism) and the @n -> m@ half of the @m ~ n@
 -- G(morphism, isomorphism).
-defaultHoistisoI :: MonadInnerInvariant j m' i m
-    => (forall b. m' b -> n' b)
-    -> (forall b. n b -> m b)
-    -> (forall b. i b -> j b)
+defaultHoistisoI :: DefaultMonadInnerInvariant j n i m
+    => (forall b. i b -> j b)
     -> (forall b. j b -> i b)
+    -> m a
     -> n a
-    -> n' a
-defaultHoistisoI nu un f g m = nu (hoistisoI f g (un m)) 
+defaultHoistisoI f g m = nu (hoistisoI f g (un m))
 
 
 ------------------------------------------------------------------------------
@@ -1701,10 +1844,8 @@ defaultHoistisoI nu un f g m = nu (hoistisoI f g (un m))
 -- 'defaultHoistI' takes the @m' -> n'@ half of the @m' ~ n'@
 -- G(morphism, isomorphism) and the @n -> m@ half of the @m ~ n@
 -- G(morphism, isomorphism).
-defaultHoistI :: MonadInnerFunctor j m' i m
-    => (forall b. m' b -> n' b)
-    -> (forall b. n b -> m b)
-    -> (forall b. i b -> j b)
+defaultHoistI :: DefaultMonadInnerFunctor j n i m
+    => (forall b. i b -> j b)
+    -> m a
     -> n a
-    -> n' a
-defaultHoistI nu un f m = nu (hoistI f (un m))
+defaultHoistI f m = nu (hoistI f (un m))
