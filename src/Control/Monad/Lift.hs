@@ -396,36 +396,6 @@ operations reflect this relationship.
 --     'extract' _ (_, a) = 'Just' a
 -- @
 class MonadTrans t => MonadTransControl t where
-    -- | The G(layerresult, layer result) of @t@.
-    --
-    -- Note: On versions of GHC prior to 7.4, 'LayerResult' is an associated
-    -- /data/ type instead of an associated type synonym due to GHC bug
-    -- B(5595). If you're defining an instance of 'MonadTransControl' and you
-    --  work on older versions of GHC as well, you're unfortunately going to
-    -- have to write two versions of the instance, once using associated type
-    -- synonyms, the other using associated data types, and then use @CPP@
-    -- pragmas to switch between them.
-#if __GLASGOW_HASKELL__ >= 704
-    type LayerResult t :: * -> *
-#else
-    data LayerResult t :: * -> *
-#endif
-
-    -- | The G(layerstate, layer state) of @t@.
-    --
-    -- Note: On versions of GHC prior to 7.4, 'LayerState' is an associated
-    -- /data/ type instead of an associated type synonym due to GHC bug
-    -- B(5595). If you're defining an instance of 'MonadTransControl' and you
-    -- want your code to work on older versions of GHC as well, you're
-    -- unfortunately going to have to write two versions of the instance, once
-    -- using associated type synonyms, the other using associated data types,
-    -- and then use @CPP@ pragmas to switch between them.
-#if __GLASGOW_HASKELL__ >= 704
-    type LayerState t (m :: * -> *) :: *
-#else
-    data LayerState t :: (* -> *) -> *
-#endif
-
     -- | Given a G(computation, computation) @m@ of type @t m a@ and the
     -- current G(layerstate, layer state) of the @t@ G(monadlayer, layer),
     -- 'suspend' suspends the G(sideeffect, side-effects) of @m@ which come
@@ -498,213 +468,267 @@ type LayerEffects t m a = (LayerResult t a, LayerState t m)
 
 
 ------------------------------------------------------------------------------
+-- | The G(layerresult, layer result) of @t@.
+--
+-- Note: On versions of GHC prior to 7.4, 'LayerResult' is a /data/ family
+-- instead of a type family due to GHC bug B(5595). If you're defining an
+-- instance of 'MonadTransControl' and you want it to work on older versions
+-- of GHC as well, you're unfortunately going to have to write two versions of
+-- the instance, once using type families, the other using data families, and
+-- then use @CPP@ directives to switch between them.
+#if __GLASGOW_HASKELL__ >= 704
+type family LayerResult (t :: (* -> *) -> * -> *) :: * -> *
+#else
+data family LayerResult (t :: (* -> *) -> * -> *) :: * -> *
+#endif
+
+
+------------------------------------------------------------------------------
+-- | The G(layerstate, layer state) of @t@.
+--
+-- Note: On versions of GHC prior to 7.4, 'LayerState' is a /data/ family
+-- instead of a type family due to GHC bug B(5595). If you're defining an
+-- instance of 'MonadTransControl' and you want it to work on older versions
+-- of GHC as well, you're unfortunately going to have to write two versions of
+-- the instance, once using type families, the other using data families, and
+-- then use @CPP@ directives to switch between them.
+#if __GLASGOW_HASKELL__ >= 704
+type family LayerState (t :: (* -> *) -> * -> *) (m :: * -> *) :: *
+#else
+data family LayerState (t :: (* -> *) -> * -> *) :: (* -> *) -> *
+#endif
+
+
+------------------------------------------------------------------------------
 instance Error e => MonadTransControl (ErrorT e) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (ErrorT e) = Either e
-    type LayerState (ErrorT e) m = ()
     suspend (ErrorT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ErrorT $ return a
     capture = return ()
     extract _ = either (const Nothing) Just
+
+type instance LayerResult (ErrorT e) = Either e
+type instance LayerState (ErrorT e) m = ()
 #else
-    newtype LayerResult (ErrorT e) a = ER (Either e a)
-    newtype LayerState (ErrorT e) m = ES ()
     suspend (ErrorT m) _ = liftM (\a -> (ER a, ES ())) m
     resume (ER a, _) = ErrorT $ return a
     capture = return (ES ())
     extract _ (ER e) = either (const Nothing) Just e
+
+newtype instance LayerResult (ErrorT e) a = ER (Either e a)
+newtype instance LayerState (ErrorT e) m = ES ()
 #endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl IdentityT where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult IdentityT = Identity
-    type LayerState IdentityT m = ()
     suspend (IdentityT m) _ = liftM (\a -> (Identity a, ())) m
     resume (Identity a, _) = IdentityT $ return a
     capture = return ()
     extract _ (Identity a) = Just a
+
+type instance LayerResult IdentityT = Identity
+type instance LayerState IdentityT m = ()
 #else
-    newtype LayerResult IdentityT a = IR a
-    newtype LayerState IdentityT m = IS ()
     suspend (IdentityT m) _ = liftM (\a -> (IR a, IS ())) m
     resume (IR a, _) = IdentityT $ return a
     capture = return (IS ())
     extract _ (IR a) = Just a
+
+newtype instance LayerResult IdentityT a = IR a
+newtype instance LayerState IdentityT m = IS ()
 #endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl ListT where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult ListT = []
-    type LayerState ListT m = ()
     suspend (ListT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ListT $ return a
     capture = return ()
     extract _ = foldr (const . Just) Nothing
+
+type instance LayerResult ListT = []
+type instance LayerState ListT m = ()
 #else
-    newtype LayerResult ListT a = LR [a]
-    newtype LayerState ListT m = LS ()
     suspend (ListT m) _ = liftM (\a -> (LR a, LS ())) m
     resume (LR a, _) = ListT $ return a
     capture = return (LS ())
     extract _ (LR xs) = foldr (const . Just) Nothing xs
+
+newtype instance LayerResult ListT a = LR [a]
+newtype instance LayerState ListT m = LS ()
 #endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl MaybeT where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult MaybeT = Maybe
-    type LayerState MaybeT m = ()
     suspend (MaybeT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = MaybeT $ return a
     capture = return ()
     extract _ = id
+
+type instance LayerResult MaybeT = Maybe
+type instance LayerState MaybeT m = ()
 #else
-    newtype LayerResult MaybeT a = MR (Maybe a)
-    newtype LayerState MaybeT m = MS ()
     suspend (MaybeT m) _ = liftM (\a -> (MR a, MS ())) m
     resume (MR a, _) = MaybeT $ return a
     capture = return (MS ())
     extract _ (MR a) = a
+
+newtype instance LayerResult MaybeT a = MR (Maybe a)
+newtype instance LayerState MaybeT m = MS ()
 #endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (ReaderT r) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (ReaderT r) = Identity
-    type LayerState (ReaderT r) m = r
     suspend (ReaderT m) r = liftM (\a -> (Identity a, r)) (m r)
     resume (Identity a, _) = ReaderT $ \_ -> return a
     capture = ReaderT $ \r -> return r
     extract _ (Identity a) = Just a
+
+type instance LayerResult (ReaderT r) = Identity
+type instance LayerState (ReaderT r) m = r
 #else
-    newtype LayerResult (ReaderT r) a = RR a
-    newtype LayerState (ReaderT r) m = RS r
     suspend (ReaderT m) (RS r) = liftM (\a -> (RR a, RS r)) (m r)
     resume (RR a, _) = ReaderT $ \_ -> return a
     capture = ReaderT $ \r -> return (RS r)
     extract _ (RR a) = Just a
+
+newtype instance LayerResult (ReaderT r) a = RR a
+newtype instance LayerState (ReaderT r) m = RS r
 #endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (StateT s) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (StateT s) = Identity
-    type LayerState (StateT s) m = s
     suspend (StateT m) s = liftM (first Identity) (m s)
     resume (Identity a, s) = StateT $ \_ -> return (a, s)
     capture = StateT $ \s -> return (s, s)
     extract _ (Identity a) = Just a
+
+type instance LayerResult (StateT s) = Identity
+type instance LayerState (StateT s) m = s
 #else
-    newtype LayerResult (StateT s) a = SR a
-    newtype LayerState (StateT s) m = SS s
     suspend (StateT m) (SS s) = liftM (SR *** SS) (m s)
     resume (SR a, SS s) = StateT $ \_ -> return (a, s)
     capture = StateT $ \s -> return (SS s, s)
     extract _ (SR a) = Just a
+
+newtype instance LayerResult (StateT s) a = SR a
+newtype instance LayerState (StateT s) m = SS s
 #endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (L.StateT s) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (L.StateT s) = Identity
-    type LayerState (L.StateT s) m = s
     suspend (L.StateT m) s = liftM (first Identity) (m s)
     resume (Identity a, s) = L.StateT $ \_ -> return (a, s)
     capture = L.StateT $ \s -> return (s, s)
     extract _ (Identity a) = Just a
+
+type instance LayerResult (L.StateT s) = Identity
+type instance LayerState (L.StateT s) m = s
 #else
-    newtype LayerResult (L.StateT s) a = SR' a
-    newtype LayerState (L.StateT s) m = SS' s
     suspend (L.StateT m) (SS' s) = liftM (SR' *** SS') (m s)
     resume (SR' a, SS' s) = L.StateT $ \_ -> return (a, s)
     capture = L.StateT $ \s -> return (SS' s, s)
     extract _ (SR' a) = Just a
+
+newtype instance LayerResult (L.StateT s) a = SR' a
+newtype instance LayerState (L.StateT s) m = SS' s
 #endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (RWST r w s) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (RWST r w s) = (,) w
-    type LayerState (RWST r w s) m = (r, s)
     suspend (RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     resume ((w, a), (_, s)) = RWST $ \_ _ -> return (a, s, w)
     capture = RWST $ \r s -> return ((r, s), s, mempty)
     extract _ (_, a) = Just a
+
+type instance LayerResult (RWST r w s) = (,) w
+type instance LayerState (RWST r w s) m = (r, s)
 #else
-    newtype LayerResult (RWST r w s) a = RWSR (a, w)
-    newtype LayerState (RWST r w s) m = RWSS (r, s)
     suspend (RWST m) (RWSS (r, s)) =
         liftM (\(a, s', w) -> (RWSR (a, w), RWSS (r, s'))) (m r s)
     resume (RWSR (a, w),  RWSS (_, s)) = RWST $ \_ _ -> return (a, s, w)
     capture = RWST $ \r s -> return (RWSS (r, s), s, mempty)
     extract _ (RWSR (a, _)) = Just a
+
+newtype instance LayerResult (RWST r w s) a = RWSR (a, w)
+newtype instance LayerState (RWST r w s) m = RWSS (r, s)
 #endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (L.RWST r w s) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (L.RWST r w s) = (,) w
-    type LayerState (L.RWST r w s) m = (r, s)
     suspend (L.RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     resume ((w, a), (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     capture = L.RWST $ \r s -> return ((r, s), s, mempty)
     extract _ (_, a) = Just a
+
+type instance LayerResult (L.RWST r w s) = (,) w
+type instance LayerState (L.RWST r w s) m = (r, s)
 #else
-    newtype LayerResult (L.RWST r w s) a = RWSR' (a, w)
-    newtype LayerState (L.RWST r w s) m = RWSS' (r, s)
     suspend (L.RWST m) (RWSS' (r, s)) =
         liftM (\(a, s', w) -> (RWSR' (a, w), RWSS' (r, s'))) (m r s)
     resume (RWSR' (a, w), RWSS' (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     capture = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
     extract _ (RWSR' (a, _)) = Just a
+
+newtype instance LayerResult (L.RWST r w s) a = RWSR' (a, w)
+newtype instance LayerState (L.RWST r w s) m = RWSS' (r, s)
 #endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (WriterT w) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (WriterT w) = (,) w
-    type LayerState (WriterT w) m = ()
     suspend (WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     resume ((w, a), _) = WriterT $ return (a, w)
     capture = return ()
     extract _ (_, a) = Just a
+
+type instance LayerResult (WriterT w) = (,) w
+type instance LayerState (WriterT w) m = ()
 #else
-    newtype LayerResult (WriterT w) a = WR (a, w)
-    newtype LayerState (WriterT w) m = WS ()
     suspend (WriterT m) _ = liftM (\a -> (WR a, WS ())) m
     resume (WR a, _) = WriterT $ return a
     capture = return (WS ())
     extract _ (WR (a, _)) = Just a
+
+newtype instance LayerResult (WriterT w) a = WR (a, w)
+newtype instance LayerState (WriterT w) m = WS ()
 #endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (L.WriterT w) where
 #if __GLASGOW_HASKELL__ >= 704
-    type LayerResult (L.WriterT w) = (,) w
-    type LayerState (L.WriterT w) m = ()
     suspend (L.WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     resume ((w, a), _) = L.WriterT $ return (a, w)
     capture = return ()
     extract _ (_, a) = Just a
+
+type instance LayerResult (L.WriterT w) = (,) w
+type instance LayerState (L.WriterT w) m = ()
 #else
-    newtype LayerResult (L.WriterT w) a = WR' (a, w)
-    newtype LayerState (L.WriterT w) m = WS' ()
     suspend (L.WriterT m) _ = liftM (\a -> (WR' a, WS' ())) m
     resume ((WR' a), _) = L.WriterT $ return a
     capture = return (WS' ())
     extract _ (WR' (a, _)) = Just a
+
+newtype instance LayerResult (L.WriterT w) a = WR' (a, w)
+newtype instance LayerState (L.WriterT w) m = WS' ()
 #endif
 
 
@@ -943,8 +967,7 @@ instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m)
-  where
+instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
     liftI = liftT . liftI
       where
         liftT :: MonadInner m (t m) => m a -> t m a
@@ -1646,7 +1669,7 @@ operations to manually define an instance (as above) rather than using the
 
 
 ------------------------------------------------------------------------------
-class (Monad m, Monad (Oldtype m)) => MonadNewtype m where
+class MonadNewtype m where
     type Oldtype m :: * -> *
     nu :: forall a. Oldtype m a -> m a
     un :: forall a. m a -> Oldtype m a
