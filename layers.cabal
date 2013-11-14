@@ -1,5 +1,5 @@
 name:           layers
-version:        0.2
+version:        1.0
 synopsis:       Modular type class machinery for monad transformer stacks.
 license:        BSD3
 license-file:   LICENSE
