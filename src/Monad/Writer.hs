@@ -43,6 +43,10 @@ import           Control.Monad (liftM)
 import           Data.Monoid (Monoid)
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
 import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
@@ -128,8 +132,7 @@ instance (Monad m, Monoid w) => MonadWriter w (RWST r w s m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadWriter w f, MonadWriter w g) =>
-    MonadWriter w (Product f g)
+instance (MonadWriter w f, MonadWriter w g) => MonadWriter w (Product f g)
   where
     writer f = Pair (writer f) (writer f)
     tell w = Pair (tell w) (tell w)
@@ -138,8 +141,15 @@ instance (MonadWriter w f, MonadWriter w g) =>
 
 
 ------------------------------------------------------------------------------
-instance (MonadTop t m, MonadWriter w m) => MonadWriter w (t m)
-  where
+instance MonadWriter w (f (g m)) => MonadWriter w (ComposeT f g m) where
+    writer f = ComposeT (writer f)
+    tell w = ComposeT (tell w)
+    listen (ComposeT m) = ComposeT (listen m)
+    pass (ComposeT m) = ComposeT (pass m)
+
+
+------------------------------------------------------------------------------
+instance (MonadTop t m, MonadWriter w m) => MonadWriter w (t m) where
     writer = liftT . writer
     {-# INLINABLE writer #-}
     tell = liftT . tell

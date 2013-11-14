@@ -46,6 +46,7 @@ module Monad.Try
 where
 
 -- base ----------------------------------------------------------------------
+import           Control.Arrow (left)
 import           Control.Exception (SomeException, throwIO, try)
 import           Control.Monad (liftM)
 import           Control.Monad.ST (ST)
@@ -58,6 +59,10 @@ import           GHC.Conc (STM, catchSTM, unsafeIOToSTM)
 #if MIN_VERSION_base(4, 7, 0)
 import           Data.Proxy (Proxy)
 #endif
+
+
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
 
 
 -- transformers --------------------------------------------------------------
@@ -127,6 +132,11 @@ instance (MonadTry f, MonadTry g) => MonadTry (Product f g) where
     mtry (Pair f g) = Pair
         (liftM (either (Left . (flip Pair g)) Right) (mtry f))
         (liftM (either (Left . (Pair f)) Right) (mtry g))
+
+
+------------------------------------------------------------------------------
+instance MonadTry (f (g m)) => MonadTry (ComposeT f g m) where
+    mtry (ComposeT m) = ComposeT (liftM (left ComposeT) (mtry m))
 
 
 ------------------------------------------------------------------------------

@@ -41,6 +41,10 @@ import           Prelude hiding (catch)
 #endif
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Error (ErrorT (ErrorT), Error)
 import           Control.Monad.Trans.Maybe (MaybeT)
@@ -128,6 +132,12 @@ instance (MonadRecover e f, MonadRecover e g) => MonadRecover e (Product f g)
     recover (Pair f g) h = Pair
         (recover f (\e -> let Pair f' _ = h e in f'))
         (recover g (\e -> let Pair _ g' = h e in g'))
+
+
+------------------------------------------------------------------------------
+instance MonadRecover e (f (g m)) => MonadRecover e (ComposeT f g m) where
+    recover (ComposeT m) h = ComposeT
+        (recover m (\e -> let ComposeT m' = h e in m'))
 
 
 ------------------------------------------------------------------------------

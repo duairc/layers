@@ -48,10 +48,14 @@ import qualified Control.Concurrent (forkOn)
 #endif
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import           Data.Functor.Product (Product (Pair))
 
-        
+
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift.Top (MonadTopControl, liftDiscardT)
 import           Monad.Mask
@@ -128,6 +132,12 @@ instance MonadFork IO where
 instance (MonadFork f, MonadFork g) => MonadFork (Product f g) where
     fork (Pair f g) = Pair (fork f) (fork g)
     forkOn n (Pair f g) = Pair (forkOn n f) (forkOn n g)
+
+
+------------------------------------------------------------------------------
+instance MonadFork (f (g m)) => MonadFork (ComposeT f g m) where
+    fork (ComposeT m) = ComposeT (fork m)
+    forkOn n (ComposeT m) = ComposeT (forkOn n m)
 
 
 ------------------------------------------------------------------------------

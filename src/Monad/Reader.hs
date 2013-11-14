@@ -40,6 +40,10 @@ import           Control.Monad (liftM)
 import           Data.Monoid (Monoid (mempty))
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Reader (ReaderT (ReaderT))
 import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
@@ -111,6 +115,13 @@ instance (MonadReader r f, MonadReader r g) =>
     reader f = Pair (reader f) (reader f)
     ask = Pair ask ask
     local t (Pair f g) = Pair (local t f) (local t g)
+
+
+------------------------------------------------------------------------------
+instance MonadReader r (f (g m)) => MonadReader r (ComposeT f g m) where
+    reader f = ComposeT (reader f)
+    ask = ComposeT ask
+    local t (ComposeT m) = ComposeT (local t m)
 
 
 ------------------------------------------------------------------------------

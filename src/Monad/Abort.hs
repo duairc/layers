@@ -37,6 +37,10 @@ import           GHC.Conc (STM, unsafeIOToSTM)
 #endif
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Error (ErrorT (ErrorT), Error)
 import           Control.Monad.Trans.Maybe (MaybeT)
@@ -115,6 +119,11 @@ instance (Error e, Monad m) => MonadAbort e (ErrorT e m) where
 ------------------------------------------------------------------------------
 instance (MonadAbort e f, MonadAbort e g) => MonadAbort e (Product f g) where
     abort e = Pair (abort e) (abort e)
+
+
+------------------------------------------------------------------------------
+instance MonadAbort e (f (g m)) => MonadAbort e (ComposeT f g m) where
+    abort = ComposeT . abort
 
 
 ------------------------------------------------------------------------------

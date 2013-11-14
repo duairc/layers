@@ -41,6 +41,10 @@ import           Control.Monad (liftM)
 import           Data.Monoid (Monoid (mempty))
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
@@ -120,6 +124,13 @@ instance (MonadState s f, MonadState s g) => MonadState s (Product f g) where
     state f = Pair (state f) (state f)
     get = Pair get get
     put s = Pair (put s) (put s)
+
+
+------------------------------------------------------------------------------
+instance MonadState s (f (g m)) => MonadState s (ComposeT f g m) where
+    state f = ComposeT (state f)
+    get = ComposeT get
+    put s = ComposeT (put s)
 
 
 ------------------------------------------------------------------------------

@@ -26,6 +26,10 @@ module Monad.Cont
     )
 where
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Cont (ContT (ContT))
 
@@ -80,6 +84,13 @@ class Monad m => MonadCont m where
 ------------------------------------------------------------------------------
 instance Monad m => MonadCont (ContT r m) where
     callCC f = ContT $ \c -> let ContT m = f $ \a -> ContT $ \_ -> c a in m c
+    {-# INLINABLE callCC #-}
+
+
+------------------------------------------------------------------------------
+instance MonadCont (f (g m)) => MonadCont (ComposeT f g m) where
+    callCC f =
+        ComposeT (callCC (\c -> let ComposeT m = f (ComposeT . c) in m))
     {-# INLINABLE callCC #-}
 
 

@@ -90,6 +90,10 @@ import           GHC.Conc (STM)
 #endif
 
 
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 -- transformers --------------------------------------------------------------
 import           Data.Functor.Identity (Identity)
 import           Data.Functor.Product (Product (Pair))
@@ -160,6 +164,12 @@ instance (MonadMask f, MonadMask g) => MonadMask (Product f g) where
     getMaskingState = Pair getMaskingState getMaskingState
     setMaskingState s (Pair f g)
         = Pair (setMaskingState s f) (setMaskingState s g)
+
+
+------------------------------------------------------------------------------
+instance MonadMask (f (g m)) => MonadMask (ComposeT f g m) where
+    getMaskingState = ComposeT getMaskingState
+    setMaskingState s (ComposeT m) = ComposeT (setMaskingState s m)
 
 
 ------------------------------------------------------------------------------

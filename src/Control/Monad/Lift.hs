@@ -156,6 +156,9 @@ import           Data.Functor.Identity (Identity (Identity))
 
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Morph (MFunctor (hoist))
+import           Control.Monad.Trans.Compose
+                     ( ComposeT (ComposeT, getComposeT)
+                     )
 
 
 {-$transfamily
@@ -975,6 +978,27 @@ instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
 
 
 ------------------------------------------------------------------------------
+instance (Monad (f (g m)), DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
+    MonadInner (f (g m)) (ComposeT f g m)
+  where
+    liftI = defaultLiftI
+
+
+------------------------------------------------------------------------------
+instance (Monad (f (g m)), DefaultMonadInner (g m) (ComposeT f g m)) =>
+    MonadInner (g m) (ComposeT f g m)
+  where
+    liftI = defaultLiftI
+
+
+------------------------------------------------------------------------------
+instance (Monad (f (g m)), DefaultMonadInner m (ComposeT f g m)) =>
+    MonadInner m (ComposeT f g m)
+  where
+    liftI = defaultLiftI
+
+
+------------------------------------------------------------------------------
 -- | The constraint @'MonadInnerControl' i m@ holds when @i@ is an
 -- G(innermonad, inner monad) of @m@ such that it is possible to lift
 -- G(controloperation, control operations) from @i@ to @m@. There are a
@@ -1105,6 +1129,9 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterResult m m = Identity
+    OuterResult m (ComposeT f g m) = OuterResult m (f (g m))
+    OuterResult (g m) (ComposeT f g m) = OuterResult (g m) (f (g m))
+    OuterResult (f (g m)) (ComposeT f g m) = OuterResult (f (g m)) (f (g m))
     OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult i (Oldtype m)
@@ -1135,6 +1162,9 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterState m m = ()
+    OuterState m (ComposeT f g m) = OuterState m (f (g m))
+    OuterState (g m) (ComposeT f g m) = OuterState (g m) (f (g m))
+    OuterState (f (g m)) (ComposeT f g m) = OuterState (f (g m)) (f (g m))
     OuterState m (t m) = LayerState t m
     OuterState i (t m) = (OuterState m (t m), OuterState i m)
     OuterState i m = OuterState i (Oldtype m)
@@ -1274,6 +1304,36 @@ instance
             -> OuterResult m (t m) b
             -> Maybe b
         extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
+
+
+------------------------------------------------------------------------------
+instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
+    MonadInnerControl (f (g m)) (ComposeT f g m)
+  where
+    suspendI = defaultSuspendI
+    resumeI = defaultResumeI
+    captureI = defaultCaptureI
+    extractI = defaultExtractI
+
+
+------------------------------------------------------------------------------
+instance DefaultMonadInnerControl (g m) (ComposeT f g m) =>
+    MonadInnerControl (g m) (ComposeT f g m)
+  where
+    suspendI = defaultSuspendI
+    resumeI = defaultResumeI
+    captureI = defaultCaptureI
+    extractI = defaultExtractI
+
+
+------------------------------------------------------------------------------
+instance DefaultMonadInnerControl m (ComposeT f g m) =>
+    MonadInnerControl m (ComposeT f g m)
+  where
+    suspendI = defaultSuspendI
+    resumeI = defaultResumeI
+    captureI = defaultCaptureI
+    extractI = defaultExtractI
 
 
 ------------------------------------------------------------------------------
@@ -1549,6 +1609,71 @@ instance
 
 
 ------------------------------------------------------------------------------
+instance
+    ( Monad (g m)
+    , Monad (k n)
+    , DefaultMonadInnerInvariant
+        (h (k n))
+        (ComposeT h k n)
+        (f (g m))
+        (ComposeT f g m)
+    )
+  =>
+    MonadInnerInvariant
+        (h (k n))
+        (ComposeT h k n)
+        (f (g m))
+        (ComposeT f g m)
+  where
+    hoistisoI = defaultHoistisoI
+
+
+------------------------------------------------------------------------------
+instance
+    ( Monad (g m)
+    , Monad (g n)
+    , DefaultMonadInnerInvariant
+        (f (g n))
+        (ComposeT f g n)
+        (f (g m))
+        (ComposeT f g m)
+    )
+  =>
+    MonadInnerInvariant
+        (f (g n))
+        (ComposeT f g n)
+        (f (g m))
+        (ComposeT f g m)
+  where
+    hoistisoI = defaultHoistisoI
+
+
+------------------------------------------------------------------------------
+instance
+    DefaultMonadInnerInvariant (k n) (ComposeT f k n) (g m) (ComposeT f g m)
+  =>
+    MonadInnerInvariant (k n) (ComposeT f k n) (g m) (ComposeT f g m)
+  where
+    hoistisoI = defaultHoistisoI
+
+
+------------------------------------------------------------------------------
+instance
+    DefaultMonadInnerInvariant (g n) (ComposeT f g n) (g m) (ComposeT f g m)
+  =>
+    MonadInnerInvariant (g n) (ComposeT f g n) (g m) (ComposeT f g m)
+  where
+    hoistisoI = defaultHoistisoI
+
+
+------------------------------------------------------------------------------
+instance DefaultMonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m) =>
+    MonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m)
+  where
+    hoistisoI = defaultHoistisoI
+
+
+------------------------------------------------------------------------------
 class MonadInnerInvariant j n i m => 
     MonadInnerFunctor j n i m
         | i j m -> n
@@ -1606,6 +1731,71 @@ instance
             -> t n a
         hoistT = hoistI
     {-# INLINABLE hoistI #-}
+
+
+------------------------------------------------------------------------------
+instance
+    ( Monad (k n)
+    , Monad (g m)
+    , DefaultMonadInnerFunctor
+        (h (k n))
+        (ComposeT h k n)
+        (f (g m))
+        (ComposeT f g m)
+    )
+  =>
+    MonadInnerFunctor
+        (h (k n))
+        (ComposeT h k n)
+        (f (g m))
+        (ComposeT f g m)
+  where
+    hoistI = defaultHoistI
+
+
+------------------------------------------------------------------------------
+instance
+    ( Monad (g n)
+    , Monad (g m)
+    , DefaultMonadInnerFunctor
+        (f (g n))
+        (ComposeT f g n)
+        (f (g m))
+        (ComposeT f g m)
+    )
+  =>
+    MonadInnerFunctor
+        (f (g n))
+        (ComposeT f g n)
+        (f (g m))
+        (ComposeT f g m)
+  where
+    hoistI = defaultHoistI
+
+
+------------------------------------------------------------------------------
+instance
+    DefaultMonadInnerFunctor (k n) (ComposeT f k n) (g m) (ComposeT f g m)
+  =>
+    MonadInnerFunctor (k n) (ComposeT f k n) (g m) (ComposeT f g m)
+  where
+    hoistI = defaultHoistI
+
+
+------------------------------------------------------------------------------
+instance
+    DefaultMonadInnerFunctor (g n) (ComposeT f g n) (g m) (ComposeT f g m)
+  =>
+    MonadInnerFunctor (g n) (ComposeT f g n) (g m) (ComposeT f g m)
+  where
+    hoistI = defaultHoistI
+
+
+------------------------------------------------------------------------------
+instance DefaultMonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m) =>
+    MonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m)
+  where
+    hoistI = defaultHoistI
 
 
 ------------------------------------------------------------------------------
@@ -1676,6 +1866,13 @@ class MonadNewtype m where
 
 
 ------------------------------------------------------------------------------
+instance MonadNewtype (ComposeT f g m) where
+    type Oldtype (ComposeT f g m) = f (g m)
+    nu = ComposeT
+    un = getComposeT
+
+
+------------------------------------------------------------------------------
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInner i m = (MonadNewtype m, MonadInner i (Oldtype m))
 #else
@@ -1687,7 +1884,8 @@ instance (MonadNewtype m, MonadInner i (Oldtype m)) => DefaultMonadInner i m
 ------------------------------------------------------------------------------
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerControl i m =
-    ( DefaultMonadInner i m
+    ( MonadInner i m
+    , DefaultMonadInner i m
     , MonadInnerControl i (Oldtype m)
 #ifdef LANGUAGE_ClosedTypeFamilies
     , OuterResult i m ~ OuterResult i (Oldtype m)
@@ -1696,13 +1894,15 @@ type DefaultMonadInnerControl i m =
     )
 #else
 class
-    ( DefaultMonadInner i m
+    ( MonadInner i m
+    , DefaultMonadInner i m
     , MonadInnerControl i (Oldtype m)
     )
   =>
     DefaultMonadInnerControl i m
 instance
-    ( DefaultMonadInner i m
+    ( MonadInner i m
+    , DefaultMonadInner i m
     , MonadInnerControl i (Oldtype m)
     )
   =>
@@ -1713,13 +1913,17 @@ instance
 ------------------------------------------------------------------------------
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerInvariant j n i m =
-    ( DefaultMonadInner i m
+    ( MonadInner i m
+    , MonadInner j n
+    , DefaultMonadInner i m
     , DefaultMonadInner j n
     , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
     )
 #else
 class
-    ( DefaultMonadInner j n
+    ( MonadInner i m
+    , MonadInner j n
+    , DefaultMonadInner j n
     , DefaultMonadInner i m
     , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
     )
@@ -1730,7 +1934,9 @@ class
         , j n m -> i
         , i n m -> j
 instance
-    ( DefaultMonadInner j n
+    ( MonadInner i m
+    , MonadInner j n
+    , DefaultMonadInner j n
     , DefaultMonadInner i m
     , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
     )
@@ -1742,12 +1948,14 @@ instance
 ------------------------------------------------------------------------------
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerFunctor j n i m =
-    ( DefaultMonadInnerInvariant j n i m
+    ( MonadInnerInvariant j n i m
+    , DefaultMonadInnerInvariant j n i m
     , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
     )
 #else
 class
-    ( DefaultMonadInnerInvariant j n i m
+    ( MonadInnerInvariant j n i m
+    , DefaultMonadInnerInvariant j n i m
     , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
     )
   =>
@@ -1757,7 +1965,8 @@ class
         , j n m -> i
         , i n m -> j
 instance
-    ( DefaultMonadInnerInvariant j n i m
+    ( MonadInnerInvariant j n i m
+    , DefaultMonadInnerInvariant j n i m
     , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
     )
   =>
