@@ -977,6 +977,7 @@ instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
         liftT = liftI
 
 
+{- these are troublesome
 ------------------------------------------------------------------------------
 instance (Monad (f (g m)), DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
     MonadInner (f (g m)) (ComposeT f g m)
@@ -989,6 +990,7 @@ instance (Monad (f (g m)), DefaultMonadInner (g m) (ComposeT f g m)) =>
     MonadInner (g m) (ComposeT f g m)
   where
     liftI = defaultLiftI
+-}
 
 
 ------------------------------------------------------------------------------
@@ -1129,9 +1131,11 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterResult m m = Identity
-    OuterResult m (ComposeT f g m) = OuterResult m (f (g m))
-    OuterResult (g m) (ComposeT f g m) = OuterResult (g m) (f (g m))
+{- these are troublesome
     OuterResult (f (g m)) (ComposeT f g m) = OuterResult (f (g m)) (f (g m))
+    OuterResult (g m) (ComposeT f g m) = OuterResult (g m) (f (g m))
+    OuterResult m (ComposeT f g m) = OuterResult m (f (g m))
+-}
     OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult i (Oldtype m)
@@ -1162,9 +1166,11 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterState m m = ()
-    OuterState m (ComposeT f g m) = OuterState m (f (g m))
-    OuterState (g m) (ComposeT f g m) = OuterState (g m) (f (g m))
+{- these are troublesome
     OuterState (f (g m)) (ComposeT f g m) = OuterState (f (g m)) (f (g m))
+    OuterState (g m) (ComposeT f g m) = OuterState (g m) (f (g m))
+    OuterState m (ComposeT f g m) = OuterState m (f (g m))
+-}
     OuterState m (t m) = LayerState t m
     OuterState i (t m) = (OuterState m (t m), OuterState i m)
     OuterState i m = OuterState i (Oldtype m)
@@ -1306,6 +1312,7 @@ instance
         extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
 
 
+{-
 ------------------------------------------------------------------------------
 instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
     MonadInnerControl (f (g m)) (ComposeT f g m)
@@ -1324,6 +1331,7 @@ instance DefaultMonadInnerControl (g m) (ComposeT f g m) =>
     resumeI = defaultResumeI
     captureI = defaultCaptureI
     extractI = defaultExtractI
+-}
 
 
 ------------------------------------------------------------------------------
@@ -1334,6 +1342,15 @@ instance DefaultMonadInnerControl m (ComposeT f g m) =>
     resumeI = defaultResumeI
     captureI = defaultCaptureI
     extractI = defaultExtractI
+
+
+------------------------------------------------------------------------------
+type instance LayerResult (ComposeT f g) =
+    OuterResult Identity (f (g Identity))
+
+
+------------------------------------------------------------------------------
+type instance LayerState (ComposeT f g) m = OuterState m (f (g m))
 
 
 ------------------------------------------------------------------------------
@@ -1608,6 +1625,7 @@ instance
     {-# INLINABLE hoistisoI #-}
 
 
+{- these are troublesome
 ------------------------------------------------------------------------------
 instance
     ( Monad (g m)
@@ -1664,6 +1682,7 @@ instance
     MonadInnerInvariant (g n) (ComposeT f g n) (g m) (ComposeT f g m)
   where
     hoistisoI = defaultHoistisoI
+-}
 
 
 ------------------------------------------------------------------------------
@@ -1733,6 +1752,7 @@ instance
     {-# INLINABLE hoistI #-}
 
 
+{- these are troublesome
 ------------------------------------------------------------------------------
 instance
     ( Monad (k n)
@@ -1789,6 +1809,7 @@ instance
     MonadInnerFunctor (g n) (ComposeT f g n) (g m) (ComposeT f g m)
   where
     hoistI = defaultHoistI
+-}
 
 
 ------------------------------------------------------------------------------
