@@ -1344,6 +1344,7 @@ instance DefaultMonadInnerControl m (ComposeT f g m) =>
     extractI = defaultExtractI
 
 
+#ifdef LANGUAGE_ClosedTypeFamilies
 ------------------------------------------------------------------------------
 type instance LayerResult (ComposeT f g) =
     OuterResult Identity (f (g Identity))
@@ -1353,6 +1354,7 @@ type instance LayerResult (ComposeT f g) =
 type instance LayerState (ComposeT f g) m = OuterState m (f (g m))
 
 
+#endif
 ------------------------------------------------------------------------------
 data Pm (m :: * -> *) = Pm
 
