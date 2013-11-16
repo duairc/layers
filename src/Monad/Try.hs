@@ -42,6 +42,7 @@ module Monad.Try
     , bracketOnError
     , finally
     , onException
+    , orElse
     )
 where
 
@@ -282,3 +283,10 @@ onException :: MonadTry m => m a -> m b -> m a
 onException m sequel = mask $ \restore -> do
     mtry (restore m) >>= either (sequel >>) return
 {-# INLINABLE onException #-}
+
+
+------------------------------------------------------------------------------
+-- | Tries the first action, and if it fails, tries the second action.
+orElse :: MonadTry m => m a -> m a -> m a
+orElse = mask $ \restore -> mtry (restore m) >>= either (const sequel) return
+{-# INLINABLE orElse #-}
