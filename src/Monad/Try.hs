@@ -288,5 +288,5 @@ onException m sequel = mask $ \restore -> do
 ------------------------------------------------------------------------------
 -- | Tries the first action, and if it fails, tries the second action.
 orElse :: MonadTry m => m a -> m a -> m a
-orElse = mask $ \restore -> mtry (restore m) >>= either (const sequel) return
+orElse a b = mask $ \restore -> mtry (restore a) >>= either (const b) return
 {-# INLINABLE orElse #-}
