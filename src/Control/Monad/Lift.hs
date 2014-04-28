@@ -591,7 +591,7 @@ instance MonadTransControl (ReaderT r) where
 #if __GLASGOW_HASKELL__ >= 704
     suspend (ReaderT m) r = liftM (\a -> (Identity a, r)) (m r)
     resume (Identity a, _) = ReaderT $ \_ -> return a
-    capture = ReaderT $ \r -> return r
+    capture = ReaderT return
     extract _ (Identity a) = Just a
 
 type instance LayerResult (ReaderT r) = Identity
@@ -977,22 +977,6 @@ instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
         liftT = liftI
 
 
-{- these are troublesome
-------------------------------------------------------------------------------
-instance (Monad (f (g m)), DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
-    MonadInner (f (g m)) (ComposeT f g m)
-  where
-    liftI = defaultLiftI
-
-
-------------------------------------------------------------------------------
-instance (Monad (f (g m)), DefaultMonadInner (g m) (ComposeT f g m)) =>
-    MonadInner (g m) (ComposeT f g m)
-  where
-    liftI = defaultLiftI
--}
-
-
 ------------------------------------------------------------------------------
 instance (Monad (f (g m)), DefaultMonadInner m (ComposeT f g m)) =>
     MonadInner m (ComposeT f g m)
@@ -1131,11 +1115,6 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterResult m m = Identity
-{- these are troublesome
-    OuterResult (f (g m)) (ComposeT f g m) = OuterResult (f (g m)) (f (g m))
-    OuterResult (g m) (ComposeT f g m) = OuterResult (g m) (f (g m))
-    OuterResult m (ComposeT f g m) = OuterResult m (f (g m))
--}
     OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult i (Oldtype m)
@@ -1166,11 +1145,6 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef LANGUAGE_ClosedTypeFamilies
   where
     OuterState m m = ()
-{- these are troublesome
-    OuterState (f (g m)) (ComposeT f g m) = OuterState (f (g m)) (f (g m))
-    OuterState (g m) (ComposeT f g m) = OuterState (g m) (f (g m))
-    OuterState m (ComposeT f g m) = OuterState m (f (g m))
--}
     OuterState m (t m) = LayerState t m
     OuterState i (t m) = (OuterState m (t m), OuterState i m)
     OuterState i m = OuterState i (Oldtype m)
@@ -1310,28 +1284,6 @@ instance
             -> OuterResult m (t m) b
             -> Maybe b
         extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
-
-
-{-
-------------------------------------------------------------------------------
-instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
-    MonadInnerControl (f (g m)) (ComposeT f g m)
-  where
-    suspendI = defaultSuspendI
-    resumeI = defaultResumeI
-    captureI = defaultCaptureI
-    extractI = defaultExtractI
-
-
-------------------------------------------------------------------------------
-instance DefaultMonadInnerControl (g m) (ComposeT f g m) =>
-    MonadInnerControl (g m) (ComposeT f g m)
-  where
-    suspendI = defaultSuspendI
-    resumeI = defaultResumeI
-    captureI = defaultCaptureI
-    extractI = defaultExtractI
--}
 
 
 ------------------------------------------------------------------------------
@@ -1627,66 +1579,6 @@ instance
     {-# INLINABLE hoistisoI #-}
 
 
-{- these are troublesome
-------------------------------------------------------------------------------
-instance
-    ( Monad (g m)
-    , Monad (k n)
-    , DefaultMonadInnerInvariant
-        (h (k n))
-        (ComposeT h k n)
-        (f (g m))
-        (ComposeT f g m)
-    )
-  =>
-    MonadInnerInvariant
-        (h (k n))
-        (ComposeT h k n)
-        (f (g m))
-        (ComposeT f g m)
-  where
-    hoistisoI = defaultHoistisoI
-
-
-------------------------------------------------------------------------------
-instance
-    ( Monad (g m)
-    , Monad (g n)
-    , DefaultMonadInnerInvariant
-        (f (g n))
-        (ComposeT f g n)
-        (f (g m))
-        (ComposeT f g m)
-    )
-  =>
-    MonadInnerInvariant
-        (f (g n))
-        (ComposeT f g n)
-        (f (g m))
-        (ComposeT f g m)
-  where
-    hoistisoI = defaultHoistisoI
-
-
-------------------------------------------------------------------------------
-instance
-    DefaultMonadInnerInvariant (k n) (ComposeT f k n) (g m) (ComposeT f g m)
-  =>
-    MonadInnerInvariant (k n) (ComposeT f k n) (g m) (ComposeT f g m)
-  where
-    hoistisoI = defaultHoistisoI
-
-
-------------------------------------------------------------------------------
-instance
-    DefaultMonadInnerInvariant (g n) (ComposeT f g n) (g m) (ComposeT f g m)
-  =>
-    MonadInnerInvariant (g n) (ComposeT f g n) (g m) (ComposeT f g m)
-  where
-    hoistisoI = defaultHoistisoI
--}
-
-
 ------------------------------------------------------------------------------
 instance DefaultMonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m) =>
     MonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m)
@@ -1752,66 +1644,6 @@ instance
             -> t n a
         hoistT = hoistI
     {-# INLINABLE hoistI #-}
-
-
-{- these are troublesome
-------------------------------------------------------------------------------
-instance
-    ( Monad (k n)
-    , Monad (g m)
-    , DefaultMonadInnerFunctor
-        (h (k n))
-        (ComposeT h k n)
-        (f (g m))
-        (ComposeT f g m)
-    )
-  =>
-    MonadInnerFunctor
-        (h (k n))
-        (ComposeT h k n)
-        (f (g m))
-        (ComposeT f g m)
-  where
-    hoistI = defaultHoistI
-
-
-------------------------------------------------------------------------------
-instance
-    ( Monad (g n)
-    , Monad (g m)
-    , DefaultMonadInnerFunctor
-        (f (g n))
-        (ComposeT f g n)
-        (f (g m))
-        (ComposeT f g m)
-    )
-  =>
-    MonadInnerFunctor
-        (f (g n))
-        (ComposeT f g n)
-        (f (g m))
-        (ComposeT f g m)
-  where
-    hoistI = defaultHoistI
-
-
-------------------------------------------------------------------------------
-instance
-    DefaultMonadInnerFunctor (k n) (ComposeT f k n) (g m) (ComposeT f g m)
-  =>
-    MonadInnerFunctor (k n) (ComposeT f k n) (g m) (ComposeT f g m)
-  where
-    hoistI = defaultHoistI
-
-
-------------------------------------------------------------------------------
-instance
-    DefaultMonadInnerFunctor (g n) (ComposeT f g n) (g m) (ComposeT f g m)
-  =>
-    MonadInnerFunctor (g n) (ComposeT f g n) (g m) (ComposeT f g m)
-  where
-    hoistI = defaultHoistI
--}
 
 
 ------------------------------------------------------------------------------
