@@ -43,8 +43,10 @@ import           Control.Monad (liftM)
 import           Data.Monoid (Monoid)
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -52,7 +54,9 @@ import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
 import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
+#if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
+#endif
 
 
 -- layers --------------------------------------------------------------------
@@ -131,6 +135,7 @@ instance (Monad m, Monoid w) => MonadWriter w (RWST r w s m) where
         liftM (\((a, f), s', w) -> (a, s', f w)) (m r s)
 
 
+#if MIN_VERSION_transformers(0, 3, 0)
 ------------------------------------------------------------------------------
 instance (MonadWriter w f, MonadWriter w g) => MonadWriter w (Product f g)
   where
@@ -138,14 +143,17 @@ instance (MonadWriter w f, MonadWriter w g) => MonadWriter w (Product f g)
     tell w = Pair (tell w) (tell w)
     listen (Pair f g) = Pair (listen f) (listen g)
     pass (Pair f g) = Pair (pass f) (pass g)
+#endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadWriter w (f (g m)) => MonadWriter w (ComposeT f g m) where
     writer f = ComposeT (writer f)
     tell w = ComposeT (tell w)
     listen (ComposeT m) = ComposeT (listen m)
     pass (ComposeT m) = ComposeT (pass m)
+#endif
 
 
 ------------------------------------------------------------------------------

@@ -66,12 +66,16 @@ import           GHC.Conc (STM, TVar, newTVar, readTVar, writeTVar)
 #endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+#endif
 
 
 -- transformers --------------------------------------------------------------
+#if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
+#endif
 
 
 -- layers --------------------------------------------------------------------
@@ -153,6 +157,7 @@ instance MonadST TVar STM where
     writeRef = writeTVar
 
 
+#if MIN_VERSION_transformers(0, 3, 0)
 ------------------------------------------------------------------------------
 instance (MonadST ref f, MonadST ref g) => MonadST ref (Product f g) where
     newRef a = Pair (newRef a) (newRef a)
@@ -161,14 +166,17 @@ instance (MonadST ref f, MonadST ref g) => MonadST ref (Product f g) where
     atomicModifyRef ref f = Pair
         (atomicModifyRef ref f)
         (atomicModifyRef ref f)
+#endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadST ref (f (g m)) => MonadST ref (ComposeT f g m) where
     newRef a = ComposeT (newRef a)
     readRef ref = ComposeT (readRef ref)
     writeRef ref a = ComposeT (writeRef ref a)
     atomicModifyRef ref f = ComposeT (atomicModifyRef ref f)
+#endif
 
 
 ------------------------------------------------------------------------------

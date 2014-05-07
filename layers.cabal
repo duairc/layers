@@ -83,7 +83,7 @@ Library
   build-depends:
     base >= 4 && < 4.8,
     mmorph >= 1.0 && < 1.1,
-    transformers >= 0.2 && < 0.4
+    transformers >= 0.2 && < 0.6
 
   ghc-options:
     -Wall

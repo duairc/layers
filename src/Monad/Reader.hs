@@ -40,15 +40,19 @@ import           Control.Monad (liftM)
 import           Data.Monoid (Monoid (mempty))
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+#endif
 
 
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Reader (ReaderT (ReaderT))
 import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
 import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
+#if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
+#endif
 
 
 -- layers --------------------------------------------------------------------
@@ -108,6 +112,7 @@ instance (Monad m, Monoid w) => MonadReader r (RWST r w s m) where
     local f (RWST m) = RWST $ \r s -> m (f r) s
 
 
+#if MIN_VERSION_transformers(0, 3, 0)
 ------------------------------------------------------------------------------
 instance (MonadReader r f, MonadReader r g) =>
     MonadReader r (Product f g)
@@ -115,13 +120,16 @@ instance (MonadReader r f, MonadReader r g) =>
     reader f = Pair (reader f) (reader f)
     ask = Pair ask ask
     local t (Pair f g) = Pair (local t f) (local t g)
+#endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadReader r (f (g m)) => MonadReader r (ComposeT f g m) where
     reader f = ComposeT (reader f)
     ask = ComposeT ask
     local t (ComposeT m) = ComposeT (local t m)
+#endif
 
 
 ------------------------------------------------------------------------------

@@ -26,8 +26,10 @@ module Monad.Cont
     )
 where
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -87,11 +89,13 @@ instance Monad m => MonadCont (ContT r m) where
     {-# INLINABLE callCC #-}
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadCont (f (g m)) => MonadCont (ComposeT f g m) where
     callCC f =
         ComposeT (callCC (\c -> let ComposeT m = f (ComposeT . c) in m))
     {-# INLINABLE callCC #-}
+#endif
 
 
 ------------------------------------------------------------------------------

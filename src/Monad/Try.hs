@@ -47,7 +47,9 @@ module Monad.Try
 where
 
 -- base ----------------------------------------------------------------------
+#if MIN_VERSION_mmorph(1, 0, 1)
 import           Control.Arrow (left)
+#endif
 import           Control.Exception (SomeException, throwIO, try)
 import           Control.Monad (liftM)
 import           Control.Monad.ST (ST)
@@ -62,13 +64,17 @@ import           Data.Proxy (Proxy)
 #endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+#endif
 
 
 -- transformers --------------------------------------------------------------
 import           Data.Functor.Identity (Identity)
+#if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
+#endif
 
 
 -- layers --------------------------------------------------------------------
@@ -128,16 +134,20 @@ class MonadMask m => MonadTry m where
 instance MonadTry Identity
 
 
+#if MIN_VERSION_transformers(0, 3, 0)
 ------------------------------------------------------------------------------
 instance (MonadTry f, MonadTry g) => MonadTry (Product f g) where
     mtry (Pair f g) = Pair
         (liftM (either (Left . (flip Pair g)) Right) (mtry f))
         (liftM (either (Left . (Pair f)) Right) (mtry g))
+#endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadTry (f (g m)) => MonadTry (ComposeT f g m) where
     mtry (ComposeT m) = ComposeT (liftM (left ComposeT) (mtry m))
+#endif
 
 
 ------------------------------------------------------------------------------

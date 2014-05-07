@@ -7,6 +7,8 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 {-|
 
 This module defines the 'MonadError' interface, which consists of:
@@ -31,6 +33,7 @@ re-exported from @transformers@.
 -}
 
 module Monad.Error
+{-# DEPRECATED "Use Monad.Abort and/or Monad.Recover instead." #-} 
     ( Error (noMsg, strMsg)
     , MonadError
     , catchError
@@ -38,11 +41,21 @@ module Monad.Error
     )
 where
 
+#if MIN_VERSION_transformers(0, 5, 0)
+-- base ----------------------------------------------------------------------
+import           Control.Exception
+                     ( IOException
+                     , PatternMatchFail (PatternMatchFail)
+                     , SomeException
+                     , toException
+                     )
+#else
 -- transformers --------------------------------------------------------------
 #if __GLASGOW_HASKELL__ >= 706
 import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
 #else
 import           Control.Monad.Trans.Error (Error (..))
+#endif
 #endif
 
 
@@ -97,3 +110,38 @@ throwError = abort
 -- Note that @handler@ and the do-block must have the same return type.
 catchError :: MonadError e m => m a -> (e -> m a) -> m a
 catchError = recover
+
+
+#if MIN_VERSION_transformers(0, 5, 0)
+------------------------------------------------------------------------------
+-- | An exception to be thrown.
+--
+-- Minimal complete definition: 'noMsg' or 'strMsg'.
+class Error a where
+    -- | Creates an exception without a message. The default implementation is
+    -- @'strMsg' \"\"@.
+    noMsg  :: a
+
+    -- | Creates an exception with a message. The default implementation of
+    -- @'strMsg' s@ is 'noMsg'.
+    strMsg :: String -> a
+
+    noMsg = strMsg ""
+    strMsg _ = noMsg
+
+
+------------------------------------------------------------------------------
+instance Error IOException where
+    strMsg = userError
+
+
+------------------------------------------------------------------------------
+instance Error [Char] where
+    strMsg = id
+
+
+------------------------------------------------------------------------------
+instance Error SomeException where
+    noMsg = strMsg "mzero"
+    strMsg = toException . PatternMatchFail
+#endif

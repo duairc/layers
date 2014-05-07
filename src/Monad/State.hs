@@ -41,8 +41,10 @@ import           Control.Monad (liftM)
 import           Data.Monoid (Monoid (mempty))
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+#endif
 
 
 -- transformers --------------------------------------------------------------
@@ -50,7 +52,9 @@ import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
 import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
+#if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
+#endif
 
 
 -- layers --------------------------------------------------------------------
@@ -119,18 +123,22 @@ instance (Monad m, Monoid w) => MonadState s (RWST r w s m) where
     put s = RWST $ \_ _ -> return ((), s, mempty)
 
 
+#if MIN_VERSION_transformers(0, 3, 0)
 ------------------------------------------------------------------------------
 instance (MonadState s f, MonadState s g) => MonadState s (Product f g) where
     state f = Pair (state f) (state f)
     get = Pair get get
     put s = Pair (put s) (put s)
+#endif
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadState s (f (g m)) => MonadState s (ComposeT f g m) where
     state f = ComposeT (state f)
     get = ComposeT get
     put s = ComposeT (put s)
+#endif
 
 
 ------------------------------------------------------------------------------

@@ -19,6 +19,8 @@
 {-# LANGUAGE ImpredicativeTypes #-}
 #endif
 
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 #include "macros.h"
 
 {-|
@@ -140,7 +142,12 @@ import           Unsafe.Coerce (unsafeCoerce)
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Class (MonadTrans (lift))
 import           Control.Monad.Trans.Cont (ContT (ContT))
+#if !MIN_VERSION_transformers(0, 5, 0)
 import           Control.Monad.Trans.Error (Error, ErrorT (ErrorT))
+#endif
+#if MIN_VERSION_transformers(0, 4, 0)
+import           Control.Monad.Trans.Except (ExceptT (ExceptT))
+#endif
 import           Control.Monad.Trans.Identity (IdentityT (IdentityT))
 import           Control.Monad.Trans.List (ListT (ListT))
 import           Control.Monad.Trans.Maybe (MaybeT (MaybeT))
@@ -156,9 +163,12 @@ import           Data.Functor.Identity (Identity (Identity))
 
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Morph (MFunctor (hoist))
+#if MIN_VERSION_mmorph(1, 0, 1)
 import           Control.Monad.Trans.Compose
-                     ( ComposeT (ComposeT, getComposeT)
+                     ( ComposeT (ComposeT)
+                     , getComposeT
                      )
+#endif
 
 
 {-$transfamily
@@ -502,6 +512,7 @@ data family LayerState (t :: (* -> *) -> * -> *) :: (* -> *) -> *
 #endif
 
 
+#if !MIN_VERSION_transformers(0, 5, 0)
 ------------------------------------------------------------------------------
 instance Error e => MonadTransControl (ErrorT e) where
 #if __GLASGOW_HASKELL__ >= 704
@@ -520,6 +531,30 @@ type instance LayerState (ErrorT e) m = ()
 
 newtype instance LayerResult (ErrorT e) a = ER (Either e a)
 newtype instance LayerState (ErrorT e) m = ES ()
+#endif
+#endif
+
+
+#if MIN_VERSION_transformers(0, 4, 0)
+------------------------------------------------------------------------------
+instance MonadTransControl (ExceptT e) where
+#if __GLASGOW_HASKELL__ >= 704
+    suspend (ExceptT m) _ = liftM (\a -> (a, ())) m
+    resume (a, _) = ExceptT $ return a
+    capture = return ()
+    extract _ = either (const Nothing) Just
+
+type instance LayerResult (ExceptT e) = Either e
+type instance LayerState (ExceptT e) m = ()
+#else
+    suspend (ExceptT m) _ = liftM (\a -> (ExR a, ExS ())) m
+    resume (ExR a, _) = ExceptT $ return a
+    capture = return (ExS ())
+    extract _ (ExR e) = either (const Nothing) Just e
+
+newtype instance LayerResult (ExceptT e) a = ExR (Either e a)
+newtype instance LayerState (ExceptT e) m = ExS ()
+#endif
 #endif
 
 
@@ -863,9 +898,17 @@ instance MInvariant (ContT r) where
     hoistiso f g (ContT m) = ContT $ f . m . (g .)
 
 
+#if !MIN_VERSION_transformers(0, 5, 0)
 ------------------------------------------------------------------------------
 instance MInvariant (ErrorT e) where
     hoistiso f _ = hoist f
+#endif
+
+
+#if MIN_VERSION_transformers(0, 4, 0)
+instance MInvariant (ExceptT e) where
+    hoistiso f _ = \(ExceptT m) -> ExceptT $ f m
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -977,11 +1020,13 @@ instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
         liftT = liftI
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance (Monad (f (g m)), DefaultMonadInner m (ComposeT f g m)) =>
     MonadInner m (ComposeT f g m)
   where
     liftI = defaultLiftI
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1286,6 +1331,7 @@ instance
         extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance DefaultMonadInnerControl m (ComposeT f g m) =>
     MonadInnerControl m (ComposeT f g m)
@@ -1294,9 +1340,11 @@ instance DefaultMonadInnerControl m (ComposeT f g m) =>
     resumeI = defaultResumeI
     captureI = defaultCaptureI
     extractI = defaultExtractI
+#endif
 
 
 #ifdef LANGUAGE_ClosedTypeFamilies
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 type instance LayerResult (ComposeT f g) =
     OuterResult Identity (f (g Identity))
@@ -1306,6 +1354,7 @@ type instance LayerResult (ComposeT f g) =
 type instance LayerState (ComposeT f g) m = OuterState m (f (g m))
 
 
+#endif
 #endif
 ------------------------------------------------------------------------------
 data Pm (m :: * -> *) = Pm
@@ -1579,11 +1628,13 @@ instance
     {-# INLINABLE hoistisoI #-}
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance DefaultMonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m) =>
     MonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m)
   where
     hoistisoI = defaultHoistisoI
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1646,11 +1697,13 @@ instance
     {-# INLINABLE hoistI #-}
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance DefaultMonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m) =>
     MonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m)
   where
     hoistI = defaultHoistI
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -1720,11 +1773,13 @@ class MonadNewtype m where
     un :: forall a. m a -> Oldtype m a
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadNewtype (ComposeT f g m) where
     type Oldtype (ComposeT f g m) = f (g m)
     nu = ComposeT
     un = getComposeT
+#endif
 
 
 ------------------------------------------------------------------------------
