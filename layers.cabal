@@ -8,42 +8,77 @@ maintainer:     shane@duairc.com
 stability:      Experimental
 category:       Control
 cabal-version:  >= 1.4
-homepage:       http://github.com/duairc/layers
-bug-reports:    http://github.com/duairc/layers/issues
+homepage:       https://github.com/duairc/layers
+bug-reports:    https://github.com/duairc/layers/issues
 build-type:     Simple
 description:
-  The @layers@ package provides the type class machinery needed to make monads
-  built out of stacks of monad transformers easy to use. The type class
-  machinery provided by and the design patterns suggested by @layers@ allow
-  for much more modularity than is possible with the existing type class
-  machinery and design patterns. With @layers@ it is possible to use arbitrary
-  monad interfaces (monad interfaces are what we call the sort of type classes
-  that you see in the @mtl@ and similar packages) with arbtirary monad
-  transformers (by monad transformers here, we are specifically to monad
-  constructors, such as the ones defined in @transformers@), without ever
-  having to explicitly define how to lift specific interfaces through specific
-  transformers. It also provides a more complete set of monad interfaces than
-  the @mtl@, which fully solve the problems of exceptions and exception safety
-  (among others), while maintaining full compatibility with all the monad
-  interfaces from the @mtl@.
+  The @<https://hackage.haskell.org/package/layers layers>@ package provides
+  the type class machinery needed to make monads built out of
+  <Documentation-Layers-Glossary.html#monadtransformerstack stacks> of
+  <Documentation-Layers-Glossary.html#monadtransformer monad transformers>
+  easy to use. The type class machinery provided and the design patterns
+  suggested by @<https://hackage.haskell.org/package/layers layers>@ allow for
+  much more modularity than is possible with the existing type class machinery
+  and design patterns. With
+  @<https://hackage.haskell.org/package/layers layers>@
+  it is possible to use arbitrary
+  <Documentation-Layers-Glossary.html#monadinterface monad interfaces>
+  (<Documentation-Layers-Glossary.html#monadinterface monad interfaces> are
+  what we call the sort of type classes that you see in the
+  @<https://hackage.haskell.org/package/mtl mtl>@
+  and similar packages) with arbtirary
+  <Documentation-Layers-Glossary.html#monadtransformer monad transformers>
+  (by <Documentation-Layers-Glossary.html#monadtransformer monad transformers>
+  here, we are specifically to
+  <Documentation-Layers-Glossary.html#monadconstructor monad constructors>,
+  such as the ones defined in
+  @<https://hackage.haskell.org/package/transformers transformers>@), without
+  ever having to explicitly define how to lift specific
+  <Documentation-Layers-Glossary.html#monadinterface interfaces> through
+  specific <Documentation-Layers-Glossary.html#monadtransformer transformers>.
+  It also provides a more complete
+  set of <Documentation-Layers-Glossary.html#monadinterface monad interfaces>
+  than the @<https://hackage.haskell.org/package/mtl mtl>@, which fully solve
+  the problems of exceptions and exception safety (among others), while
+  maintaining full compatibility with all the
+  <Documentation-Layers-Glossary.html#monadinterface monad interfaces> from the
+  @<https://hackage.haskell.org/package/mtl mtl>@.
   .
-  @layers@ improves upon and/or replaces, in part or in whole, the following
-  list of packages: @mtl@, @mmtl@, @transformers-base@, @monad-control@,
-  @lifted-base@, @monad-peel@, @MonadCatchIO-transformers@, @exceptions@,
-  @MonadCatchIO-mtl@, @exception-transformers@, @monad-abort-fd@ and probably
-  more too. There have been many attempts to either improve upon or work
-  around the deficiencies of the existing type class machinery for monad
-  transformer stacks, but we believe @layers@ is the most complete of any of
-  these so far.
+  @<https://hackage.haskell.org/package/layers layers>@ improves upon and/or
+  replaces, in part or in whole, the following list of packages:
+  @<https://hackage.haskell.org/package/mtl mtl>@,
+  @<https://hackage.haskell.org/package/mmtl mmtl>@,
+  @<https://hackage.haskell.org/package/transformers-base transformers-base>@,
+  @<https://hackage.haskell.org/package/monad-control monad-control>@,
+  @<https://hackage.haskell.org/package/lifted-base lifted-base>@,
+  @<https://hackage.haskell.org/package/monad-peel monad-peel>@,
+  @<https://hackage.haskell.org/package/MonadCatchIO-transformers MonadCatchIO-transformers>@,
+  @<https://hackage.haskell.org/package/exceptions exceptions>@,
+  @<https://hackage.haskell.org/package/MonadCatchIO-mtl MonadCatchIO-mtl>@,
+  @<https://hackage.haskell.org/package/exception-transformers exception-transformers>@,
+  @<https://hackage.haskell.org/package/monad-abort-fd monad-abort-fd>@ and
+  probably more too. There have been many attempts to either improve upon or
+  work around the deficiencies of the existing type class machinery for
+  <Documentation-Layers-Glossary.html#monadtransformerstack monad transformer stacks>,
+  but we believe
+  @<https://hackage.haskell.org/package/layers layers>@ is the most complete of
+  any of these so far.
   .
-  A comprehensive overview of the motivation behind @layers@ and an
-  explanation of the design decisions taken is given in
-  "Documentation.Layers.Overview". It is /highly recommended/ that you read
-  this if you are considering using this package. The core type classes used
-  by the package are exported from "Control.Monad.Lift" (some of these
-  originate in @transformers@ and @mmorph@). The rest of the modules in this
-  package export monad interfaces, in the "Monad.*" hierarchy, including
-  replacements for all of the monad interfaces of the @mtl@ package.
+  A comprehensive overview of the motivation behind
+  @<https://hackage.haskell.org/package/layers layers>@ and an explanation of
+  the design decisions taken is given in "Documentation.Layers.Overview". It
+  is /highly recommended/ that you read this if you are considering using this
+  package. A detailed glossary of the jargon used throughout the documentation
+  of this package is given in "Documentation.Layers.Glossary". The core type
+  classes used by the package are exported from "Control.Monad.Lift" (some of
+  these originate in
+  @<https://hackage.haskell.org/package/transformers transformers>@ and
+  @<https://hackage.haskell.org/package/mmorph mmorph>@). The rest of the
+  modules in this package export
+  <Documentation-Layers-Glossary.html#monadinterface monad interfaces>, in the
+  <doc-index-M.html Monad.*> hierarchy, including replacements for all of the
+  <Documentation-Layers-Glossary.html#monadinterface monad interfaces> of the
+  @<https://hackage.haskell.org/package/mtl mtl>@ package.
 
 extra-source-files:
   CHANGELOG

@@ -7,20 +7,21 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadRWS' interface, which consists of:
+This module defines the 'MonadRWS' G(monadinterface,interface), which consists
+of:
 
-    * 'MonadRWS' :: @* -> * -> * -> (* -> *) -> Constraint@
+    * The 'MonadRWS' constraint.
+    * The "Monad.Reader" module.
+    * The "Monad.State" module.
+    * The "Monad.Writer" module.
 
-    * "Monad.Reader"
-
-    * "Monad.State"
-
-    * "Monad.Writer"
-
-The 'MonadRWS' interface is provided for compatibility with the @MonadRWS@
-interface from the @mtl@ library.
+The 'MonadRWS' G(monadinterface,interface) is provided for compatibility with
+the T(mtl,Control-Monad-RWS-Class,MonadRWS) G(monadinterface,interface) from
+the H(mtl) library.
 
 -}
 
@@ -56,9 +57,9 @@ import           Monad.Writer
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadRWS' interface is defined as a type synonym (using
--- the @ConstraintKinds@ extension) for the combination of 'MonadReader',
--- 'MonadState' and 'MonadWriter'.
+-- | The 'MonadRWS' constraint is defined as a type synonym (using
+-- the @<https://www.haskell.org/ghc/docs/latest/html/users_guide/constraint-kind.html ConstraintKinds>@ extension)
+-- for the combination of 'MonadReader', 'MonadState' and 'MonadWriter'.
 #ifdef LANGUAGE_ConstraintKinds
 type MonadRWS r w s m = (MonadReader r m, MonadWriter w m, MonadState s m)
 #else

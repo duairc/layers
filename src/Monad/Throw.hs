@@ -9,17 +9,20 @@
 
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadThrow' interface, which consists of:
+This module defines the 'MonadThrow' G(monadinterface,interface). The
+'MonadThrow' G(monadinterface,interface) is a specialisation of the
+'MonadAbort' G(monadinterface,interface). It, along with its sister
+G(monadinterface,interface) 'Monad.Catch.MonadCatch', is designed to be
+largely compatible with the "Control.Exception" module from H(base). It
+consists of:
 
-    * 'MonadThrow' :: @(* -> *) -> Constraint@
-
-    * 'throw' :: @(Exception e, MonadThrow m) => e -> m a@
-
-The 'MonadThrow' interface is defined purely in terms of the 'MonadAbort'
-interface. It is provided for compatibility with "Control.Exception" (see
-"Monad.Catch").
+  * The 'MonadThrow' constraint (a specialisation of the 'MonadAbort'
+  constraint).
+  * The 'throw' operation (a specialisation of the 'abort' operation).
 
 -}
 
@@ -69,9 +72,10 @@ throw = abort . toException
 #if !MIN_VERSION_transformers(0, 5, 0)
 ------------------------------------------------------------------------------
 -- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
--- @SomeException@ to be used with the 'ErrorT' monad transformer, and thus
--- 'MonadThrow' and 'MonadCatch' instances to be defined for
--- @ErrorT SomeException@.
+-- 'SomeException' to be used with the 'Control.Monad.Trans.Error.ErrorT'
+-- G(monadtransformer,monad transformer), and thus 'Monad.Throw.MonadThrow'
+-- and 'Monad.Catch.MonadCatch' instances to be defined for
+-- @'Control.Monad.Trans.Error.ErrorT' 'SomeException'@.
 instance Error SomeException where
     noMsg = strMsg "mzero"
     strMsg = toException . PatternMatchFail

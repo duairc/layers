@@ -12,16 +12,53 @@
 
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadRecover' interface, which consists of:
+This module defines the 'MonadRecover' G(monadinterface,interface). It, along
+with its sister G(monadinterface,interface) 'MonadAbort', is inspired by the
+<M(monad-abort-fd,Control-Monad-Abort-Class)#t:MonadRecover eponymous interfaces>
+from the
+<M(monad-abort-fd,Control-Monad-Abort-Class) Control.Monad.Abort.Class> module
+of the H(monad-abort-fd) package. It consists of:
 
-    * 'MonadRecover' :: @* -> (* -> *) -> Constraint@
+  * The 'MonadRecover' constraint.
+  * The 'recover' operation.
+  * Instances of 'MonadRecover':
 
-    * 'recover' :: @MonadRecover e m => m a -> (e -> m a) -> m a@
+      * For the following G(basemonad,base monads):
 
-The 'MonadRecover' interface is the basis of both the 'Monad.Throw.MonadCatch'
-and 'Monad.Error.MonadError' interfaces.
+          * 'Either'
+          * @[@@]@
+          * 'Maybe'
+          * 'IO'
+          * 'STM'
+
+      * For arbitrary G(innermonad,inner monads) wrapped by one of the
+      following G(monadlayer,monad layers):
+
+          * 'ErrorT'
+          * 'ExceptT'
+          * 'ListT'
+          * 'MaybeT'
+
+      * G(universalpassthroughinstance,Pass-through instances) for:
+
+          * Any G(innermonad,inner monad) with an existing 'MonadRecover'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTransControl'.
+          * The 'Product' of any two G(monadictype,monadic types) which both
+          have existing 'MonadRecover' instances.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for
+          'MonadRecover'.
+
+The 'Monad.Catch.MonadCatch' and 'Monad.Error.MonadError'
+G(monadinterface,interfaces) are both built on top of 'MonadRecover'.
 
 -}
 
@@ -69,28 +106,31 @@ import           Monad.Abort (MonadAbort)
 
 
 ------------------------------------------------------------------------------
--- | The @'MonadRecover' e@ constraint matches monads whose computations can
--- 'recover' from a failure caused by a call to 'Monad.Abort.abort'.
+-- | The @'MonadRecover' e@ constraint matches monads whose
+-- G(computation,computations) can 'recover' from a failure caused by a call
+-- to 'Monad.Abort.abort'.
 --
--- Every monad which permits an instance 'Control.Monad.MonadPlus' trivially
--- permits an instance of @MonadRecover@: for these instances, the @e@ is
--- fixed to @()@, as there is no @e@ value which can be recovered from a
--- \"zero\".
+-- Every monad which permits an instance 'Control.Monad.MonadPlus' (of the
+-- <HW(MonadPlus) left catch> variety) trivially permits an instance of
+-- 'MonadRecover': for these instances, the @e@ parameter is fixed to @()@, as
+-- there is no @e@ value which can be recovered from a
+-- \"G(shortcircuit,zero)\".
 --
--- The other class of monads that permit a @MonadRecover@ instance are the
+-- The other class of monads that permit a 'MonadRecover' instance are the
 -- 'Either'-like monads (including 'IO'): these monads actually store the @e@
--- parameter passed to the @abort@ operation on failure, hence it can later be
--- retrieved using the @recover@ operation.
+-- parameter passed to the 'abort' operation on failure, hence it can later be
+-- retrieved using the 'recover' operation.
 --
--- Minimal complete definition: recover.
+-- Minimal complete definition: 'recover'.
 class MonadAbort e m => MonadRecover e m | m -> e where
-    -- | In addition to the 'MonadAbort' \"zero\" law, the following laws hold
-    -- for valid instances of 'MonadRecover';
+    -- | In addition to the 'MonadAbort' \"G(shortcircuit,zero)\" law, the
+    -- following laws hold for valid instances of 'MonadRecover':
     --
-    --     [Left Identity] @recover (abort e) (\e -> m) = m@
-    --     [Right Identity] @recover m abort = m@
-    --     [Associativity] @recover m (\_ -> recover n (\_ -> o)) = recover (recover m (\_ -> n)) (\_ -> o)@
-    --     [Preservation] @recover (abort e) return = return e@
+    --     [Left Identity] @'recover' ('Monad.Abort.abort' e) (\\_ -> m) ≡ m@
+    --     [Right Identity] @'recover' m 'Monad.Abort.abort' ≡ m@
+    --     [Associativity] @'recover' m (\\_ -> 'recover' n (\\_ -> o)) ≡ 'recover' ('recover' m (\\_ -> n)) (\\_ -> o)@
+    --     [Left Catch] @'recover' ('return' a) _ ≡ 'return' a@
+    --     [Recoverability] @'recover' ('Monad.Abort.abort' e) 'return' ≡ 'return' e@
     recover :: m a -> (e -> m a) -> m a
 
 

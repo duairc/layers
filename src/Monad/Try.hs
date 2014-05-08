@@ -11,27 +11,56 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadTry' interface, which consists of:
+This module defines the 'MonadTry' G(monadinterface,interface). It, along with
+its sister G(monadinterface,interface) 'Monad.Mask.MonadMask', is designed to
+be largely compatible with the "Control.Exception" module from H(base). It
+consists of:
 
-    * 'MonadTry' :: @(* -> *) -> Constraint@
+  * The 'MonadTry' constraint.
+  * The 'mtry' operation.
 
-    * 'mtry' :: @MonadTry m => m a -> m (Either (m a) a)@
+  * Instances of 'MonadTry':
 
-    * 'bracket' :: @MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c@
+      * For every G(basemonad,base monad) in the H(base) and H(transformers)
+      packages:
 
-    * 'bracket_' :: @MonadTry m => m a -> m b -> m c -> m c@
+          * 'Either'
+          * @-@@>@
+          * 'Identity'
+          * 'IO'
+          * @[@@]@
+          * 'Maybe'
+          * 'Proxy'
+          * Lazy 'L.ST'
+          * Strict 'ST'
+          * 'STM'
 
-    * 'bracketOnError' :: @MonadTry m => m a -> (a -> m b) -> (a -> m c) ->
-        m c@
+      * G(universalpassthroughinstance,Pass-through instances) for:
 
-    * 'finally' :: @MonadTry m => m a -> m b -> m a@
+          * Any G(innermonad,inner monad) with an existing 'MonadTry'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTransControl'.
+          * The 'Product' of any two G(monadictype,monadic types) which both
+          have existing 'MonadTry' instances.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for
+          'MonadTry'.
 
-    * 'onException' :: @MonadTry m => m a -> m b -> m a@
+  * The \"bracket\" family of functions (as defined in "Control.Exception"):
 
-The 'MonadTry' interface is designed for compatibility with
-"Contorl.Exception".
+      * 'bracket'
+      * 'bracket_'
+      * 'bracketOnError'
+      * 'finally'
+      * 'onException'
+      * 'orElse' (actually from the H(stm) package)
 
 -}
 
@@ -91,30 +120,37 @@ import           Control.Monad.Lift.Top
 
 ------------------------------------------------------------------------------
 -- | The 'MonadTry' type class provides a single operation 'mtry', which is a
--- way to observe short-circuiting in monads. The name refers to the fact that
--- @mtry@ is a generalised version of 'Monad.Exception.try':
--- whereas @try@ guards against the specific case of a
--- 'Monad.Exception.MonadException' short-circuiting due to
--- an exception being thrown, it can still short-circuit in other ways: e.g.,
--- if a @'Control.Monad.Trans.Maybe.MaybeT' 'IO'@ returns
--- 'Control.Monad.mzero' ('Nothing'). The action returned by 'mtry' is
--- guaranteed to never short-circuit.
+-- generalised way to observe G(shortcircuit,short-circuiting) in monads.
+-- The name refers to the fact that 'mtry' is a generalised version of
+-- 'Monad.Exception.try': whereas 'try' guards against the specific case of a
+-- monad G(shortcircuit,short-circuiting) from a call to 'Monad.Throw.throw',
+-- there can be other ways that a monad can G(shortcircuit,short-circuit).
+-- For example, the monad @'Control.Monad.Trans.Maybe.MaybeT' 'IO'@ can be
+-- G(shortcircuit,short-circuited) by calling 'Control.Monad.mzero'
+-- ('Nothing') or by raising an exception in the underlying 'IO' monad. The
+-- G(computation,computation) returned by 'mtry' is guaranteed never to
+-- G(shortcircuit,short-circuit), even if the G(monadtransformerstack,stack)
+-- is built from many G(shortcircuit,short-circuiting) different
+-- G(monadlayer,layers).
 --
--- Nearly every monad should have an instance of @MonadTry@, with the
--- exception of CPS-style monads whose (possible) short-circuiting is
--- impossible to observe. Instances are provided for every base monad in the
--- @base@ and
--- @transformers@ packages. 'mtry' has a default definition that only needs
--- to be overridden for monads which actually short-circuit, so it costs
--- very little to add an instance of @MonadTry@ to a monad.
+-- Nearly every monad should permit an instance of 'MonadTry', with the
+-- exception of CPS-style monads whose (possible)
+-- G(shortcircuit,short-circuiting) is impossible to observe. Instances are
+-- provided for every G(basemonad, base monad) in the H(base) and
+-- H(transformers) packages. 'mtry' has a default definition that only needs
+-- to be overridden for monads which actually G(shortcircuit,short-circuit),
+-- so it costs very little to add an instance of 'MonadTry' to a monad.
 --
 -- Minimal complete definition: instance head only.
 class MonadMask m => MonadTry m where
-    -- | 'mtry' takes a monadic action in @m@ and returns a new monadic value
-    -- in @m@ which is guaranteed not to short-circuit. If the action @m@ that
-    -- was given to 'mtry' would have short-circuited, it returns @'Left' m@,
-    -- otherwise it returns @'Right' a@, where @a@ is the value returned by
-    -- the computation @m@.
+    -- | 'mtry' takes a G(computation,computation) in @m@ and returns a new
+    -- monadic value in @m@ which is guaranteed not to
+    -- G(shortcircuit,short-circuit). If the original
+    -- G(computation,computation) @m@
+    -- given to 'mtry' would have G(shortcircuit,short-circuited), the
+    -- resulting value returned by 'mtry' is @'Left' m@.
+    -- Otherwise, 'mtry' returns @'Right' a@, where @a@ is the value returned
+    -- by the computation @m@.
     --
     -- Instances should satisfy the following laws:
     --
@@ -122,7 +158,7 @@ class MonadMask m => MonadTry m where
     --     @'mtry' ('return' a) ≡ 'return' ('Right' a)@
     --
     -- [Implies-Non-Zero]
-    --     @('mtry' m ≡ 'liftM' 'Right' m) ⇒ (∃f. m '>>=' f ≢ m)@
+    --     @('mtry' m ≡ 'liftM' 'Right' m) ^ ((a ≢ b) ⇒ ('return' a ≢ 'return' b)) ⇒ (∃f. m '>>=' f ≢ m)@
     --
     -- [Implies-Zero]
     --     @('mtry' m ≡ 'return' ('Left' m)) ⇒ (∀f. m '>>=' f ≡ m)@
@@ -228,29 +264,30 @@ instance (MonadTopControl t m, MonadMask (t m), MonadTry m) => MonadTry (t m)
 
 ------------------------------------------------------------------------------
 -- | When you want to acquire a resource, do some work with it, and then
--- release the resource, it is a good idea to use 'bracket', because @bracket@
+-- release the resource, it is a good idea to use 'bracket', because 'bracket'
 -- will install the necessary handler to release the resource in the event
--- that the monad short circuits during the computation. If the monad
--- short-circuits, then @bracket@ will re-return the monad in its
--- short-circuited state (after performing the release).
+-- that the monad G(shortcircuit,short-circuits) during the
+-- G(computation,computation). If the monad G(shortcircuit,short-circuits),
+-- then 'bracket' will re-return the monad in its
+-- G(shortcircuit,short-circuited) state (after performing the release).
 --
 -- A common example is opening a file:
 --
--- > bracket
--- >   (openFile "filename" ReadMode)
--- >   (hClose)
--- >   (\fileHandle -> do { ... })
+-- @'bracket'
+--   ('System.IO.openFile' "filename" 'System.IO.ReadMode')
+--   ('System.IO.hClose')
+--   (\\fileHandle -> do { ... })@
 --
 -- The arguments to @bracket@ are in this order so that we can partially apply
 -- it, e.g.:
 --
--- > withFile name mode = bracket (openFile name mode) hClose
+-- @'System.IO.withFile' name mode = 'bracket' ('System.IO.openFile' name mode) 'System.IO.hClose'@
 --
 bracket :: MonadTry m
-    => m a         -- ^ computation to run first (\"acquire resource\")
-    -> (a -> m b)  -- ^ computation to run last (\"release resource\")
-    -> (a -> m c)  -- ^ computation to run in-between
-    -> m c         -- ^ returns the value from the in-between computation
+    => m a         -- ^ G(computation,computation) to run first (\"acquire resource\")
+    -> (a -> m b)  -- ^ G(computation,computation) to run last (\"release resource\")
+    -> (a -> m c)  -- ^ G(computation,computation) to run in-between
+    -> m c         -- ^ returns the value from the in-between G(computation,computation)
 bracket acquire release run = mask $ \restore -> do
     a <- acquire
     restore (run a) `finally` release a
@@ -258,16 +295,17 @@ bracket acquire release run = mask $ \restore -> do
 
 
 ------------------------------------------------------------------------------
--- | A variant of 'bracket' where the return value from the first computation
--- is not required.
+-- | A variant of 'bracket' where the return value from the first
+-- G(computation,computation) is not required.
 bracket_ :: MonadTry m => m a -> m b -> m c -> m c
 bracket_ acquire release run = bracket acquire (const release) (const run)
 {-# INLINABLE bracket_ #-}
 
 
 ------------------------------------------------------------------------------
--- | Like 'bracket', but only performs the final action if the monad
--- short-circuited during the in-between computation.
+-- | Like 'bracket', but only performs the final G(computation,action) if the
+-- monad G(shortcircuit,short-circuited) during the in-between
+-- G(computation,computation).
 bracketOnError :: MonadTry m => m a -> (a -> m b) -> (a -> m c) -> m c
 bracketOnError acquire release run = mask $ \restore -> do
     a <- acquire
@@ -276,8 +314,8 @@ bracketOnError acquire release run = mask $ \restore -> do
 
 
 ------------------------------------------------------------------------------
--- | A specialised variant of 'bracket' with just a computation to run
--- afterward.
+-- | A specialised variant of 'bracket' with just a G(computation,computation)
+-- to run afterward.
 finally :: MonadTry m => m a -> m b -> m a
 finally m sequel = mask $ \restore -> do
     r <- restore m `onException` sequel
@@ -287,8 +325,9 @@ finally m sequel = mask $ \restore -> do
 
 
 ------------------------------------------------------------------------------
--- | Like 'finally', but only performs the final action if the monad
--- short-circuited during the computation.
+-- | Like 'finally', but only performs the final G(computation,action) if
+-- the monad G(shortcircuit,short-circuited) during the
+-- G(computation,computation).
 onException :: MonadTry m => m a -> m b -> m a
 onException m sequel = mask $ \restore -> do
     mtry (restore m) >>= either (sequel >>) return
@@ -296,7 +335,8 @@ onException m sequel = mask $ \restore -> do
 
 
 ------------------------------------------------------------------------------
--- | Tries the first action, and if it fails, tries the second action.
+-- | Tries the first G(computation,action), and if it G(shortcircuit,fails),
+-- tries the second G(computation,action).
 orElse :: MonadTry m => m a -> m a -> m a
 orElse a b = mask $ \restore -> mtry (restore a) >>= either (const b) return
 {-# INLINABLE orElse #-}

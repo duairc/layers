@@ -10,22 +10,43 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadState' interface, which consists of:
+This module defines the 'MonadState' G(monadinterface,interface). It is
+designed to be compatible with the with the
+T(mtl,Control-Monad-State-Class,Monadstate) interface from the H(mtl)
+package. It consists of:
 
-    * 'state' :: @MonadState s m => (s -> (a, s)) -> m a@
+  * The 'MonadState' constraint.
+  * The 'get' and 'put' operations.
 
-    * 'get' :: @MonadState s m => m s@
+  * Instances of 'MonadState':
 
-    * 'gets' :: @MonadState s m => (s -> a) -> m a@
+      * For arbitrary G(innermonad,inner monads) wrapped by one of the
+      following G(monadlayer,monad layers):
 
-    * 'put' :: @MonadState s m => s -> m ()@
+          * Lazy 'L.StateT'
+          * Strict 'StateT'
+          * Lazy 'L.RWST'
+          * Strict 'RWST'
 
-    * 'modify' :: @MonadState s m => (s -> s) -> m ()@
+      * G(universalpassthroughinstance,Pass-through instances) for:
 
-The 'MonadState' interface is designed for compatibility with the @MonadState@
-interface from the @mtl@ library.
+          * Any G(innermonad,inner monad) with an existing 'MonadState'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTrans'.
+          * The 'Product' of any two G(monadictype,monadic types) which both
+          have existing 'MonadState' instances.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for
+          'MonadState'.
+
+  * The 'gets' and 'modify' utility operations.
 
 -}
 
@@ -64,17 +85,18 @@ import           Control.Monad.Lift.Top (MonadTop, liftT)
 ------------------------------------------------------------------------------
 -- | A pure functional language cannot update values in place because it
 -- violates referential transparency. A common idiom to simulate such stateful
--- computations is to \"thread\" a state parameter through a sequence of
--- functions:
+-- G(computation,computations) is to \"thread\" a state parameter through a
+-- sequence of functions.
 --
 -- This approach works, but such code can be error-prone, messy and difficult
--- to maintain. The 'MonadState' interface hides the threading of the state
--- parameter inside the binding operation, simultaneously making the code
--- easier to write, easier to read and easier to modify. 
+-- to maintain. The 'MonadState' G(monadinterface,interface) hides the
+-- threading of the state parameter inside the binding operation,
+-- simultaneously making the code easier to write, easier to read and easier
+-- to modify. 
 --
 -- Minimal complete definition: 'state' or both 'get' and 'put'.
 class Monad m => MonadState s m | m -> s where
-    -- | Embed a simple state action into the monad.
+    -- | Embed a simple state G(computation,action) into the monad.
     state :: (s -> (a, s)) -> m a
 
     -- | Return the state from the internals of the monad.
@@ -158,11 +180,11 @@ instance (MonadTop t m, MonadState s m) => MonadState s (t m)
 -- Maps an old state to a new state inside a state monad. The old state is
 -- thrown away.
 --
--- >>> :t modify ((+1) :: Int -> Int)
--- modify (...) :: (MonadState Int a) => a ()
+-- @>>> __:t 'modify' ('++'\"?\")__
+--'modify' (...) :: ('MonadState' 'String' a) => a ()@
 --
--- This says that @modify (+1)@ acts over any 'Monad' that is a member of the
--- 'MonadState' class with an 'Int' state.
+-- This says that @'modify' ('++'\"?\")@ acts over any monad that is a member
+-- of the 'MonadState' class with a 'String' state.
 modify :: MonadState s m => (s -> s) -> m ()
 modify f = state (\s -> ((), f s))
 {-# INLINABLE modify #-}

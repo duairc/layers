@@ -10,36 +10,47 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module provides the 'MonadST' interface, which consists of:
+This module provides the 'MonadST' G(monadinterface,interface). It is designed
+to generalise and be largely consistent with the interfaces provided by
+"Data.IORef", "Data.STRef.Lazy" and "Data.STRef.Strict". It consists of:
 
-    * 'MonadST' :: @(* -> *) -> (* -> *) -> Constraint@
+  * The 'MonadST' constraint.
+  * The 'newRef' operation.
+  * The 'readRef' and 'writeRef' operations.
+  * The 'atomicModifyRef' operation.
+  * Instances of 'MonadST':
 
-    * 'newRef' :: @MonadST ref m => a -> m (ref a)@
+      * For the G(basemonad,base monads):
 
-    * 'readRef' :: @MonadST ref m => ref a -> m a@
+          * 'IO' ('IORef')
+          * Lazy 'L.ST' ('L.STRef')
+          * Strict 'ST' ('STRef')
+          * 'STM' ('TVar')
 
-    * 'writeRef' :: @MonadST ref m => ref a -> a -> m ()@
+      * G(universalpassthroughinstance,Pass-through instances) for:
 
-    * 'atomicModifyRef' :: @MonadST ref m => ref a -> (a -> (a, b)) -> m b@
+          * Any G(innermonad,inner monad) with an existing 'MonadST'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTrans'.
+          * The 'Product' of any two G(monadictype,monadic types) which both
+          have existing 'MonadST' instances.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for 'MonadST'.
 
-    * 'atomicModifyRef'' :: @MonadST ref m => ref a -> (a -> (a, b)) -> m b@
-
-    * 'atomicWriteRef' :: @MonadST ref m => ref a -> a -> m ()@
-
-    * 'modifyRef' :: @MonadST ref m => ref a -> (a -> a) -> m ()@
-
-    * 'modifyRef'' :: @MonadST ref m => ref a -> (a -> a) -> m ()@
-
-The 'MonadST' interface is designed for compatibility with "Data.IORef",
-"Data.STRef.Lazy" and "Data.STRef.Strict".
+  * The utility operations 'modifyRef', 'modifyRef'', 'atomicModifyRef'' and
+  'atomicWriteRef' (as provided by "Data.IORef").
 
 -}
 
 module Monad.ST
-    ( -- * The @MonadST@ class
-      MonadST (newRef, readRef, writeRef, atomicModifyRef)
+    ( MonadST (newRef, readRef, writeRef, atomicModifyRef)
     , atomicModifyRef'
     , atomicWriteRef
     , modifyRef
@@ -114,8 +125,8 @@ class Monad m => MonadST ref m | m -> ref where
     -- important to know even if all you are doing is replacing the value.
     -- For example, this will leak memory:
     --
-    -- > ref <- newIORef 1
-    -- > forever $ atomicModifyRef ref (\_ -> (2, ()))
+    -- @ref <- 'newRef' 1
+    --'Control.Monad.forever' $ 'atomicModifyRef' ref (\\_ -> (2, ()))@
     --
     -- Use 'atomicModifyRef'' or 'atomicWriteRef' to avoid this problem.
     atomicModifyRef :: ref a -> (a -> (a, b)) -> m b
@@ -205,14 +216,14 @@ atomicModifyRef' ref f = do
 -- | Mutate the contents of a mutable variable.
 --
 -- Be warned that 'modifyRef' does not apply the function strictly. This means
--- if the program calls @modifyRef@ many times, but seldomly uses the value,
+-- if the program calls 'modifyRef' many times, but seldomly uses the value,
 -- thunks will pile up in memory resulting in a space leak. This is a common
 -- mistake made when using a mutable varible as a counter. For example, the
 -- following will likely produce a stack overflow:
 --
--- > ref <- newRef 0
--- > replicateM_ 1000000 $ modifyRef ref (+1)
--- > readRef ref >>= print
+-- @ref <- 'newRef' 0
+--'Control.Monad.replicateM_' 1000000 '$' 'modifyRef' ref ('+'1)
+--'readRef' ref '>>=' 'print'@
 --
 -- To avoid this problem, use 'modifyRef'' instead.
 modifyRef :: MonadST ref m => ref a -> (a -> a) -> m ()

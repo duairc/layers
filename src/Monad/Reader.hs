@@ -10,22 +10,44 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadReader' interface, which consists of:
+This module defines the 'MonadReader' G(monadinterface,interface). It is
+designed to be compatible with the with the
+T(mtl,Control-Monad-Reader-Class,MonadReader) interface from the H(mtl)
+package. It consists of:
 
-    * 'MonadReader' :: @* -> (* -> *) -> Constraint@
+  * The 'MonadReader' constraint.
+  * The 'ask' and 'local' operations.
 
-    * 'reader' :: @MonadReader r m => (r -> a) -> m a@
+  * Instances of 'MonadReader':
 
-    * 'ask' :: @MonadReader r m => m r@
+      * For the base monad @-@@>@.
 
-    * 'asks' :: @MonadReader r m => (r -> a) -> m a@
+      * For arbitrary G(innermonad,inner monads) wrapped by one of the
+      following G(monadlayer,monad layers):
 
-    * 'local' :: @MonadReader r m => (r -> r) -> m a -> m a@
+          * 'ReaderT'
+          * Lazy 'L.RWST'
+          * Strict 'RWST'
 
-The 'MonadReader' interface is designed for compatibility with the
-@MonadReader@ interface from the @mtl@ library.
+      * G(universalpassthroughinstance,Pass-through instances) for:
+
+          * Any G(innermonad,inner monad) with an existing 'MonadReader'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTrans' and 'Control.Monad.Lift.MInvariant'.
+          * The 'Product' of any two G(monadictype,monadic types) which both
+          have existing 'MonadReader' instances.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for
+          'MonadReader'.
+
+  * The 'asks' and 'reader' utility operations.
 
 -}
 
@@ -60,21 +82,23 @@ import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadReader interface monad represents computations which can read
--- values from a shared environment, pass values from function to function
--- and execute sub-computations in a modified environment. Using the 
--- @MonadReader@ interface for such computations is often clearer and easier
--- than using the 'Monad.State.MonadState' interface.
+-- | The 'MonadReader' G(monadinterface,interface) represents
+-- G(computation,computations) which can read values from a shared
+-- environment, pass values from function to function and execute
+-- G(computation,sub-computations) in a modified environment. Using the
+-- 'MonadReader' G(monadinterface,interface) for such
+-- G(computation,computations) is often clearer and easier
+-- than using the 'Monad.State.MonadState' G(monadinterface,interface).
 --
 -- Minimal complete definition: 'local' and one of either 'reader' or 'ask'.
 class Monad m => MonadReader r m | m -> r where
-    -- | Embed a simple reader action into the monad.
+    -- | Embed a simple reader G(computation,action) into the monad.
     reader :: (r -> a) -> m a
 
     -- | Retrieves the monad environment.
     ask :: m r
 
-    -- | Executes a computation in a modified environment.
+    -- | Executes a G(computation,computation) in a modified environment.
     local :: (r -> r) -> m a -> m a
 
     reader f = liftM f ask

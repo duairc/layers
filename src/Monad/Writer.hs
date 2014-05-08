@@ -10,24 +10,43 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadWriter' interface, which consists of:
+This module defines the 'MonadWriter' G(monadinterface,interface). It is
+designed to be compatible with the with the
+T(mtl,Control-Monad-Writer-Class,MonadWriter) interface from the H(mtl)
+package. It consists of:
 
-    * 'writer' :: @MonadWriter w m => (a, w) -> m a@
+  * The 'MonadWriter' constraint.
+  * The 'tell', 'listen' and 'pass' operations.
 
-    * 'tell' :: @MonadWriter w m => w -> m ()@
+  * Instances of 'MonadWriter':
 
-    * 'listen' :: @MonadWriter w m => m a -> m (a, w)@
+      * For arbitrary G(innermonad,inner monads) wrapped by one of the
+      following G(monadlayer,monad layers):
 
-    * 'listens' :: @MonadWriter w m => (w -> b) -> m a -> m (a, b)@
+          * Lazy 'L.WriterT'
+          * Strict 'WriterT'
+          * Lazy 'L.RWST'
+          * Strict 'RWST'
 
-    * 'pass' :: @MonadWriter w m => m (a, w -> w) -> m a@
+      * G(universalpassthroughinstance,Pass-through instances) for:
 
-    * 'censor' :: @MonadWriter w m => (w -> w) -> m a -> m a@
+          * Any G(innermonad,inner monad) with an existing 'MonadWriter'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTrans'.
+          * The 'Product' of any two G(monadictype,monadic types) which both
+          have existing 'MonadWriter' instances.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for
+          'MonadWriter'.
 
-The 'MonadWriter' interface is designed for compatibility with the
-@MonadWriter@ interface from the @mtl@ library.
+  * The 'writer', 'listens' and and 'censor' utility operations.
 
 -}
 
@@ -64,32 +83,33 @@ import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
--- | It is often desirable for a computation to generate output \"on the
--- side\". Logging and tracing are the most common examples in which data is
--- generated during a computation that we want to retain but is not the
--- primary result of the computation.
+-- | It is often desirable for a G(computation,computation) to generate output
+-- \"on the side\". Logging and tracing are the most common examples in which
+-- data is generated during a G(computation,computation) that we want to
+-- retain but is not the primary result of the G(computaiton,computation).
 --
 -- Explicitly managing the logging or tracing data can clutter up the code and
--- invite subtle bugs such as missed log entries. The 'MonadWriter' interface
--- provides a cleaner way to manage the output without cluttering the main
--- computation.
+-- invite subtle bugs such as missed log entries. The 'MonadWriter'
+-- G(monadinterface,interface) provides a cleaner way to manage the output
+-- without cluttering the main G(computation,computation).
 --
 -- Minimal complete definition: 'listen', 'pass' and one of either 'writer' or
 -- 'tell'.
 class (Monad m, Monoid w) => MonadWriter w m | m -> w where
-    -- | @'writer' (a,w)@ embeds a simple writer action.
+    -- | @'writer' (a,w)@ embeds a simple writer G(computation,action).
     writer :: (a, w) -> m a
 
-    -- | @'tell' w@ is an action that produces the output @w@.
+    -- | @'tell' w@ is an G(computation,action) that produces the output @w@.
     tell :: w -> m ()
 
-    -- | @'listen' m@ is an action that executes the action @m@ and adds its
-    -- output to the value of the computation.
+    -- | @'listen' m@ is an G(computation,action) that executes the
+    -- G(computation,action) @m@ and adds its output to the value of the
+    -- G(compuation,computation).
     listen :: m a -> m (a, w)
 
-    -- | @'pass' m@ is an action that executes the action @m@, which returns a
-    -- value and a function, and returns the value, applying the function to
-    -- the output.
+    -- | @'pass' m@ is an G(computation,action) that executes the
+    -- G(computation,action) @m@, which returns a value and a function, and
+    -- returns the value, applying the function to the output.
     pass :: m (a, w -> w) -> m a
 
     writer ~(a, w) = tell w >> return a
@@ -169,21 +189,22 @@ instance (MonadTop t m, MonadWriter w m) => MonadWriter w (t m) where
 
 
 ------------------------------------------------------------------------------
--- | @'listens' f m@ is an action that executes the action @m@ and adds the
--- result of applying @f@ to the output to the value of the computation.
+-- | @'listens' f m@ is an G(computation,action) that executes the
+-- G(computation,action) @m@ and adds the result of applying @f@ to the output
+-- to the value of the G(computation,computation).
 --
--- > listens f m = liftM (\(~(a, w)) -> (a, f w)) (listen m)
+-- @'listens' f m = 'liftM' (\\(~(a, w)) -> (a, f w)) ('listen' m)@
 listens :: MonadWriter w m => (w -> b) -> m a -> m (a, b)
 listens f = liftM (\(~(a, w)) -> (a, f w)) . listen
 {-# INLINABLE listens #-}
 
 
 ------------------------------------------------------------------------------
--- | @'censor' f m@ is an action that executes the action @m@ and
--- applies the function @f@ to its output, leaving the return value
--- unchanged.
+-- | @'censor' f m@ is an G(computation,action) that executes the
+-- G(computation,action) @m@ and applies the function @f@ to its output,
+-- leaving the return value unchanged.
 --
--- > censor f m = pass (liftM (\a -> (a,f)) m)
+-- @'censor' f m = 'pass' ('liftM' (\\a -> (a,f)) m)@
 censor :: MonadWriter w m => (w -> w) -> m a -> m a
 censor f = pass . liftM (\a -> (a, f))
 {-# INLINABLE censor #-}

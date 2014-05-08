@@ -28,33 +28,33 @@
 This module houses the core machinery of the H(layers) package. It exports
 everything you need to implement monad transformers compatible with
 H(layers)' modular
-G(monadinterface, monad interfaces), and everything that you need to lift
-G(computation, computations), G(controloperation, operations) and
-G(morphism, morphisms) through arbitrarily complicated
-G(monadtransformerstack, stacks of monad transformers).
+G(monadinterface,monad interfaces), and everything that you need to lift
+G(computation,computations), G(controloperation,operations) and
+G(morphism,morphisms) through arbitrarily complicated
+G(monadtransformerstack,stacks) of G(monadtransformer,monad transformers).
 
 The H(layers) machinery is built upon two twin families of interfaces. The
 'MonadTrans' family of interfaces provides operations for lifting
-G(computation, computations), G(controloperation, operations) and
-G(morphism, morphisms) up exactly one level in the
-G(monadtransformerstack, transformer stack). That is, it lifts
-G(computation, computations) from the monad @m@ to the monad @t m@, where @t@
-is a G(monadtransformer, monad transformer). The 'MonadInner' family of
+G(computation,computations), G(controloperation,operations) and
+G(morphism,morphisms) up exactly one level in the
+G(monadtransformerstack,transformer stack). That is, it lifts
+G(computation,computations) from the monad @m@ to the monad @t m@, where @t@
+is a G(monadtransformer,monad transformer). The 'MonadInner' family of
 interfaces provides operations for lifting
-G(computation, computations), G(controloperation, operations) and
-G(morphism, morphisms) from any level of the
-G(monadtransformerstack, transformer stack)
-to the top of the G(monadtransformerstack, transformer stack). That is, it
-lifts G(computation, computations) from from the monad @i@ to the monad @m@,
-where @i@ an G(innermonad, inner monad) of @m@. Each of the 'MonadInner'
+G(computation,computations), G(controloperation,operations) and
+G(morphism,morphisms) from any level of the
+G(monadtransformerstack,transformer stack)
+to the top of the G(monadtransformerstack,transformer stack). That is, it
+lifts G(computation,computations) from from the monad @i@ to the monad @m@,
+where @i@ an G(innermonad,inner monad) of @m@. Each of the 'MonadInner'
 interfaces is defined recursively in terms of its 'MonadTrans' counterpart.
 
 The 'MonadTrans' family of interfaces is mainly used by libraries that
-implement G(monadtransformer, monad transformers) and
+implement G(monadtransformer,monad transformers) and
 G(monadinterfaces, monad interfaces), while the 'MonadInner'
 family is used by applications make use of
-(G(monadtransformerstack, stacks of)) these
-G(monadtransformerstack, transformers).
+(G(monadtransformerstack,stacks of)) these
+G(monadtransformerstack,transformers).
 
 -}
 
@@ -175,13 +175,10 @@ import           Control.Monad.Trans.Compose
 
 The 'MonadTrans' family of interfaces consists of:
 
-    * 'MonadTrans', re-exported from the H(transformers) package.
-
-    * 'MonadTransControl', defined by H(layers).
-
-    * 'MInvariant', defined by H(layers).
-
-    * 'MFunctor', re-exported from the H(mmorph) package.
+  * 'MonadTrans', re-exported from the H(transformers) package.
+  * 'MonadTransControl', defined by H(layers).
+  * 'MInvariant', defined by H(layers).
+  * 'MFunctor', re-exported from the H(mmorph) package.
 
 Ideally, all of these classes would be re-exports from more popular packages,
 because then it would be possible to write monad transformers compatible with
@@ -198,7 +195,7 @@ has a few important differences that stop it from being able to use
 H(monad-control)'s
 @<http://hackage.haskell.org/package/monad-control/docs/Control-Monad-Trans-Control.html#t:MonadTransControl MonadTransControl>@
 without losing some of its features (notably the 'Monad.Try.MonadTry'
-G(monadinterface, interface)). However, It is conceivable that these changes
+G(monadinterface,interface)). However, It is conceivable that these changes
 could be merged into H(monad-control) some day, in which case I would be happy
 to make H(layers) depend on H(monad-control) and make
 'MonadTransControl' a re-export.
@@ -209,13 +206,10 @@ to make H(layers) depend on H(monad-control) and make
 
 The 'MonadInner' family of interfaces consists of:
 
-    * 'MonadInner'
-
-    * 'MonadInnerControl'
-
-    * 'MonadInnerInvariant'
-
-    * 'MonadInnerFunctor'
+  * 'MonadInner'
+  * 'MonadInnerControl'
+  * 'MonadInnerInvariant'
+  * 'MonadInnerFunctor'
 
 Each operation in the 'MonadInner' family of interfaces is an analogue of an
 operation from the 'MonadTrans' family of interfaces. The naming of these
@@ -225,10 +219,10 @@ operations reflect this relationship.
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadTransControl' t@ holds if @t@ is a
--- G(monadtransformer, monad transformer) through which
--- G(controloperation, control operations) can be lifted. There are a
+-- G(monadtransformer,monad transformer) through which
+-- G(controloperation,control operations) can be lifted. There are a
 -- variety of operations for doing so, depending on the exact type of the
--- G(controloperation, control operation) in question, including
+-- G(controloperation,control operation) in question, including
 -- 'liftControl', 'control', 'liftOp', 'liftOp_' and 'liftDiscard'. These are
 -- all built on top of the more primitive 'capture', 'suspend' and 'resume'
 -- operations.
@@ -243,18 +237,14 @@ operations reflect this relationship.
 -- Naively, we might try to type class an operation like this and call it
 -- @peel@ (because it \"peels\" off the @t@ layer of a @t m a@ computation):
 --
--- @
--- peel :: 'Monad' m => t m a -> m a
--- @
+-- @peel :: 'Monad' m => t m a -> m a@
 --
 -- Unfortunately, the only monad transformers that could provide such an
 -- operation are trivial (i.e., isomorphic to 'IdentityT'). To see why other
 -- monad transformers cannot provide such an operation, let's consider the
 -- more complicated 'RWST' monad transformer. It is defined like this:
 --
--- @
--- newtype 'RWST' r w s m a = 'RWST' { 'Control.Monad.Trans.RWS.Strict.runRWST' :: r -> s -> m (a, s, w) }
--- @
+-- @newtype 'RWST' r w s m a = 'RWST' { 'Control.Monad.Trans.RWS.Strict.runRWST' :: r -> s -> m (a, s, w) }@
 --
 -- It's not possible to make an operation @'RWST' r w s m a -> m a@, because
 -- 'RWST'​'s inner function needs an @r@ and an @s@ value before it can return
@@ -265,17 +255,13 @@ operations reflect this relationship.
 -- associated type synonym to the 'MonadTransControl' class called
 -- 'LayerState'.
 -- 
--- @
--- type 'LayerState' 'IdentityT' m = ()
--- type 'LayerState' ('RWST' r w s) m = (r, s)
--- @
+-- @type 'LayerState' 'IdentityT' m = ()
+--type 'LayerState' ('RWST' r w s) m = (r, s)@
 --
 -- Now we can have an operation with a single type that fits both 'RWST' and
 -- 'IdentityT':
 --
--- @
--- peel :: 'Monad' m => t m a -> 'LayerState' t m -> m a
--- @
+-- @peel :: 'Monad' m => t m a -> 'LayerState' t m -> m a@
 --
 -- This is better, but it's still far from perfect. First of all, we don't
 -- really want to peel away the @t@ layer completely, because then we lose all
@@ -286,34 +272,26 @@ operations reflect this relationship.
 -- transformers for which we couldn't do this even if we wanted to. Consider
 -- 'MaybeT', defined as follows:
 --
--- @
--- newtype 'MaybeT' m a = { 'Control.Monad.Trans.Maybe.runMaybeT' :: m ('Maybe' a) }
--- @
+-- @newtype 'MaybeT' m a = { 'Control.Monad.Trans.Maybe.runMaybeT' :: m ('Maybe' a) }@
 -- 
 -- If the value inside the @m@ computation wrapped by 'MaybeT' is a 'Nothing',
 -- we can't get an @a@ out of it. The closest to the proposed type for 'peel'
 -- above that we could get for 'MaybeT' would be:
 --
--- @
--- peel :: 'MaybeT' m a -> 'LayerState' 'MaybeT' m -> m ('Maybe' a)
--- @
+-- @peel :: 'MaybeT' m a -> 'LayerState' 'MaybeT' m -> m ('Maybe' a)@
 --
 -- Similarly, for @'ErrorT' e@, the closest we could get would be:
 --
--- @
--- peel :: 'ErrorT' e m a -> 'LayerState' ('ErrorT' e) m -> m ('Either' e a)
--- @
+-- @peel :: 'ErrorT' e m a -> 'LayerState' ('ErrorT' e) m -> m ('Either' e a)@
 --
 -- Again, we can use an associated type synonym to make all of these
 -- operations fit a single pattern. We call this one 'LayerResult'. Here are
 -- some of its instances:
 --
--- @
--- type 'LayerResult' 'IdentityT' = 'Identity'
--- type 'LayerResult' 'MaybeT' = 'Maybe'
--- type 'LayerResult' ('ErrorT' e) = 'Either' e
--- type 'LayerResult' ('RWST' r w s) = (,) w
--- @
+-- @type 'LayerResult' 'IdentityT' = 'Identity'
+--type 'LayerResult' 'MaybeT' = 'Maybe'
+--type 'LayerResult' ('ErrorT' e) = 'Either' e
+--type 'LayerResult' ('RWST' r w s) = (,) w@
 --
 -- How exactly is it decided what @'LayerResult' t@ should be for a particular
 -- monad transformer? There are several things to consider. Let's say we have
@@ -333,9 +311,7 @@ operations reflect this relationship.
 -- which takes a monad transformer @(* -> *) -> * -> *@ and a value @*@ and
 -- returns a value @*@! So, we might be tempted to say:
 --
--- @
--- type 'LayerResult' 'IdentityT' a = a
--- @
+-- @type 'LayerResult' 'IdentityT' a = a@
 --
 -- But we can't, because @'LayerResult' t@ must be a type constructor
 -- @* -> *@, not a type @*@. The reason we do this is because we want the
@@ -361,13 +337,9 @@ operations reflect this relationship.
 -- This actually captures everything we need to implement the 'suspend'
 -- operation we described above:
 --
--- @
--- 'suspend' :: 'Monad' m => t m a -> 'LayerState' t m -> m ('LayerEffects' t m a)
--- @
+-- @'suspend' :: 'Monad' m => t m a -> 'LayerState' t m -> m ('LayerEffects' t m a)@
 --
--- @
--- type 'LayerEffects' t m a = ('LayerResult' t a, 'LayerState' t m)
--- @
+-- @type 'LayerEffects' t m a = ('LayerResult' t a, 'LayerState' t m)@
 --
 -- (The purpose of the 'LayerEffects' type synonym is twofold: it makes the
 -- type signatures of 'suspend' and other operations a little bit less scary,
@@ -377,10 +349,8 @@ operations reflect this relationship.
 -- There are two important operations in the 'MonadTransControl' that we have
 -- only alluded to so far: 'capture' and 'resume'.
 --
--- @
--- 'capture' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t m)
--- 'resume' :: ('MonadTransControl' t, 'Monad' m) => 'LayerEffects' t m a -> t m a
--- @
+-- @'capture' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t m)
+--'resume' :: ('MonadTransControl' t, 'Monad' m) => 'LayerEffects' t m a -> t m a@
 --
 -- 'capture' captures the current @'LayerState' t m@ for the monad @t m@. This
 -- is where the 'LayerState' that 'suspend' takes as its argument comes from.
@@ -392,62 +362,58 @@ operations reflect this relationship.
 -- Taken together, we can use these operations to define @f'@, a lifted
 -- version of the @f@ operation described above.
 --
--- @
--- f' :: ('MonadTransControl' t, 'Monad' (t m), 'Monad' m) => t m a -> t m b
--- f' t = 'capture' '>>=' 'lift' '.' f '.' 'suspend' t '>>=' 'resume'
--- @
+-- @f' :: ('MonadTransControl' t, 'Monad' (t m), 'Monad' m) => t m a -> t m b
+--f' t = 'capture' '>>=' 'lift' '.' f '.' 'suspend' t '>>=' 'resume'@
 --
 -- The full instance for 'RWST' is given below:
 --
--- @
--- instance 'Monoid' w => 'MonadTransControl' ('RWST' r w s) where
---     type 'LayerResult' ('RWST' r w s) = (,) w
---     type 'LayerState' ('RWST' r w s) m = (r, s)
---     'suspend' ('RWST' m) (r, s) = 'liftM' (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
---     'resume' ((w, a), (_, s)) = 'RWST' '$' \_ _ -> 'return' (a, s, w)
---     'capture' = 'RWST' '$' \r s -> 'return' ((r, s), s, 'mempty')
---     'extract' _ (_, a) = 'Just' a
--- @
+-- @instance 'Monoid' w => 'MonadTransControl' ('RWST' r w s) where
+--    type 'LayerResult' ('RWST' r w s) = (,) w
+--    type 'LayerState' ('RWST' r w s) m = (r, s)
+--    'suspend' ('RWST' m) (r, s) = 'liftM' (\\(a, s', w) -> ((w, a), (r, s'))) (m r s)
+--    'resume' ((w, a), (_, s)) = 'RWST' '$' \\_ _ -> 'return' (a, s, w)
+--    'capture' = 'RWST' '$' \\r s -> 'return' ((r, s), s, 'mempty')
+--    'extract' _ (_, a) = 'Just' a@
 class MonadTrans t => MonadTransControl t where
-    -- | Given a G(computation, computation) @m@ of type @t m a@ and the
-    -- current G(layerstate, layer state) of the @t@ G(monadlayer, layer),
-    -- 'suspend' suspends the G(sideeffect, side-effects) of @m@ which come
-    -- from this G(monadlayer, layer) by returning a new
-    -- G(computation, computation) in the monad @m@ that returns the
-    -- G(layereffect, reification) of these G(sideeffects, side-effects) in
+    -- | Given a G(computation,computation) @m@ of type @t m a@ and the
+    -- current G(layerstate,layer state) of the @t@ G(monadlayer,layer),
+    -- 'suspend' suspends the G(sideeffect,side-effects) of @m@ which come
+    -- from this G(monadlayer,layer) by returning a new
+    -- G(computation,computation) in the monad @m@ that returns the
+    -- G(layereffect,reification) of these G(sideeffects,side-effects) in
     -- a @'LayerEffects' t m a@ value. This gives a version of @m@ which
-    -- can be passed to G(controloperation, control operations) in the monad
+    -- can be passed to G(controloperation,control operations) in the monad
     -- @m@.
     --
-    -- The suspended G(sideeffect, side-effects) of the @t@
-    -- G(monadlayer, layer) can later be recovered by 'resume'. This is
+    -- The suspended G(sideeffect,side-effects) of the @t@
+    -- G(monadlayer,layer) can later be recovered by 'resume'. This is
     -- expressed in the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
     suspend :: Monad m => t m a -> LayerState t m -> m (LayerEffects t m a)
 
-    -- | Reconstructs a G(computation, computation) @t m a@ with the same
-    -- G(sideeffect, side-effects) in the @t@ G(monadlayer, layer) as those
-    -- G(layereffect, reified) by the given @'LayerEffects' t m a@ value.
+    -- | Reconstructs a G(computation,computation) @t m a@ with the same
+    -- G(sideeffect,side-effects) in the @t@ G(monadlayer,layer) as those
+    -- G(layereffect,reified) by the given @'LayerEffects' t m a@ value.
     --
     -- Instances should satisfy the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
     resume :: Monad m => LayerEffects t m a -> t m a
 
-    -- | Captures the current G(layerstate, layer state) of the @t@
-    -- G(monadlayer, layer) of the monad @t m@.
+    -- | Captures the current G(layerstate,layer state) of the @t@
+    -- G(monadlayer,layer) of the monad @t m@.
     --
     -- Instances should satisfy the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
     capture :: Monad m => t m (LayerState t m)
 
-    -- | 'extract' inspects a G(layerresult, layer result), given by
-    -- suspending the G(sideeffect, side-effects) in the @t@
-    -- G(monadlayer, layer) of a G(computation, computation) of type @t m a@,
+    -- | 'extract' inspects a G(layerresult,layer result), given by
+    -- suspending the G(sideeffect,side-effects) in the @t@
+    -- G(monadlayer,layer) of a G(computation,computation) of type @t m a@,
     -- and tries to \"extract\" an @a@ value from it. If it can't, this
-    -- implies that @t@ G(shortcircuit, short-circuited).
+    -- implies that @t@ G(shortcircuit,short-circuited).
     --
     -- Instances should satisfy the following laws:
     --
@@ -461,27 +427,25 @@ class MonadTrans t => MonadTransControl t where
     -- The @extractResult@ operation in terms of which these laws are defined
     -- is given by:
     --
-    -- @
-    -- extractResult :: forall t m a. ('MonadTransControl' t, 'Monad' (t m), 'Monad' m)
-    --     => t m a
-    --     -> t m ('Maybe' a)
-    -- extractResult t = do
-    --     state <- 'capture'
-    --     'lift' '$' do
-    --         (result, _) <- 'suspend' t state
-    --         'return' '$' 'extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t) result
-    -- @
+    -- @extractResult :: forall t m a. ('MonadTransControl' t, 'Monad' (t m), 'Monad' m)
+    --    => t m a
+    --    -> t m ('Maybe' a)
+    --extractResult t = do
+    --    state <- 'capture'
+    --    'lift' '$' do
+    --        (result, _) <- 'suspend' t state
+    --        'return' '$' 'extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t) result@
     extract :: proxy t -> LayerResult t a -> Maybe a
 
 
 ------------------------------------------------------------------------------
--- | The G(layereffect, layer effects) of the @t@ G(monadlayer, layer) of the
+-- | The G(layereffect,layer effects) of the @t@ G(monadlayer,layer) of the
 -- monad @t m@.
 type LayerEffects t m a = (LayerResult t a, LayerState t m)
 
 
 ------------------------------------------------------------------------------
--- | The G(layerresult, layer result) of @t@.
+-- | The G(layerresult,layer result) of @t@.
 --
 -- Note: On versions of GHC prior to 7.4, 'LayerResult' is a /data/ family
 -- instead of a type family due to GHC bug B(5595). If you're defining an
@@ -497,7 +461,7 @@ data family LayerResult (t :: (* -> *) -> * -> *) :: * -> *
 
 
 ------------------------------------------------------------------------------
--- | The G(layerstate, layer state) of @t@.
+-- | The G(layerstate,layer state) of @t@.
 --
 -- Note: On versions of GHC prior to 7.4, 'LayerState' is a /data/ family
 -- instead of a type family due to GHC bug B(5595). If you're defining an
@@ -775,10 +739,10 @@ newtype instance LayerState (L.WriterT w) m = WS' ()
 -- provided for convenience (and compability with H(monad-control)).
 --
 -- It takes a continuation, to which it passes an operation which can be used
--- to \"lower\" a G(computation, computation) in the monad @t m@ to a
--- G(computation, computation) in the monad @m@, which returns the
--- G(layereffect, reified) G(sideeffect, side-effects) of the @t@
--- G(monadlayer, layer) of the original computation.
+-- to \"lower\" a G(computation,computation) in the monad @t m@ to a
+-- G(computation,computation) in the monad @m@, which returns the
+-- G(layereffect,reified) G(sideeffect,side-effects) of the @t@
+-- G(monadlayer,layer) of the original computation.
 liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m a)
     -> t m a
@@ -788,12 +752,10 @@ liftControl f = capture >>= \s -> lift $ f (flip suspend s)
 
 ------------------------------------------------------------------------------
 -- | A version of 'liftControl' that automatically resumes the
--- G(layereffect, suspended side-effects) returned from the continuation.
+-- G(layereffect,suspended side-effects) returned from the continuation.
 --
--- @
--- catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
--- catch' m h = 'control' (\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))
--- @
+-- @catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
+--catch' m h = 'control' (\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
 control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m (LayerEffects t m a))
     -> t m a
@@ -803,13 +765,11 @@ control f = liftControl f >>= resume
 
 ------------------------------------------------------------------------------
 -- | A particular application of 'liftControl' that lifts
--- G(controloperation, control operations) from @(a -> m b) -> m c@ to
+-- G(controloperation,control operations) from @(a -> m b) -> m c@ to
 -- @(a -> t m b) -> t m c@.
 --
--- @
--- withMVar' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => 'Control.Concurrent.MVar.MVar' a -> (a -> t 'IO' b) -> t 'IO' b
--- withMVar' = 'liftOp' '.' 'Control.Concurrent.MVar.withMVar'
--- @
+-- @withMVar' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => 'Control.Concurrent.MVar.MVar' a -> (a -> t 'IO' b) -> t 'IO' b
+--withMVar' = 'liftOp' '.' 'Control.Concurrent.MVar.withMVar'@
 liftOp :: (MonadTransControl t, Monad (t m), Monad m)
     => ((a -> m (LayerEffects t m b)) -> m (LayerEffects t m c))
     -> (a -> t m b)
@@ -820,13 +780,11 @@ liftOp f = \g -> control (\peel -> f $ peel . g)
 
 ------------------------------------------------------------------------------
 -- | A particular application of 'liftControl' that lifts
--- G(controloperation, control operations) from @m a -> m b@ to
+-- G(controloperation,control operations) from @m a -> m b@ to
 -- @t m a -> t m b@.
 --
--- @
--- mask_' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => t 'IO' a -> t 'IO' a
--- mask_' = 'liftOp_' 'Control.Exception.mask_'
--- @
+-- @mask_' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => t 'IO' a -> t 'IO' a
+--mask_' = 'liftOp_' 'Control.Exception.mask_'@
 liftOp_ :: (MonadTransControl t, Monad (t m), Monad m)
     => (m (LayerEffects t m a) -> m (LayerEffects t m b))
     -> t m a
@@ -837,19 +795,17 @@ liftOp_ f = \m -> control (\peel -> f $ peel m)
 
 ------------------------------------------------------------------------------
 -- | A particular application of 'liftControl' that lifts
--- G(controloperation, control operations) from @m () -> m a@ to
+-- G(controloperation,control operations) from @m () -> m a@ to
 -- @t m () -> t m a@.
 --
--- @
--- forkIO' :: ('MonadTransControl' t, Monad (t 'IO')) => t m () -> t m 'Control.Concurrent.ThreadId'
--- forkIO' = 'liftDiscard' 'Control.Concurrent.forkIO'
--- @
+-- @forkIO' :: ('MonadTransControl' t, Monad (t 'IO')) => t m () -> t m 'Control.Concurrent.ThreadId'
+--forkIO' = 'liftDiscard' 'Control.Concurrent.forkIO'@
 --
--- Note: While the G(computation, computation) @t m ()@ passed to the
--- resulting operation can access to the G(layerstate, layer state) of and
--- produce G(sideeffect, side-effects) in the @t@ G(monadlayer, layer), it is
--- run only for its G(sideeffect, side-effects) in @m@. The
--- G(sideeffect, side-effects) in the @t@ G(monadlayer, layer) are discarded.
+-- Note: While the G(computation,computation) @t m ()@ passed to the
+-- resulting operation can access to the G(layerstate,layer state) of and
+-- produce G(sideeffect,side-effects) in the @t@ G(monadlayer,layer), it is
+-- run only for its G(sideeffect,side-effects) in @m@. The
+-- G(sideeffect,side-effects) in the @t@ G(monadlayer,layer) are discarded.
 liftDiscard :: (MonadTransControl t, Monad (t m), Monad m)
     => (m () -> m a)
     -> t m ()
@@ -859,12 +815,12 @@ liftDiscard f m = liftControl $ \peel -> f $ liftM (const ()) $ peel m
 
 
 ------------------------------------------------------------------------------
--- | An G(morphism, invariant functor in the category of monads), using
+-- | An G(morphism,invariant functor in the category of monads), using
 -- 'hoistiso' as the analog of
 -- @<http://hackage.haskell.org/package/invariant/docs/Data-Functor-Invariant.html#t:Invariant invmap>@:
 class MInvariant t where
-    -- | Lift a G(morphism, monad isomorphism) between @m@ and @n@ into a
-    -- G(morphism, monad morphism) from @t m@ to @t n@.
+    -- | Lift a G(morphism,monad isomorphism) between @m@ and @n@ into a
+    -- G(morphism,monad morphism) from @t m@ to @t n@.
     --
     -- The following laws hold for valid instances of 'MInvariant':
     --
@@ -874,8 +830,8 @@ class MInvariant t where
     --         @'hoistiso' f g '.' 'hoistiso' f' g' ≡
     --             'hoistiso' (f '.' f') (g' '.' g)@
     --
-    -- Note: The G(morphism, homomorphism) produced by @'hoistiso' f g@ is
-    -- only valid if @f@ and @g@ form a valid G(morphism, isomorphism), i.e.,
+    -- Note: The G(morphism,homomorphism) produced by @'hoistiso' f g@ is
+    -- only valid if @f@ and @g@ form a valid G(morphism,isomorphism), i.e.,
     -- @f '.' g ≡ 'id'@ and @g '.' f ≡ 'id'@.
     hoistiso :: Monad m
         => (forall b. m b -> n b)
@@ -963,10 +919,10 @@ instance MInvariant (L.WriterT w) where
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadInner' i m@ holds when @i@ is an
--- G(innermonad, inner monad) of @m@ such that it is possible to lift
--- G(computation, computations) from @i@ into @m@ using 'liftI'.
+-- G(innermonad,inner monad) of @m@ such that it is possible to lift
+-- G(computation,computations) from @i@ into @m@ using 'liftI'.
 class (Monad i, Monad m) => MonadInner i m where
-    -- | 'liftI' takes a computation from an G(innermonad, inner monad) @i@ of
+    -- | 'liftI' takes a computation from an G(innermonad,inner monad) @i@ of
     -- @m@ and lifts it into @m@.
     --
     -- The following laws hold for valid instances of 'MonadInner':
@@ -1031,34 +987,34 @@ instance (Monad (f (g m)), DefaultMonadInner m (ComposeT f g m)) =>
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadInnerControl' i m@ holds when @i@ is an
--- G(innermonad, inner monad) of @m@ such that it is possible to lift
--- G(controloperation, control operations) from @i@ to @m@. There are a
+-- G(innermonad,inner monad) of @m@ such that it is possible to lift
+-- G(controloperation,control operations) from @i@ to @m@. There are a
 -- variety of operations for doing so, depending on the exact type of the
--- G(controloperation, control operation) in question, including
+-- G(controloperation,control operation) in question, including
 -- 'liftControlI', 'controlI', 'liftOpI', 'liftOpI_' and 'liftDiscardI'. These
 -- are all built on top of the more primitive 'captureI', 'suspendI' and
 -- 'resumeI' operations.
 class MonadInner i m => MonadInnerControl i m where
-    -- | Given a G(computation, computation) @m@ of type @m a@ and the current
-    -- G(layerstate, layer state) of the G(outerlayer, outer layers) around
+    -- | Given a G(computation,computation) @m@ of type @m a@ and the current
+    -- G(layerstate,layer state) of the G(outerlayer,outer layers) around
     -- @i@ of @m@, 'suspendI' suspends the
-    -- G(sideeffect, side-effects) of @m@ which come from these
-    -- G(monadlayer, layers) by returning a new G(computation, computation) in
-    -- the monad @i@ that returns the G(layereffect, reification) of these
-    -- G(sideeffects, side-effects) in an @'OuterEffects' i m a@ value. This
+    -- G(sideeffect,side-effects) of @m@ which come from these
+    -- G(monadlayer,layers) by returning a new G(computation,computation) in
+    -- the monad @i@ that returns the G(layereffect,reification) of these
+    -- G(sideeffects,side-effects) in an @'OuterEffects' i m a@ value. This
     -- gives a version of @m@ which can be passed to
-    -- G(controloperation, control operations) in the monad @i@.
+    -- G(controloperation,control operations) in the monad @i@.
     --
-    -- The suspended G(sideeffect, side-effects) of the
-    -- G(outerlayer, outer layers) around @i@ of @m@ can later be recovered
+    -- The suspended G(sideeffect,side-effects) of the
+    -- G(outerlayer,outer layers) around @i@ of @m@ can later be recovered
     -- by 'resumeI'. This is expressed in the following law:
     --
     -- [Preservation] @'captureI' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) '>>=' 'liftI' '.' 'suspendI' t '>>=' 'resumeI' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ≡ t@
     suspendI :: m a -> OuterState i m -> i (OuterEffects i m a)
 
-    -- | Reconstructs a G(computation, computation) @m a@ with the same
-    -- G(sideeffect, side-effects) in the G(outerlayer, outer layers) around
-    -- @i@ of @m@ as those G(layereffect, reified) by the given
+    -- | Reconstructs a G(computation,computation) @m a@ with the same
+    -- G(sideeffect,side-effects) in the G(outerlayer,outer layers) around
+    -- @i@ of @m@ as those G(layereffect,reified) by the given
     -- @'OuterEffects' i m a@ value.
     --
     -- Instances should satisfy the following law:
@@ -1066,20 +1022,20 @@ class MonadInner i m => MonadInnerControl i m where
     -- [Preservation] @'captureI' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) '>>=' 'liftI' '.' 'suspendI' t '>>=' 'resumeI' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ≡ t@
     resumeI :: proxy i -> OuterEffects i m a -> m a
 
-    -- | Captures the current G(layerstate, layer state) of the
-    -- G(monadlayer, outer layers) around @i@ of the monad @m@.
+    -- | Captures the current G(layerstate,layer state) of the
+    -- G(monadlayer,outer layers) around @i@ of the monad @m@.
     --
     -- Instances should satisfy the following law:
     --
     -- [Preservation] @'captureI' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) '>>=' 'liftI' '.' 'suspendI' t '>>=' 'resumeI' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ≡ t@
     captureI :: proxy i -> m (OuterState i m)
 
-    -- | 'extractI' inspects a G(layerresult, layer result), given by
-    -- suspending the G(sideeffect, side-effects) in the
-    -- G(outerlayer, outer layers) around @i@ of a
-    -- G(computation, computation) of type @m a@, and tries to
+    -- | 'extractI' inspects a G(layerresult,layer result), given by
+    -- suspending the G(sideeffect,side-effects) in the
+    -- G(outerlayer,outer layers) around @i@ of a
+    -- G(computation,computation) of type @m a@, and tries to
     -- \"extract\" an @a@ value from it. If it can't, this implies that
-    -- one the G(outerlayer, outer layers) G(shortcircuit, short-circuited).
+    -- one the G(outerlayer,outer layers) G(shortcircuit,short-circuited).
     --
     -- Instances should satisfy the following laws:
     --
@@ -1094,17 +1050,15 @@ class MonadInner i m => MonadInnerControl i m where
     -- The @extractResultI@ operation in terms of which these laws are defined
     -- is given by:
     --
-    -- @
-    -- extractResultI :: forall proxy i m a. 'MonadInnerControl' i m
-    --     => proxy i
-    --     -> m a
-    --     -> m ('Maybe' a)
-    -- extractResultI i m = do
-    --     state <- 'captureI' i
-    --     'liftI' '$' do
-    --         (result, _) <- 'suspendI' m state
-    --         'return' '$' 'extractI' i ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' m) result
-    -- @
+    -- @extractResultI :: forall proxy i m a. 'MonadInnerControl' i m
+    --    => proxy i
+    --    -> m a
+    --    -> m ('Maybe' a)
+    --extractResultI i m = do
+    --    state <- 'captureI' i
+    --    'liftI' '$' do
+    --        (result, _) <- 'suspendI' m state
+    --        'return' '$' 'extractI' i ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' m) result@
     extractI :: proxy i -> proxy' m -> OuterResult i m a -> Maybe a
 
 #ifdef LANGUAGE_DefaultSignatures
@@ -1138,8 +1092,8 @@ class MonadInner i m => MonadInnerControl i m where
 
 
 ------------------------------------------------------------------------------
--- | The combined G(layereffect, layer effects) of all the
--- G(outerlayer, outer layers) around @i@ of the monad @m@.
+-- | The combined G(layereffect,layer effects) of all the
+-- G(outerlayer,outer layers) around @i@ of the monad @m@.
 type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 
 
@@ -1176,8 +1130,8 @@ type OuterResult i m = OuterResult_ i m
 
 
 ------------------------------------------------------------------------------
--- | The combined G(layerstate, layer states) of all the
--- G(outerlayer, outer layers) around @i@ of the monad @m@.
+-- | The combined G(layerstate,layer states) of all the
+-- G(outerlayer,outer layers) around @i@ of the monad @m@.
 --
 -- Note: On GHC 7.8 and up, this is implemented as a
 -- <http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type family>.
@@ -1369,10 +1323,10 @@ data Pt (t :: (* -> *) -> * -> *) = Pt
 -- provided for convenience (and compability with H(monad-control)).
 --
 -- It takes a continuation, to which it passes an operation which can be
--- used to \"lower\" a G(computation, computation) in the monad @m@ to a
--- G(computation, computation) in the monad @i@, which returns the
--- G(layereffect, reified) G(sideeffect, side-effects) of the
--- G(outerlayer, outer layers) around @i@ of @m@ of the original computation.
+-- used to \"lower\" a G(computation,computation) in the monad @m@ to a
+-- G(computation,computation) in the monad @i@, which returns the
+-- G(layereffect,reified) G(sideeffect,side-effects) of the
+-- G(outerlayer,outer layers) around @i@ of @m@ of the original computation.
 liftControlI :: forall i m a. MonadInnerControl i m
     => ((forall b. m b -> i (OuterEffects i m b)) -> i a)
     -> m a
@@ -1383,12 +1337,10 @@ liftControlI f = captureI (Pm :: Pm i) >>= \s -> liftI $
 
 ------------------------------------------------------------------------------
 -- | A version of 'liftControlI' that automatically resumes the
--- G(layereffect, suspended side-effects) returned from the continuation.
+-- G(layereffect,suspended side-effects) returned from the continuation.
 --
--- @
--- catch' :: ('Control.Exception.Exception' e, 'MonadInnerControl' 'IO' m) => m b -> (e -> m b) -> m b
--- catch' m h = 'controlI' (\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))
--- @
+-- @catch' :: ('Control.Exception.Exception' e, 'MonadInnerControl' 'IO' m) => m b -> (e -> m b) -> m b
+--catch' m h = 'controlI' (\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
 controlI :: forall i m a. MonadInnerControl i m
     => ((forall b. m b -> i (OuterEffects i m b)) -> i (OuterEffects i m a))
     -> m a
@@ -1400,10 +1352,8 @@ controlI f = liftControlI f >>= resumeI (Pm :: Pm i)
 -- G(controloperation, control operations) from @(a -> i b) -> i b@ to
 -- @(a -> m b) -> m b@.
 --
--- @
--- withMVar' :: 'MonadInnerControl' 'IO' m => 'Control.Concurrent.MVar.MVar' a -> (a -> m b) -> m b
--- withMVar' = 'liftOpI' '.' 'Control.Concurrent.MVar.withMVar'
--- @
+-- @withMVar' :: 'MonadInnerControl' 'IO' m => 'Control.Concurrent.MVar.MVar' a -> (a -> m b) -> m b
+--withMVar' = 'liftOpI' '.' 'Control.Concurrent.MVar.withMVar'@
 liftOpI :: MonadInnerControl i m
      => ((a -> i (OuterEffects i m b)) -> i (OuterEffects i m c))
      -> (a -> m b)
@@ -1414,12 +1364,10 @@ liftOpI f = \g -> controlI $ \peel -> f $ peel . g
 
 ------------------------------------------------------------------------------
 -- | A particular application of 'liftControlI' that lifts
--- G(controloperation, control operations) from @i a -> i b@ to @m a -> m b@.
+-- G(controloperation,control operations) from @i a -> i b@ to @m a -> m b@.
 --
--- @
--- mask_' :: 'MonadInnerControl' 'IO' m => m a -> m a
--- mask_' = 'liftOpI_' 'Control.Exception.mask_'
--- @
+-- @mask_' :: 'MonadInnerControl' 'IO' m => m a -> m a
+--mask_' = 'liftOpI_' 'Control.Exception.mask_'@
 liftOpI_ :: MonadInnerControl i m
     => (i (OuterEffects i m a) -> i (OuterEffects i m b))
      -> m a
@@ -1430,13 +1378,11 @@ liftOpI_ f = \m -> controlI $ \peel -> f $ peel m
 
 ------------------------------------------------------------------------------
 -- | A particular application of 'liftControlI' that lifts
--- G(controloperation, control operations) from @i () -> i a@ to
+-- G(controloperation,control operations) from @i () -> i a@ to
 -- @m () -> m a@.
 --
--- @
--- forkIO' :: 'MonadInnerControl' 'IO' m => m () -> m 'Control.Concurrent.ThreadId'
--- forkIO' = 'liftDiscardI' 'Control.Concurrent.forkIO'
--- @
+-- @forkIO' :: 'MonadInnerControl' 'IO' m => m () -> m 'Control.Concurrent.ThreadId'
+--forkIO' = 'liftDiscardI' 'Control.Concurrent.forkIO'@
 -- 
 -- Note: While the computation @m ()@ passed to the resulting operation has
 -- access to the @'OuterEffects' i@ of @m@, it is run only for its side-effects
@@ -1448,11 +1394,11 @@ liftDiscardI f = \m -> liftControlI $ \peel -> f $ liftM (const ()) $ peel m
 
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadInnerInvariant' i m@ holds when @i@ is an
--- G(innermonad, inner monad) of @m@ such that it is possible to lift
--- G(moprhism, monad automorphisms) of @i@ to G(morphism, monad endomorphisms)
+-- G(innermonad,inner monad) of @m@ such that it is possible to lift
+-- G(moprhism, monad automorphisms) of @i@ to G(morphism,monad endomorphisms)
 -- of @m@ using 'hoistisoI'. In other words, @'MonadInnerInvariant' i m@
 -- implies the existence of a
--- G(morphism, invariant functor in the category of monads) from
+-- G(morphism,invariant functor in the category of monads) from
 -- @i@ to @m@.
 class (MonadInner i m, MonadInner j n) =>
     MonadInnerInvariant j n i m
@@ -1612,12 +1558,12 @@ is for the other classes in the 'MonadInner' familiy.
 Rather than lose this useful feature altogether, the operations
 'defaultSuspendI', 'defaultResumeI', 'defaultCaptureI' and 'defaultExtractI'
 are provided. These operations can be used to implement an instance
-@'MonadInnerControl' i n@ for some G(innermonad, inner monad) @i@, if @n@ is
-G(morphism, isomorphic) to an @m@ for which there exists an instance
+@'MonadInnerControl' i n@ for some G(innermonad,inner monad) @i@, if @n@ is
+G(morphism,isomorphic) to an @m@ for which there exists an instance
 @'MonadInnerControl' i m@ (e.g., if @n@ is a newtype wrapper around @m@).
 These operations use 'unsafeCoerce' internally in their implementation, but
 in such a way that should be okay as long as the given
-G(morphism, isomorphism) is valid.
+G(morphism,isomorphism) is valid.
 
 Here is an example that (safely) uses these operations:
 
@@ -1638,16 +1584,16 @@ newtype MyMonad a = MyMonad { runMyMonad :: 'StateT' ['Int'] 'IO' a }
     , 'Control.Monad.Lift.MonadInner' 'IO'
     )
 
-instance MonadInnerControl 'IO' MyMonad where
+instance 'MonadInnerControl' 'IO' MyMonad where
     'suspendI' = 'defaultSuspendI' runMyMonad
     'resumeI'  = 'defaultResumeI'  MyMonad
     'captureI' = 'defaultCaptureI' MyMonad
     'extractI' = 'defaultExtractI' MyMonad
 
-instance MonadInnerInvariant 'IO' MyMonad 'IO' MyMonad where
+instance 'MonadInnerInvariant' 'IO' MyMonad 'IO' MyMonad where
     'hoistisoI' = 'defaultHoistisoI' MyMonad runMyMonad
 
-instance MonadInnerFunctor   'IO' MyMonad 'IO' MyMonad where
+instance 'MonadInnerFunctor'   'IO' MyMonad 'IO' MyMonad where
     'hoistI'    = 'defaultHoistI'    MyMonad runMyMonad
 @
 
@@ -1781,7 +1727,7 @@ instance
 -- | Used when implementing a custom instance of @'MonadInner' i@ for some
 -- monad @n@.
 --
--- @n@ must be G(morphism, isomorphic) to a monad @m@ which is already an
+-- @n@ must be G(morphism,isomorphic) to a monad @m@ which is already an
 -- instance of @'MonadControl' i@.
 --
 -- 'defaultLiftI' takes the @m -> n@ half of the G(morphism, isomorphism).
@@ -1793,10 +1739,10 @@ defaultLiftI = nu . liftI
 -- | Used when implementing a custom instance of @'MonadInnerControl' i@ for
 -- some monad @n@.
 --
--- @n@ must be G(morphism, isomorphic) to a monad @m@ which is already an
+-- @n@ must be G(morphism,isomorphic) to a monad @m@ which is already an
 -- instance of @'MonadInnerControl' i@.
 --
--- 'defaultSuspendI' takes the @n -> m@ half of the G(morphism, isomorphism).
+-- 'defaultSuspendI' takes the @n -> m@ half of the G(morphism,isomorphism).
 defaultSuspendI :: DefaultMonadInnerControl i m
     => m a
     -> OuterState i m
@@ -1808,10 +1754,10 @@ defaultSuspendI m s = liftM (toR *** toS) $ suspendI (un m) (fromS s)
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
 -- some monad @n@.
 --
--- @n@ must be G(moprhism, isomorphic) to a monad @m@ which is already an
+-- @n@ must be G(moprhism,isomorphic) to a monad @m@ which is already an
 -- instance of @'MonadInnerControl' i@.
 --
--- 'defaultResumeI' takes the @m -> n@ half of the G(morphism, isomorphism).
+-- 'defaultResumeI' takes the @m -> n@ half of the G(morphism,isomorphism).
 defaultResumeI :: DefaultMonadInnerControl i m
     => proxy i
     -> OuterEffects i m a
@@ -1823,10 +1769,10 @@ defaultResumeI p = nu . resumeI p . (fromR *** fromS)
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
 -- some monad @n@.
 --
--- @n@ must be G(moprhism, isomorphic) to a monad @m@ which is already an
+-- @n@ must be G(moprhism,isomorphic) to a monad @m@ which is already an
 -- instance of @'MonadInnerControl' i@.
 --
--- 'defaultCaptureI' takes the @m -> n@ half of the G(moprhism, isomorphism).
+-- 'defaultCaptureI' takes the @m -> n@ half of the G(moprhism,isomorphism).
 defaultCaptureI :: DefaultMonadInnerControl i m
     => proxy i
     -> m (OuterState i m)
@@ -1837,10 +1783,10 @@ defaultCaptureI p = nu (liftM toS (captureI p))
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
 -- some monad @n@.
 --
--- @n@ must be G(morphism, isomorphic) to a monad @m@ which is already an
+-- @n@ must be G(morphism,isomorphic) to a monad @m@ which is already an
 -- instance of @'MonadInnerControl' i@.
 --
--- 'defaultExtractI' takes the @m -> n@ half of the G(morphism, isomorphism).
+-- 'defaultExtractI' takes the @m -> n@ half of the G(morphism,isomorphism).
 defaultExtractI :: forall proxy proxy' i m a. DefaultMonadInnerControl i m
     => proxy i
     -> proxy' m
@@ -1853,13 +1799,13 @@ defaultExtractI p _ r = extractI p (Pm :: Pm (Oldtype m)) (fromR r)
 -- | Used when manually defining an instance @'MonadInnerInvariant' j n' i n@
 -- for some pair of monads @n@ and @n'@.
 --
--- @n@ and @n'@ must be G(morphism, isomorphic) to a pair of monads monad @m@
--- and @m'@ for which there already is an instance
+-- @n@ and @n'@ must be G(morphism,isomorphic) to a pair of monads @m@ and
+-- @m'@ for which there already is an instance
 -- @'MonadInnerInvariant' j m' i m@.
 --
 -- 'defaultHoistisoI' takes the @m' -> n'@ half of the @m' ~ n'@
--- G(morphism, isomorphism) and the @n -> m@ half of the @m ~ n@
--- G(morphism, isomorphism).
+-- G(morphism,isomorphism) and the @n -> m@ half of the @m ~ n@
+-- G(morphism,isomorphism).
 defaultHoistisoI :: DefaultMonadInnerInvariant j n i m
     => (forall b. i b -> j b)
     -> (forall b. j b -> i b)
@@ -1872,13 +1818,13 @@ defaultHoistisoI f g m = nu (hoistisoI f g (un m))
 -- | Used when manually defining an instance @'MonadInnerFunctor' j n' i n@
 -- for some pair of monads @n@ and @n'@.
 --
--- @n@ and @n'@ must be G(morphism, isomorphic) to a pair of monads monad @m@
--- and @m'@ for which there already is an instance
+-- @n@ and @n'@ must be G(morphism,isomorphic) to a pair of monads @m@ and
+-- @m'@ for which there already is an instance
 -- @'MonadInnerFunctor' j m' i m@.
 --
 -- 'defaultHoistI' takes the @m' -> n'@ half of the @m' ~ n'@
--- G(morphism, isomorphism) and the @n -> m@ half of the @m ~ n@
--- G(morphism, isomorphism).
+-- G(morphism,isomorphism) and the @n -> m@ half of the @m ~ n@
+-- G(morphism,isomorphism).
 defaultHoistI :: DefaultMonadInnerFunctor j n i m
     => (forall b. i b -> j b)
     -> m a

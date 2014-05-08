@@ -8,16 +8,31 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#include <macros.h>
+
 {-|
 
-This module defines the 'MonadCont' interface, which consists of:
+This module defines the 'MonadCont' G(monadinterface,interface). It is
+designed to be compatible with the with the
+T(mtl,Control-Monad-Cont-Class,MonadCont) interface from the H(mtl)
+package. It consists of:
 
-    * 'MonadCont' :: @(* -> *) -> Constraint@
+  * The 'MonadCont' constraint.
+  * The 'callCC' operation.
+  * Instances of 'MonadCont':
 
-    * 'callCC' :: @MonadCont m => ((a -> m b) -> m a) -> m a@
+     * For arbitrary G(innermonad,inner monads) wrapped by 'ContT'.
+     * G(universalpassthroughinstance,Pass-through instances) for:
 
-The 'MonadCont' interface is designed for compatibility with the @MonadCont@
-interface from the @mtl@ library.
+          * Any G(innermonad,inner monad) with an existing 'MonadCont'
+          instance wrapped by any G(monadlayer,monad layer) implementing
+          'Control.Monad.Lift.MonadTransControl'.
+          * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
+          of two G(monadlayer,monad layers) wrapped around an
+          G(innermonad,inner monad), where either the
+          G(innermonad,inner monad) or one or more of the composed
+          G(monadlayer,monad layers) has an existing instance for
+          'MonadCont'.
 
 -}
 
@@ -46,40 +61,41 @@ import           Control.Monad.Lift.Top
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadCont' interface represents computations in continuation-passing
--- style (CPS). In continuation-passing style function result is not returned,
--- but instead is passed to another function, received as a parameter
--- (continuation). Computations are built up from sequences of nested
--- continuations, terminated by a final continuation (often id) which produces
--- the final result. Since continuations are functions which represent the
--- future of a computation, manipulation of the continuation functions can
--- achieve complex manipulations of the future of the computation, such as
--- interrupting a computation in the middle, aborting a portion of a
--- computation, restarting a computation, and interleaving execution of
--- computations. The @MonadCont@ interface adapts CPS to the structure of a
--- monad.
+-- | The 'MonadCont' G(monadinterface,interface) represents computations in
+-- continuation-passing style (CPS). In continuation-passing style function
+-- result is not returned, but instead is passed to another function, received
+-- as a parameter (continuation). Computations are built up from sequences of
+-- nested continuations, terminated by a final continuation (often 'id') which
+-- produces the final result. Since continuations are functions which
+-- represent the future of a computation, manipulation of the continuation
+-- functions can achieve complex manipulations of the future of the
+-- computation, such as interrupting a computation in the middle, aborting a
+-- portion of a computation, restarting a computation, and interleaving
+-- execution of computations. The 'MonadCont' G(monadinterface,interface)
+-- adapts CPS to the structure of a monad.
 --
--- Before using the @MonadCont@ interface, be sure that you have a firm
--- understanding of continuation-passing style and that continuations
--- represent the best solution to your particular design problem. Many
--- algorithms which require continuations in other languages do not require
--- them in Haskell, due to Haskell's lazy semantics. Abuse of the @MonadCont@
--- interface can produce code that is impossible to understand and maintain.
+-- Before using the 'MonadCont' G(monadinterface,interface), be sure that you
+-- have a firm understanding of continuation-passing style and that
+-- continuations represent the best solution to your particular design
+-- problem. Many algorithms which require continuations in other languages do
+-- not require them in Haskell, due to Haskell's lazy semantics. Abuse of the
+-- 'MonadCont' G(monadinterface,interface) can produce code that is impossible
+-- to understand and maintain.
 class Monad m => MonadCont m where
     -- | 'callCC' (call-with-current-continuation) calls a function with the
     -- current continuation as its argument. Provides an escape continuation
-    -- mechanism for use with instances of @MonadCont@. Escape continuations
+    -- mechanism for use with instances of 'MonadCont'. Escape continuations
     -- allow to abort the current computation and return a value immediately.
     -- They achieve a similar effect to 'Monad.Abort.abort' and
-    -- 'Monad.Recover.recover' from the 'Monad.AbortMonadAbort' and
-    -- 'Monad.Recover.MonadRecover' interfaces. Advantage of this function
-    -- over calling @return@ is that it makes the continuation explicit,
-    -- allowing more flexibility and better control.
+    -- 'Monad.Recover.recover' from the 'Monad.Abort.MonadAbort' and
+    -- 'Monad.Recover.MonadRecover' G(monadinterface,interfaces). Advantage of
+    -- this function over calling 'return' is that it makes the continuation
+    -- explicit, allowing more flexibility and better control.
     --
-    -- The standard idiom used with @callCC@ is to provide a lambda-expression
+    -- The standard idiom used with 'callCC' is to provide a lambda-expression
     -- to name the continuation. Then calling the named continuation anywhere
     -- within its scope will escape from the computation, even if it is many
-    -- layers deep within nested computations. 
+    -- layers deep within nested computations.
     callCC :: ((a -> m b) -> m a) -> m a
 
 
