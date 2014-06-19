@@ -107,7 +107,7 @@ things we might expect to be able to do.
 
 One of the most glaring weaknesses of the existing type class machinery is
 that the 'Control.Monad.Trans.lift' operation provided by
-'Control.Monad.Trans.MonadTrans' is not very powerful. It's only capable of
+'Control.Monad.Trans.Class.MonadTrans' is not very powerful. It's only capable of
 lifting very simple types of operations up from the inner monad. Consider the
 'Control.Monad.Interface.Reader.local' operation from the
 'Control.Monad.Interface.Reader.MonadReader' interface:
