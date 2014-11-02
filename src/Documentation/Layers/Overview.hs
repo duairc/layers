@@ -821,7 +821,7 @@ follows:
 >
 >     zero _ = False
 
-The only differnce is that we've added the operation
+The only difference is that we've added the operation
 'Control.Monad.Layer.zero'. It's very simple: it just takes the @LayerState@
 of @m@ and says whether or not it's \"zero\". For example, in the
 @MonadLayerControl@ instance for 'Control.Monad.Trans.Maybe.MaybeT', @zero@
