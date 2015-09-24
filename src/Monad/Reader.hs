@@ -157,7 +157,7 @@ instance MonadReader r (f (g m)) => MonadReader r (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopInvariant m t m, MonadReader r m) => MonadReader r (t m)
+instance (MonadTopInvariant m t m, MonadReader r m, Monad (t m)) => MonadReader r (t m)
   where
     reader = liftT . reader
     {-# INLINABLE reader #-}

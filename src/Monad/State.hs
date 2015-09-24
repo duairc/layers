@@ -164,7 +164,7 @@ instance MonadState s (f (g m)) => MonadState s (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTop t m, MonadState s m) => MonadState s (t m)
+instance (MonadTop t m, MonadState s m, Monad (t m)) => MonadState s (t m)
   where
     state = liftT . state
     {-# INLINABLE state #-}

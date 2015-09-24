@@ -248,7 +248,7 @@ instance MonadMask IO where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopInvariant m t m, MonadMask m) => MonadMask (t m) where
+instance (MonadTopInvariant m t m, MonadMask m, Monad (t m)) => MonadMask (t m) where
     getMaskingState = liftT getMaskingState
     {-# INLINABLE getMaskingState #-}
     setMaskingState s m = liftT getMaskingState >>= \s' ->

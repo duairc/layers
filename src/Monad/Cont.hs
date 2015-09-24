@@ -115,7 +115,7 @@ instance MonadCont (f (g m)) => MonadCont (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopControl t m, MonadCont m) => MonadCont (t m) where
+instance (MonadTopControl t m, MonadCont m, Monad (t m)) => MonadCont (t m) where
     callCC f = liftControlT (\peel -> callCC $ \c -> peel . f $ \a ->
         liftT (peel (return a) >>= c)) >>= resumeT
     {-# INLINABLE callCC #-}

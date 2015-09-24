@@ -191,7 +191,7 @@ instance MonadST ref (f (g m)) => MonadST ref (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTop t m, MonadST ref m) => MonadST ref (t m) where
+instance (MonadTop t m, Monad (t m), MonadST ref m) => MonadST ref (t m) where
     newRef = liftT . newRef
     {-# INLINABLE newRef #-}
     readRef = liftT . readRef

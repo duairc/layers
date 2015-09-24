@@ -26,8 +26,8 @@
 {-|
 
 This module houses the core machinery of the H(layers) package. It exports
-everything you need to implement monad transformers compatible with
-H(layers)' modular
+everything you need to implement G(monadtransformer, monad transformers)
+compatible with H(layers)' modular
 G(monadinterface,monad interfaces), and everything that you need to lift
 G(computation,computations), G(controloperation,operations) and
 G(morphism,morphisms) through arbitrarily complicated
@@ -42,7 +42,7 @@ G(computation,computations) from the monad @m@ to the monad @t m@, where @t@
 is a G(monadtransformer,monad transformer). The 'MonadInner' family of
 interfaces provides operations for lifting
 G(computation,computations), G(controloperation,operations) and
-G(morphism,morphisms) from any level of the
+G(morphism,morphisms) from /any/ level of the
 G(monadtransformerstack,transformer stack)
 to the top of the G(monadtransformerstack,transformer stack). That is, it
 lifts G(computation,computations) from from the monad @i@ to the monad @m@,
@@ -52,7 +52,7 @@ interfaces is defined recursively in terms of its 'MonadTrans' counterpart.
 The 'MonadTrans' family of interfaces is mainly used by libraries that
 implement G(monadtransformer,monad transformers) and
 G(monadinterfaces, monad interfaces), while the 'MonadInner'
-family is used by applications make use of
+family is mainly used by applications make use of
 (G(monadtransformerstack,stacks of)) these
 G(monadtransformerstack,transformers).
 
@@ -419,7 +419,6 @@ class MonadTrans t => MonadTransControl t where
     --
     -- [Preserve-Unit]
     --     @extractResult ('return' a) ≡ 'return' ('Just' a)@
-    --
     -- [Implies-Zero]
     --     @(extractResult m
     --         ≡ 'liftM' ('const' 'Nothing') m) ⇒ (∀f. m '>>=' f ≡ m)@
@@ -755,7 +754,7 @@ liftControl f = capture >>= \s -> lift $ f (flip suspend s)
 -- G(layereffect,suspended side-effects) returned from the continuation.
 --
 -- @catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
---catch' m h = 'control' (\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
+--catch' m h = 'control' (\\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
 control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m (LayerEffects t m a))
     -> t m a
@@ -816,19 +815,17 @@ liftDiscard f m = liftControl $ \peel -> f $ liftM (const ()) $ peel m
 
 ------------------------------------------------------------------------------
 -- | An G(morphism,invariant functor in the category of monads), using
--- 'hoistiso' as the analog of
--- @<http://hackage.haskell.org/package/invariant/docs/Data-Functor-Invariant.html#t:Invariant invmap>@:
+-- 'hoistiso' as the analog of V(invariant,Data-Functor-Invariant,invmap).
 class MInvariant t where
     -- | Lift a G(morphism,monad isomorphism) between @m@ and @n@ into a
     -- G(morphism,monad morphism) from @t m@ to @t n@.
     --
     -- The following laws hold for valid instances of 'MInvariant':
     --
-    --     [Identity] @'hoistiso' 'id' 'id' ≡ 'id'@
-    --
-    --     [Composition]
-    --         @'hoistiso' f g '.' 'hoistiso' f' g' ≡
-    --             'hoistiso' (f '.' f') (g' '.' g)@
+    -- [Identity] @'hoistiso' 'id' 'id' ≡ 'id'@
+    -- [Composition]
+    --     @'hoistiso' f g '.' 'hoistiso' f' g' ≡
+    --         'hoistiso' (f '.' f') (g' '.' g)@
     --
     -- Note: The G(morphism,homomorphism) produced by @'hoistiso' f g@ is
     -- only valid if @f@ and @g@ form a valid G(morphism,isomorphism), i.e.,
@@ -928,7 +925,6 @@ class (Monad i, Monad m) => MonadInner i m where
     -- The following laws hold for valid instances of 'MonadInner':
     --
     --     [Identity] @'liftI' '.' 'return' ≡ 'return'@
-    --
     --     [Composition] @'liftI' m '>>=' 'liftI' '.' f ≡ 'liftI' (m '>>=' f)@
     --
     -- The difference between 'liftI' and 'lift' is that 'lift' only lifts
@@ -969,7 +965,7 @@ instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
+instance (Monad (t m), MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
     liftI = liftT . liftI
       where
         liftT :: MonadInner m (t m) => m a -> t m a
@@ -1042,7 +1038,6 @@ class MonadInner i m => MonadInnerControl i m where
     -- [Preserve-Unit]
     --     @extractResultI ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) ('return' a)
     --         ≡ 'return' ('Just' a)@
-    --
     -- [Implies-Zero]
     --     @(extractResultI ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' i) m
     --         ≡ 'liftM' ('const' 'Nothing') m) ⇒ (∀f. m '>>=' f ≡ m)@
@@ -1340,7 +1335,7 @@ liftControlI f = captureI (Pm :: Pm i) >>= \s -> liftI $
 -- G(layereffect,suspended side-effects) returned from the continuation.
 --
 -- @catch' :: ('Control.Exception.Exception' e, 'MonadInnerControl' 'IO' m) => m b -> (e -> m b) -> m b
---catch' m h = 'controlI' (\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
+--catch' m h = 'controlI' (\\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
 controlI :: forall i m a. MonadInnerControl i m
     => ((forall b. m b -> i (OuterEffects i m b)) -> i (OuterEffects i m a))
     -> m a
