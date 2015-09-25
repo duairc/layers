@@ -15,9 +15,6 @@
 #ifdef LANGUAGE_DefaultSignatures
 {-# LANGUAGE DefaultSignatures #-}
 #endif
-#if __GLASGOW_HASKELL__ >= 707
-{-# LANGUAGE ImpredicativeTypes #-}
-#endif
 
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
@@ -132,7 +129,9 @@ import           Control.Arrow (first)
 #endif
 import           Control.Arrow ((***))
 import           Control.Monad (join, liftM)
+#if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
+#endif
 #ifndef LANGUAGE_ClosedTypeFamilies
 import           GHC.Exts (Any)
 import           Unsafe.Coerce (unsafeCoerce)
@@ -955,7 +954,7 @@ instance Monad m => MonadInner m m where
 
 
 ------------------------------------------------------------------------------
-instance (Monad m, Monad (t m)) => MonadInner (t m) (t m) where
+instance _OVERLAPPING (Monad m, Monad (t m)) => MonadInner (t m) (t m) where
     liftI = id
 
 
@@ -965,10 +964,12 @@ instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
 
 
 ------------------------------------------------------------------------------
-instance (Monad (t m), MonadInner i m, MonadInner m (t m)) => MonadInner i (t m) where
+instance _OVERLAPPABLE
+    (Monad (t m), MonadInner i m, MonadInner m (t m)) => MonadInner i (t m)
+  where
     liftI = liftT . liftI
       where
-        liftT :: MonadInner m (t m) => m a -> t m a
+        liftT :: m a -> t m a
         liftT = liftI
 
 
@@ -1195,7 +1196,8 @@ instance MonadInner m m => MonadInnerControl m m where
 
 
 ------------------------------------------------------------------------------
-instance (Monad m, MonadInner (t m) (t m)) => MonadInnerControl (t m) (t m)
+instance _OVERLAPPING
+    (Monad m, MonadInner (t m) (t m)) => MonadInnerControl (t m) (t m)
   where
     suspendI m _ = liftM (\a -> (toR $ Identity a, toS ())) m
     resumeI _ (r, _) = let Identity a = fromR r in return a
@@ -1222,7 +1224,7 @@ instance
 
 
 ------------------------------------------------------------------------------
-instance
+instance _OVERLAPPABLE
     ( MonadInner i (t m)
     , MonadInnerControl i m
     , MonadInnerControl m (t m)
@@ -1240,8 +1242,8 @@ instance
         let f (or_, os') = (toR (compose or_), toS (ls, os'))
         liftM f $ suspendI (suspendT m ls) os
       where
-          suspendT :: MonadInnerControl m (t m)
-              => t m a
+          suspendT
+              :: t m a
               -> OuterState m (t m)
               -> m (OuterEffects m (t m) a)
           suspendT = suspendI
@@ -1251,21 +1253,19 @@ instance
         let (_, s') = fromS s
         liftT (resumeI p (r', s')) >>= resumeT
       where
-        liftT :: MonadInner m (t m) => m b -> t m b
+        liftT :: m b -> t m b
         liftT = liftI
 
-        resumeT :: MonadInnerControl m (t m)
-            => OuterEffects m (t m) b
-            -> t m b
+        resumeT :: OuterEffects m (t m) b -> t m b
         resumeT = resumeI (Pm :: Pm m)
 
     captureI p = captureT >>= \a -> liftT (captureI p) >>= \b ->
         return $ toS (a, b)
       where
-        liftT :: MonadInner m (t m) => m a -> t m a
+        liftT :: m a -> t m a
         liftT = liftI
 
-        captureT :: MonadInnerControl m (t m) => t m (OuterState m (t m))
+        captureT :: t m (OuterState m (t m))
         captureT = captureI (Pm :: Pm m)
 
     extractI _ _ (r :: OuterResult i (t m) a) =
@@ -1273,8 +1273,8 @@ instance
             fmap (extractT (Pt :: Pt t) . fst) $
                 extractI (Pm :: Pm i) (Pm :: Pm m) r'
       where
-        extractT :: MonadInnerControl m (t m)
-            => proxy t
+        extractT
+            :: proxy t
             -> OuterResult m (t m) b
             -> Maybe b
         extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
@@ -1427,7 +1427,7 @@ instance (MonadInner m m, MonadInner n n) => MonadInnerInvariant n n m m where
 
 
 ------------------------------------------------------------------------------
-instance (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
+instance _OVERLAPPING (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
     MonadInnerInvariant n n (t m) (t m)
   where
     hoistisoI f _ = f
@@ -1441,7 +1441,7 @@ instance (MInvariant t, MonadInner m (t m), MonadInner n (t n)) =>
 
 
 ------------------------------------------------------------------------------
-instance
+instance _OVERLAPPABLE
     ( MonadInner i (t m)
     , MonadInner j (t n)
     , MonadInnerInvariant j n i m
@@ -1453,8 +1453,8 @@ instance
   where
     hoistisoI f g = hoistisoT (hoistisoI f g) (hoistisoI g f)
       where
-        hoistisoT :: MonadInnerInvariant n (t n) m (t m)
-            => (forall b. m b -> n b)
+        hoistisoT
+            :: (forall b. m b -> n b)
             -> (forall b. n b -> m b)
             -> t m a
             -> t n a
@@ -1499,7 +1499,7 @@ instance MonadInnerInvariant n n m m => MonadInnerFunctor n n m m where
 
 
 ------------------------------------------------------------------------------
-instance (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
+instance _OVERLAPPING (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
     MonadInnerFunctor n n (t m) (t m)
   where
     hoistI f = f
@@ -1513,7 +1513,7 @@ instance (MFunctor t, MonadInnerInvariant n (t n) m (t m)) =>
 
 
 ------------------------------------------------------------------------------
-instance
+instance _OVERLAPPING
     ( MonadInnerFunctor j n i m
     , MonadInnerFunctor n (t n) m (t m)
     , MonadInnerInvariant j (t n) i (t m)
@@ -1523,8 +1523,8 @@ instance
   where
     hoistI f = hoistT (hoistI f)
       where
-        hoistT :: MonadInnerFunctor n (t n) m (t m)
-            => (forall b. m b -> n b)
+        hoistT
+            :: (forall b. m b -> n b)
             -> t m a
             -> t n a
         hoistT = hoistI

@@ -5,7 +5,6 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 #ifdef LANGUAGE_ConstraintKinds
@@ -72,8 +71,7 @@ instance MonadInner i (t i) => MonadLayer i t (t i)
 
 
 ------------------------------------------------------------------------------
-instance (MonadLayer i s m, MonadInner (s i) (t m), MonadInner m (t m))
-    => MonadLayer i s (t m)
+instance (MonadLayer i s m, MonadInner (s i) (t m)) => MonadLayer i s (t m)
 
 
 ------------------------------------------------------------------------------

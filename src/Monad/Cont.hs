@@ -100,7 +100,7 @@ class Monad m => MonadCont m where
 
 
 ------------------------------------------------------------------------------
-instance Monad m => MonadCont (ContT r m) where
+instance MonadCont (ContT r m) where
     callCC f = ContT $ \c -> let ContT m = f $ \a -> ContT $ \_ -> c a in m c
     {-# INLINABLE callCC #-}
 
@@ -115,7 +115,9 @@ instance MonadCont (f (g m)) => MonadCont (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopControl t m, MonadCont m, Monad (t m)) => MonadCont (t m) where
+instance _OVERLAPPABLE (MonadTopControl t m, MonadCont m, Monad (t m)) =>
+    MonadCont (t m)
+  where
     callCC f = liftControlT (\peel -> callCC $ \c -> peel . f $ \a ->
         liftT (peel (return a) >>= c)) >>= resumeT
     {-# INLINABLE callCC #-}

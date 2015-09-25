@@ -4,8 +4,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverlappingInstances #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -248,7 +248,9 @@ instance MonadMask IO where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopInvariant m t m, MonadMask m, Monad (t m)) => MonadMask (t m) where
+instance _OVERLAPPABLE (MonadTopInvariant m t m, MonadMask m, Monad (t m)) =>
+    MonadMask (t m)
+  where
     getMaskingState = liftT getMaskingState
     {-# INLINABLE getMaskingState #-}
     setMaskingState s m = liftT getMaskingState >>= \s' ->

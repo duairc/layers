@@ -5,3 +5,11 @@
 #define T(p, m, ty) @<https://hackage.haskell.org/package/p/docs/m.html#t:ty ty>@
 #define V(p, m, va) @<https://hackage.haskell.org/package/p/docs/m.html#v:va va>@
 #define G(section, text) <Documentation-Layers-Glossary.html#section text>
+
+#if LANGUAGE_OverlappingInstances
+#define _OVERLAPPABLE
+#define _OVERLAPPING
+#else
+#define _OVERLAPPABLE {-# OVERLAPPABLE #-}
+#define _OVERLAPPING {-# OVERLAPPING #-}
+#endif

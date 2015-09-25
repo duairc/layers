@@ -59,7 +59,9 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Monad (liftM)
+#if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid)
+#endif
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -177,7 +179,9 @@ instance MonadWriter w (f (g m)) => MonadWriter w (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTop t m, Monad (t m), MonadWriter w m) => MonadWriter w (t m) where
+instance _OVERLAPPABLE (MonadTop t m, Monad (t m), MonadWriter w m) =>
+    MonadWriter w (t m)
+  where
     writer = liftT . writer
     {-# INLINABLE writer #-}
     tell = liftT . tell

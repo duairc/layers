@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
@@ -162,7 +162,7 @@ instance MonadFork (f (g m)) => MonadFork (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopControl t m, MonadFork m, MonadMask (t m)) =>
+instance _OVERLAPPABLE (MonadTopControl t m, MonadFork m, MonadMask (t m)) =>
     MonadFork (t m)
   where
     fork = liftDiscardT fork

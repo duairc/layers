@@ -59,7 +59,9 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Monad (liftM)
+#if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid (mempty))
+#endif
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -164,7 +166,8 @@ instance MonadState s (f (g m)) => MonadState s (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTop t m, MonadState s m, Monad (t m)) => MonadState s (t m)
+instance _OVERLAPPABLE (MonadTop t m, MonadState s m, Monad (t m)) =>
+    MonadState s (t m)
   where
     state = liftT . state
     {-# INLINABLE state #-}

@@ -41,11 +41,13 @@ module Monad.Error
 where
 
 
+#if !MIN_VERSION_transformers(0, 5, 0)
 -- transformers --------------------------------------------------------------
 #if __GLASGOW_HASKELL__ >= 706
 import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
 #else
 import           Control.Monad.Trans.Error (Error (..))
+#endif
 #endif
 
 

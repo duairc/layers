@@ -59,7 +59,9 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Monad (liftM)
+#if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid (mempty))
+#endif
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -157,7 +159,13 @@ instance MonadReader r (f (g m)) => MonadReader r (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopInvariant m t m, MonadReader r m, Monad (t m)) => MonadReader r (t m)
+instance _OVERLAPPABLE
+    ( MonadTopInvariant m t m
+    , MonadReader r m
+    , Monad (t m)
+    )
+  =>
+    MonadReader r (t m)
   where
     reader = liftT . reader
     {-# INLINABLE reader #-}

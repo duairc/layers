@@ -196,7 +196,8 @@ instance MonadAbort e (f (g m)) => MonadAbort e (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTop t m, MonadAbort e m, Monad (t m)) => MonadAbort e (t m)
+instance _OVERLAPPABLE (MonadTop t m, MonadAbort e m, Monad (t m)) =>
+    MonadAbort e (t m)
   where
     abort = liftT . abort
     {-# INLINABLE abort #-}

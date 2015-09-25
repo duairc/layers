@@ -248,7 +248,8 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopControl t m, MonadMask (t m), MonadTry m) => MonadTry (t m)
+instance _OVERLAPPABLE (MonadTopControl t m, MonadMask (t m), MonadTry m) =>
+    MonadTry (t m)
   where
     mtry (m :: t m a) = do
         state <- captureT

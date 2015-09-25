@@ -2,9 +2,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
@@ -208,7 +208,12 @@ instance MonadRecover e (f (g m)) => MonadRecover e (ComposeT f g m) where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTopControl t m, MonadRecover e m, MonadAbort e (t m)) =>
+instance _OVERLAPPABLE
+    ( MonadTopControl t m
+    , MonadRecover e m
+    , MonadAbort e (t m)
+    )
+  =>
     MonadRecover e (t m)
   where
     recover m h = controlT (\peel -> recover (peel m) (peel . h))

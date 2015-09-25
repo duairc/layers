@@ -5,7 +5,6 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 #ifdef LANGUAGE_ConstraintKinds
@@ -57,8 +56,7 @@ import           Data.Functor.Identity (Identity)
 
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
-                     ( MonadTrans
-                     , MonadInner
+                     ( MonadInner
                      , liftI
                      , MonadInnerControl
                      , OuterEffects
@@ -127,8 +125,7 @@ instance MonadBase Proxy Proxy
 
 #endif
 ------------------------------------------------------------------------------
-instance (MonadTrans t, MonadBase b m, MonadInner b (t m), Monad (t m)) =>
-    MonadBase b (t m)
+instance (MonadBase b m, MonadInner b (t m)) => MonadBase b (t m)
 
 
 ------------------------------------------------------------------------------
