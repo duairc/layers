@@ -187,17 +187,17 @@ H(mmorph) respectively, we're already half way there.
 H(mmorph) is also the most sensible home for 'MInvariant', and
 <https://github.com/Gabriel439/Haskell-MMorph-Library/pull/1 hopefully> it
 will get moved there soon. 'MonadTransControl' is more complicated: there is a
-<http://hackage.haskell.org/package/monad-control/docs/Control-Monad-Trans-Control.html#t:MonadTransControl very similar class>
+TT(monad-control,Control-Monad-Trans-Control,MonadTransControl,very similar class)
 (the design of which I originally copied) defined in the H(monad-control)
 package, which is a relatively popular package. However, H(layers)' version
 has a few important differences that stop it from being able to use
 H(monad-control)'s
-@<http://hackage.haskell.org/package/monad-control/docs/Control-Monad-Trans-Control.html#t:MonadTransControl MonadTransControl>@
-without losing some of its features (notably the 'Monad.Try.MonadTry'
-G(monadinterface,interface)). However, It is conceivable that these changes
+T(monad-control,Control-Monad-Trans-Control,MonadTransControl) without losing
+some of its features (notably the 'Monad.Try.MonadTry'
+G(monadinterface,interface)). However, it is conceivable that these changes
 could be merged into H(monad-control) some day, in which case I would be happy
-to make H(layers) depend on H(monad-control) and make
-'MonadTransControl' a re-export.
+to make H(layers) depend on H(monad-control) and make 'MonadTransControl' a
+re-export.
 
 -}
 
@@ -317,7 +317,7 @@ operations reflect this relationship.
 -- compiler to able to infer @a ~ b@ if it knows that @'LayerResult' t a ~
 -- 'LayerResult' t b@. It couldn't do this if we allowed definitions like the
 -- above because
--- <http://www.haskell.org/haskellwiki/GHC/Type_families#Injectivity.2C_type_inference.2C_and_ambiguity type families are not injective>.
+-- HWT(GHC/Type_families#Injectivity.2C_type_inference.2C_and_ambiguity,type families are not injective).
 -- This is why we set @'LayerResult' 'IdentityT'@ to 'Identity'.
 -- (@'Identity' a@ is of course isomorphic to @a@.)
 --
@@ -1094,17 +1094,14 @@ type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 
 
 ------------------------------------------------------------------------------
--- | The combined
--- <Documentation-Layers-Glossary.html#layerresult layer results> of all the
--- <Documentation-Layers-Glossary.html#outerlayer outer layers> around @i@ of
--- the monad @m@.
+-- | The combined G(layerresult,layer results) of all the
+-- G(outerlayer,outer layers) around @i@ of the monad @m@.
 --
 -- Note: On GHC 7.8 and up, this is implemented as a
--- <http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type family>.
--- Older versions of GHC do not support closed type families, but we use
--- various hacks involving 'Any' and 'unsafeCoerce' to provide the same
--- interface. You should not need to worry about this; I am pretty sure it is
--- safe.
+-- BW(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of GHC
+-- do not support closed type families, but we use various hacks involving
+-- 'Any' and 'unsafeCoerce' to provide the same interface. You should not need
+-- to worry about this; I am pretty sure it is safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef LANGUAGE_ClosedTypeFamilies
@@ -1120,8 +1117,7 @@ type instance OuterResult i m = OuterResult_ i m
 #else
 type OuterResult i m = OuterResult_ i m
 -- we can't use a type family on GHC 7.2 and older because we run into GHC
--- bug <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>, so we use a
--- type synonym instead
+-- bug G(5595), so we use a type synonym instead
 #endif
 
 
@@ -1130,9 +1126,9 @@ type OuterResult i m = OuterResult_ i m
 -- G(outerlayer,outer layers) around @i@ of the monad @m@.
 --
 -- Note: On GHC 7.8 and up, this is implemented as a
--- <http://ghc.haskell.org/trac/ghc/wiki/NewAxioms/ClosedTypeFamilies closed type family>.
--- Older versions of GHC do not support closed type families, but we use
--- various hacks involving 'Any' and 'unsafeCoerce' to provide the same
+-- BW(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of GHC
+-- do not support closed type families, but we use various hacks involving
+-- 'GHC.Exts.Any' and 'Unsafe.Coerce.unsafeCoerce' to provide the same
 -- interface. You should not need to worry about this; I am pretty sure it is
 -- safe.
 #if __GLASGOW_HASKELL__ >= 704
@@ -1150,8 +1146,7 @@ type instance OuterState i m = OuterState_ i m
 #else
 type OuterState i m = OuterState_ i m
 -- we can't use a type family on GHC 7.2 and older because we run into GHC
--- bug <http://hackage.haskell.org/trac/ghc/ticket/5595 #5595>, so we use a
--- type synonym instead
+-- bug B(#5595), so we use a type synonym instead
 #endif
 
 
@@ -1544,11 +1539,10 @@ instance DefaultMonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m) =>
 {-$defaults
 
 The changes to the behaviour of the @GeneralizedNewtypeDeriving@ extension
-that come with the new <http://ghc.haskell.org/trac/ghc/wiki/Roles roles>
-mechanism in GHC 7.8 (which fixes GHC bug
-<http://ghc.haskell.org/trac/ghc/ticket/7148 #7148>) make it no longer
-possible to automatically derive instances of 'MonadInnerControl' the way it
-is for the other classes in the 'MonadInner' familiy.
+that come with the new BW(Roles, roles) mechanism in GHC 7.8 (which fixes GHC
+bug B(7148) make it no longer possible to automatically derive instances of
+'MonadInnerControl' the way it is for the other classes in the 'MonadInner'
+familiy.
 
 Rather than lose this useful feature altogether, the operations
 'defaultSuspendI', 'defaultResumeI', 'defaultCaptureI' and 'defaultExtractI'
