@@ -88,6 +88,8 @@ import           Monad.Try (MonadTry, mtry)
 -- @<https://hackage.haskell.org/package/resourcet/docs/Control-Monad-Trans-Resource.html#t:ResourceT ResourceT>@
 -- monad from the H(resourcet) package, which defines an operation
 -- @<https://hackage.haskell.org/package/resourcet/docs/Control-Monad-Trans-Resource.html#v:resourceForkIO resourceForkIO>@.
+--
+-- Minimal complete definition: 'fork', 'forkOn'.
 class MonadMask m => MonadFork m where
     -- | Sparks off a new thread to run the computation passed as the first
     -- argument, and returns the 'Control.Concurrent.ThreadId' of the newly
@@ -133,6 +135,10 @@ class MonadMask m => MonadFork m where
     -- may actually degrade perforamnce in some cases - experimentation is
     -- recommended).
     forkOn :: Int -> m () -> m ThreadId
+
+#ifdef MINIMALSupport
+    {-# MINIMAL fork, forkOn #-}
+#endif
 
 
 ------------------------------------------------------------------------------

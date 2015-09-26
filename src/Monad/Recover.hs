@@ -133,6 +133,9 @@ class MonadAbort e m => MonadRecover e m | m -> e where
     --     [Recoverability] @'recover' ('Monad.Abort.abort' e) 'return' ≡ 'return' e@
     recover :: m a -> (e -> m a) -> m a
 
+#ifdef MINIMALSupport
+    {-# MINIMAL recover #-}
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadRecover e (Either e) where

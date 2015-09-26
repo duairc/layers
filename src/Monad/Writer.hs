@@ -120,6 +120,9 @@ class (Monad m, Monoid w) => MonadWriter w m | m -> w where
     tell w = writer ((), w)
     {-# INLINABLE tell #-}
 
+#ifdef MINIMALSupport
+    {-# MINIMAL listen, pass, (writer | tell) #-}
+#endif
 
 ------------------------------------------------------------------------------
 instance (Monad m, Monoid w) => MonadWriter w (L.WriterT w m) where

@@ -139,3 +139,6 @@ Library
     cpp-options: -DLANGUAGE_OverlappingInstances
   else
     cpp-options: -DOverlappingInstances=NoOverlappingInstances
+
+  if impl(ghc >= 7.8)
+    cpp-options: -DMINIMALSupport

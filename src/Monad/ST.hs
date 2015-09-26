@@ -138,6 +138,9 @@ class Monad m => MonadST ref m | m -> ref where
         return b
     {-# INLINABLE atomicModifyRef #-}
 
+#ifdef MINIMALSupport
+    {-# MINIMAL newRef, readRef, writeRef #-}
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadST IORef IO where

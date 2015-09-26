@@ -81,6 +81,8 @@ import           Control.Monad.Lift.Top
 -- not require them in Haskell, due to Haskell's lazy semantics. Abuse of the
 -- 'MonadCont' G(monadinterface,interface) can produce code that is impossible
 -- to understand and maintain.
+--
+-- Minimal complete definition: 'callCC'.
 class Monad m => MonadCont m where
     -- | 'callCC' (call-with-current-continuation) calls a function with the
     -- current continuation as its argument. Provides an escape continuation
@@ -97,6 +99,10 @@ class Monad m => MonadCont m where
     -- within its scope will escape from the computation, even if it is many
     -- layers deep within nested computations.
     callCC :: ((a -> m b) -> m a) -> m a
+
+#ifdef MINIMALSupport
+    {-# MINIMAL callCC #-}
+#endif
 
 
 ------------------------------------------------------------------------------

@@ -158,6 +158,10 @@ class Monad m => MonadMask m where
     getMaskingState = return MaskedInterruptible
     setMaskingState = const id
 
+#ifdef MINIMALSupport
+    {-# MINIMAL #-}
+#endif
+
 
 #if !MIN_VERSION_base(4, 3, 0)
 ------------------------------------------------------------------------------

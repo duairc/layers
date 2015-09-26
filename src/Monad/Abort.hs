@@ -127,6 +127,10 @@ class Monad m => MonadAbort e m where
     -- G(shortcircuit, short-circuit).
     abort :: e -> m a
 
+#ifdef MINIMALSupport
+    {-# MINIMAL abort #-}
+#endif
+
 
 ------------------------------------------------------------------------------
 instance MonadAbort e (Either e) where

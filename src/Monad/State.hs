@@ -118,6 +118,9 @@ class Monad m => MonadState s m | m -> s where
 
     put s = state (\_ -> ((), s))
 
+#ifdef MINIMALSupport
+    {-# MINIMAL state | (get, put) #-}
+#endif
 
 ------------------------------------------------------------------------------
 instance Monad m => MonadState s (L.StateT s m) where

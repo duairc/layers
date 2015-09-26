@@ -165,6 +165,9 @@ class MonadMask m => MonadTry m where
     mtry :: m a -> m (Either (m a) a)
     mtry = liftM Right
 
+#ifdef MINIMALSupport
+    {-# MINIMAL mtry #-}
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadTry Identity

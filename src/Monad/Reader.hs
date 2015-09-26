@@ -109,6 +109,9 @@ class Monad m => MonadReader r m | m -> r where
     ask = reader id
     {-# INLINABLE ask #-}
 
+#ifdef MINIMALSupport
+    {-# MINIMAL local, (reader, ask) #-}
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadReader r ((->) r) where
