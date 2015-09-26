@@ -279,9 +279,9 @@ operations reflect this relationship.
 --
 -- @peel :: 'MaybeT' m a -> 'LayerState' 'MaybeT' m -> m ('Maybe' a)@
 --
--- Similarly, for @'ErrorT' e@, the closest we could get would be:
+-- Similarly, for @'ExceptT' e@, the closest we could get would be:
 --
--- @peel :: 'ErrorT' e m a -> 'LayerState' ('ErrorT' e) m -> m ('Either' e a)@
+-- @peel :: 'ExceptT' e m a -> 'LayerState' ('ExceptT' e) m -> m ('Either' e a)@
 --
 -- Again, we can use an associated type synonym to make all of these
 -- operations fit a single pattern. We call this one 'LayerResult'. Here are
@@ -289,14 +289,14 @@ operations reflect this relationship.
 --
 -- @type 'LayerResult' 'IdentityT' = 'Identity'
 --type 'LayerResult' 'MaybeT' = 'Maybe'
---type 'LayerResult' ('ErrorT' e) = 'Either' e
+--type 'LayerResult' ('ExceptT' e) = 'Either' e
 --type 'LayerResult' ('RWST' r w s) = (,) w@
 --
 -- How exactly is it decided what @'LayerResult' t@ should be for a particular
 -- monad transformer? There are several things to consider. Let's say we have
 -- a monad transformer @t@ that we want to make an instance of
 -- 'MonadTransControl'. Let's also assume that its 'LayerState' is @()@ (like
--- 'ErrorT', 'IdentityT' and 'MaybeT'), because this is easier to explain
+-- 'ExceptT', 'IdentityT' and 'MaybeT'), because this is easier to explain
 -- first. The goal should be for @'LayerResult' t a@ to expand to a type
 -- which is isomorphic to the type inside the @m@ computation wrapped by our
 -- monad transformer. To take 'MaybeT' as an example again, it wraps an @m@
