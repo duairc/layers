@@ -166,7 +166,7 @@ class MonadMask m => MonadTry m where
     mtry = liftM Right
 
 #ifdef MINIMALSupport
-    {-# MINIMAL mtry #-}
+    {-# MINIMAL #-}
 #endif
 
 ------------------------------------------------------------------------------
