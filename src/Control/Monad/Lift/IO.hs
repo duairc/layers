@@ -36,8 +36,8 @@ operations.
 'MonadIO', 'Control.Monad.Lift.Base.MonadBase' and all the rest come for free.
 With H(transformers) and H(transformers-base), instances of
 'Control.Monad.IO.Class.MonadIO' and
-@<http://hackage.haskell.org/package/transformers-base/docs/Control-Monad-Base.html#t:MonadBase MonadBase>@
-have to be manually written for every monad transformer.)
+T(transformers-base,Control-Monad-Base,MonadBase) have to be manually written
+for every monad transformer.)
 
 -}
 
