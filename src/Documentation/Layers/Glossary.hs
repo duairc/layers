@@ -11,7 +11,7 @@ and in the naming. This module attempts to define precisely what is meant by
 the different pieces of jargon which I use throughout H(layers). Some of this
 jargon is appropriated from other places in the Haskell ecosystem, while some
 of it (to the best of my knowledge) is original. Even in the cases where it is
-appropriated, the intended meaning in the context of H(layers) may be subtly
+appropriated, the intended meaning in the context of H(layers) may be subtlely
 different, and even I get confused sometimes about what I'm talking sometimes.
 So hopefully, by defining precisely the terms I use mean, I'll be able think
 more clearly and therefore communicate more clearly, and ultimately make
@@ -102,6 +102,7 @@ module Documentation.Layers.Glossary
       -- $monadictype
 
       -- | #opentypeclass#
+
       -- | #closedtypeclass#
 
       -- * Open and closed type classes
