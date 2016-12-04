@@ -31,17 +31,18 @@ the H(mtl) package. It consists of:
 
 module Monad.Error
     (
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
       Error (noMsg, strMsg)
+    ,
 #endif
-    , MonadError
+      MonadError
     , catchError
     , throwError
     )
 where
 
 
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 -- transformers --------------------------------------------------------------
 #if __GLASGOW_HASKELL__ >= 706
 import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
