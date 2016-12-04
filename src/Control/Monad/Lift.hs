@@ -101,8 +101,11 @@ module Control.Monad.Lift
 
     -- ** Defaults
     -- $defaults
-    , MonadNewtype (nu, un)
-    , Oldtype
+    , Iso1
+    , Codomain1
+    , from1
+    , to1
+
     , DefaultMonadInner
     , DefaultMonadInnerControl
     , DefaultMonadInnerInvariant
@@ -129,12 +132,22 @@ import           Control.Arrow (first)
 #endif
 import           Control.Arrow ((***))
 import           Control.Monad (join, liftM)
+#if MIN_VERSION_base(4, 7, 0)
+import           Data.Coerce (Coercible, coerce)
+#endif
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
 #endif
 #ifndef LANGUAGE_ClosedTypeFamilies
 import           GHC.Exts (Any)
 import           Unsafe.Coerce (unsafeCoerce)
+#endif
+
+
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Morph (MFunctor (hoist))
+#if MIN_VERSION_mmorph(1, 0, 1)
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
 #endif
 
 
@@ -158,16 +171,6 @@ import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
 import           Data.Functor.Identity (Identity (Identity))
-
-
--- mmorph --------------------------------------------------------------------
-import           Control.Monad.Morph (MFunctor (hoist))
-#if MIN_VERSION_mmorph(1, 0, 1)
-import           Control.Monad.Trans.Compose
-                     ( ComposeT (ComposeT)
-                     , getComposeT
-                     )
-#endif
 
 
 {-$transfamily
@@ -975,13 +978,13 @@ instance _OVERLAPPABLE
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance (Monad (f (g m)), DefaultMonadInner m (ComposeT f g m)) =>
-    MonadInner m (ComposeT f g m)
+instance (DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
+    MonadInner (f (g m)) (ComposeT f g m)
   where
     liftI = defaultLiftI
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadInnerControl' i m@ holds when @i@ is an
 -- G(innermonad,inner monad) of @m@ such that it is possible to lift
@@ -1098,8 +1101,8 @@ type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 -- G(outerlayer,outer layers) around @i@ of the monad @m@.
 --
 -- Note: On GHC 7.8 and up, this is implemented as a
--- BW(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of GHC
--- do not support closed type families, but we use various hacks involving
+-- BWT(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of
+-- GHC do not support closed type families, but we use various hacks involving
 -- 'Any' and 'unsafeCoerce' to provide the same interface. You should not need
 -- to worry about this; I am pretty sure it is safe.
 #if __GLASGOW_HASKELL__ >= 704
@@ -1109,7 +1112,7 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
     OuterResult m m = Identity
     OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
-    OuterResult i m = OuterResult i (Oldtype m)
+    OuterResult i m = OuterResult i (Codomain1 m)
 -- closed type families are only supported on GHC 7.8 and above
 #else
 type instance OuterResult i m = OuterResult_ i m
@@ -1117,7 +1120,7 @@ type instance OuterResult i m = OuterResult_ i m
 #else
 type OuterResult i m = OuterResult_ i m
 -- we can't use a type family on GHC 7.2 and older because we run into GHC
--- bug G(5595), so we use a type synonym instead
+-- bug B(5595), so we use a type synonym instead
 #endif
 
 
@@ -1126,8 +1129,8 @@ type OuterResult i m = OuterResult_ i m
 -- G(outerlayer,outer layers) around @i@ of the monad @m@.
 --
 -- Note: On GHC 7.8 and up, this is implemented as a
--- BW(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of GHC
--- do not support closed type families, but we use various hacks involving
+-- BWT(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of
+-- GHC do not support closed type families, but we use various hacks involving
 -- 'GHC.Exts.Any' and 'Unsafe.Coerce.unsafeCoerce' to provide the same
 -- interface. You should not need to worry about this; I am pretty sure it is
 -- safe.
@@ -1138,7 +1141,7 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
     OuterState m m = ()
     OuterState m (t m) = LayerState t m
     OuterState i (t m) = (OuterState m (t m), OuterState i m)
-    OuterState i m = OuterState i (Oldtype m)
+    OuterState i m = OuterState i (Codomain1 m)
 -- closed type families are only supported on GHC 7.8 and above
 #else
 type instance OuterState i m = OuterState_ i m
@@ -1151,9 +1154,8 @@ type OuterState i m = OuterState_ i m
 
 
 ------------------------------------------------------------------------------
-newtype ComposeResult i t m a
-    = ComposeResult (OuterResult i m (OuterResult m (t m) a, OuterState m (t m)))
-
+newtype ComposeResult i t m a = ComposeResult
+    (OuterResult i m (OuterResult m (t m) a, OuterState m (t m)))
 
 
 #ifndef LANGUAGE_ClosedTypeFamilies
@@ -1277,16 +1279,16 @@ instance _OVERLAPPABLE
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance DefaultMonadInnerControl m (ComposeT f g m) =>
-    MonadInnerControl m (ComposeT f g m)
+instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
+    MonadInnerControl (f (g m)) (ComposeT f g m)
   where
     suspendI = defaultSuspendI
     resumeI = defaultResumeI
     captureI = defaultCaptureI
     extractI = defaultExtractI
+
+
 #endif
-
-
 #ifdef LANGUAGE_ClosedTypeFamilies
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
@@ -1459,13 +1461,18 @@ instance _OVERLAPPABLE
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance DefaultMonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m) =>
-    MonadInnerInvariant n (ComposeT f g n) m (ComposeT f g m)
+instance DefaultMonadInnerInvariant
+    (h (k n))
+    (ComposeT h k n)
+    (f (g m))
+    (ComposeT f g m)
+  =>
+    MonadInnerInvariant (h (k n)) (ComposeT h k n) (f (g m)) (ComposeT f g m)
   where
     hoistisoI = defaultHoistisoI
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
 class MonadInnerInvariant j n i m => 
     MonadInnerFunctor j n i m
@@ -1528,18 +1535,23 @@ instance _OVERLAPPING
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance DefaultMonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m) =>
-    MonadInnerFunctor n (ComposeT f g n) m (ComposeT f g m)
+instance DefaultMonadInnerFunctor
+    (h (k n))
+    (ComposeT h k n)
+    (f (g m))
+    (ComposeT f g m)
+  =>
+    MonadInnerFunctor (h (k n)) (ComposeT h k n) (f (g m)) (ComposeT f g m)
   where
     hoistI = defaultHoistI
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
 {-$defaults
 
 The changes to the behaviour of the @GeneralizedNewtypeDeriving@ extension
-that come with the new BW(Roles, roles) mechanism in GHC 7.8 (which fixes GHC
+that come with the new BWT(Roles, roles) mechanism in GHC 7.8 (which fixes GHC
 bug B(7148) make it no longer possible to automatically derive instances of
 'MonadInnerControl' the way it is for the other classes in the 'MonadInner'
 familiy.
@@ -1550,6 +1562,8 @@ are provided. These operations can be used to implement an instance
 @'MonadInnerControl' i n@ for some G(innermonad,inner monad) @i@, if @n@ is
 G(morphism,isomorphic) to an @m@ for which there exists an instance
 @'MonadInnerControl' i m@ (e.g., if @n@ is a newtype wrapper around @m@).
+
+
 These operations use 'unsafeCoerce' internally in their implementation, but
 in such a way that should be okay as long as the given
 G(morphism,isomorphism) is valid.
@@ -1595,53 +1609,68 @@ operations to manually define an instance (as above) rather than using the
 
 
 ------------------------------------------------------------------------------
-class MonadNewtype m where
-    type Oldtype m :: * -> *
-    nu :: forall a. Oldtype m a -> m a
-    un :: forall a. m a -> Oldtype m a
+class Iso1 t where
+    type Codomain1 (t :: * -> *) :: * -> *
+    to1 :: forall a. t a -> Codomain1 t a
+    from1 :: forall a. Codomain1 t a -> t a
+#if MIN_VERSION_base(4, 7, 0)
+
+    default to1 :: Coercible t (Codomain1 t) => forall a. t a -> Codomain1 t a
+    to1 = coerce
+
+    default from1
+        :: Coercible (Codomain1 t) t => forall a. Codomain1 t a -> t a
+    from1 = coerce
+#endif
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance MonadNewtype (ComposeT f g m) where
-    type Oldtype (ComposeT f g m) = f (g m)
-    nu = ComposeT
-    un = getComposeT
+instance Iso1 (ComposeT f g m) where
+    type Codomain1 (ComposeT f g m) = f (g m)
+    to1 (ComposeT m) = m
+    from1 = ComposeT
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
+-- | A constraint synonym that helps us write the type signature of
+-- 'defaultLiftI'.
 #ifdef LANGUAGE_ConstraintKinds
-type DefaultMonadInner i m = (MonadNewtype m, MonadInner i (Oldtype m))
+type DefaultMonadInner i m = (Iso1 m, Monad i, MonadInner i (Codomain1 m))
 #else
-class (MonadNewtype m, MonadInner i (Oldtype m)) => DefaultMonadInner i m
-instance (MonadNewtype m, MonadInner i (Oldtype m)) => DefaultMonadInner i m
+class (Iso1 m, Monad i, MonadInner i (Codomain1 m)) => DefaultMonadInner i m
+instance (Iso1 m, Monad i, MonadInner i (Codomain1 m))
+    => DefaultMonadInner i m
 #endif
 
 
 ------------------------------------------------------------------------------
+-- | A constraint synonym that helps us write the type signatures of
+-- 'defaultSuspendI', 'defaultResumeI', 'defaultCaptureI' and
+-- 'defaultExtractI'.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerControl i m =
     ( MonadInner i m
     , DefaultMonadInner i m
-    , MonadInnerControl i (Oldtype m)
+    , MonadInnerControl i (Codomain1 m)
 #ifdef LANGUAGE_ClosedTypeFamilies
-    , OuterResult i m ~ OuterResult i (Oldtype m)
-    , OuterState i m ~ OuterState i (Oldtype m)
+    , OuterResult i m ~ OuterResult i (Codomain1 m)
+    , OuterState i m ~ OuterState i (Codomain1 m)
 #endif
     )
 #else
 class
     ( MonadInner i m
     , DefaultMonadInner i m
-    , MonadInnerControl i (Oldtype m)
+    , MonadInnerControl i (Codomain1 m)
     )
   =>
     DefaultMonadInnerControl i m
 instance
     ( MonadInner i m
     , DefaultMonadInner i m
-    , MonadInnerControl i (Oldtype m)
+    , MonadInnerControl i (Codomain1 m)
     )
   =>
     DefaultMonadInnerControl i m
@@ -1649,13 +1678,15 @@ instance
 
 
 ------------------------------------------------------------------------------
+-- | A constraint synonym that helps us write the type signature of
+-- 'defaultHoistisoI'.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerInvariant j n i m =
     ( MonadInner i m
     , MonadInner j n
     , DefaultMonadInner i m
     , DefaultMonadInner j n
-    , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
+    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
     )
 #else
 class
@@ -1663,7 +1694,7 @@ class
     , MonadInner j n
     , DefaultMonadInner j n
     , DefaultMonadInner i m
-    , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
+    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
     )
   =>
     DefaultMonadInnerInvariant j n i m
@@ -1676,7 +1707,7 @@ instance
     , MonadInner j n
     , DefaultMonadInner j n
     , DefaultMonadInner i m
-    , MonadInnerInvariant j (Oldtype n) i (Oldtype m)
+    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
     )
   =>
     DefaultMonadInnerInvariant j n i m
@@ -1684,17 +1715,19 @@ instance
 
 
 ------------------------------------------------------------------------------
+-- | A constraint synonym that helps us write the type signature of
+-- 'defaultHoistI.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerFunctor j n i m =
     ( MonadInnerInvariant j n i m
     , DefaultMonadInnerInvariant j n i m
-    , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
+    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
     )
 #else
 class
     ( MonadInnerInvariant j n i m
     , DefaultMonadInnerInvariant j n i m
-    , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
+    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
     )
   =>
     DefaultMonadInnerFunctor j n i m
@@ -1705,7 +1738,7 @@ class
 instance
     ( MonadInnerInvariant j n i m
     , DefaultMonadInnerInvariant j n i m
-    , MonadInnerFunctor j (Oldtype n) i (Oldtype m)
+    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
     )
   =>
     DefaultMonadInnerFunctor j n i m
@@ -1713,109 +1746,107 @@ instance
 
 
 ------------------------------------------------------------------------------
--- | Used when implementing a custom instance of @'MonadInner' i@ for some
--- monad @n@.
+-- | Used when manually defining an instance of @'MonadInner' i@ for some
+-- monad @m@.
 --
--- @n@ must be G(morphism,isomorphic) to a monad @m@ which is already an
--- instance of @'MonadControl' i@.
---
--- 'defaultLiftI' takes the @m -> n@ half of the G(morphism, isomorphism).
+-- The constraint @'DefaultMonadInner' i m@ essentially requires that @m@ be
+-- G(morphism,isomorphic) to some monad @m'@ which is already an instance of
+-- @'MonadInner' i@. This isomorphism is given by making instance @m@ an
+-- instance 'Iso1' such that @'Codomain1' m = m'@.
 defaultLiftI :: DefaultMonadInner i m => i a -> m a
-defaultLiftI = nu . liftI
+defaultLiftI = from1 . liftI
 
 
 ------------------------------------------------------------------------------
--- | Used when implementing a custom instance of @'MonadInnerControl' i@ for
--- some monad @n@.
+-- | Used when manually defining an instance of @'MonadInnerControl' i@ for
+-- some monad @m@.
 --
--- @n@ must be G(morphism,isomorphic) to a monad @m@ which is already an
--- instance of @'MonadInnerControl' i@.
---
--- 'defaultSuspendI' takes the @n -> m@ half of the G(morphism,isomorphism).
+-- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
+-- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
+-- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
+-- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
 defaultSuspendI :: DefaultMonadInnerControl i m
     => m a
     -> OuterState i m
     -> i (OuterEffects i m a)
-defaultSuspendI m s = liftM (toR *** toS) $ suspendI (un m) (fromS s)
+defaultSuspendI m s = liftM (toR *** toS) $ suspendI (to1 m) (fromS s)
 
 
 ------------------------------------------------------------------------------
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
--- some monad @n@.
+-- some monad @m@.
 --
--- @n@ must be G(moprhism,isomorphic) to a monad @m@ which is already an
--- instance of @'MonadInnerControl' i@.
---
--- 'defaultResumeI' takes the @m -> n@ half of the G(morphism,isomorphism).
+-- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
+-- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
+-- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
+-- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
 defaultResumeI :: DefaultMonadInnerControl i m
     => proxy i
     -> OuterEffects i m a
     -> m a
-defaultResumeI p = nu . resumeI p . (fromR *** fromS)
+defaultResumeI p = from1 . resumeI p . (fromR *** fromS)
 
 
 ------------------------------------------------------------------------------
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
--- some monad @n@.
+-- some monad @m@.
 --
--- @n@ must be G(moprhism,isomorphic) to a monad @m@ which is already an
--- instance of @'MonadInnerControl' i@.
---
--- 'defaultCaptureI' takes the @m -> n@ half of the G(moprhism,isomorphism).
+-- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
+-- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
+-- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
+-- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
 defaultCaptureI :: DefaultMonadInnerControl i m
     => proxy i
     -> m (OuterState i m)
-defaultCaptureI p = nu (liftM toS (captureI p))
+defaultCaptureI p = from1 (liftM toS (captureI p))
 
 
 ------------------------------------------------------------------------------
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
--- some monad @n@.
+-- some monad @m@.
 --
--- @n@ must be G(morphism,isomorphic) to a monad @m@ which is already an
--- instance of @'MonadInnerControl' i@.
---
--- 'defaultExtractI' takes the @m -> n@ half of the G(morphism,isomorphism).
+-- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
+-- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
+-- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
+-- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
 defaultExtractI :: forall proxy proxy' i m a. DefaultMonadInnerControl i m
     => proxy i
     -> proxy' m
     -> OuterResult i m a
     -> Maybe a
-defaultExtractI p _ r = extractI p (Pm :: Pm (Oldtype m)) (fromR r)
+defaultExtractI p _ r = extractI p (Pm :: Pm (Codomain1 m)) (fromR r)
 
 
 ------------------------------------------------------------------------------
--- | Used when manually defining an instance @'MonadInnerInvariant' j n' i n@
--- for some pair of monads @n@ and @n'@.
+-- | Used when manually defining an instance @'MonadInnerInvariant' j n i m@
+-- for some pair of monads @m@ and @n@.
 --
--- @n@ and @n'@ must be G(morphism,isomorphic) to a pair of monads @m@ and
--- @m'@ for which there already is an instance
--- @'MonadInnerInvariant' j m' i m@.
---
--- 'defaultHoistisoI' takes the @m' -> n'@ half of the @m' ~ n'@
--- G(morphism,isomorphism) and the @n -> m@ half of the @m ~ n@
--- G(morphism,isomorphism).
+-- The constraint @'DefaultMonadInnerInvariant' j n i m@ essentially requires
+-- that @m@ and @n@ be G(morphism,isomorphic) to some pair of monads @m'@ and
+-- @n'@ for which there already exists an instance
+-- @'MonadInnerInvariant j n' i m'@. These isomorphisms are given by making
+-- @m@ and @n@ instances of 'Iso1' such that @'Codomain1' m = m'@ and
+-- @'Codomain1' n = n'@.
 defaultHoistisoI :: DefaultMonadInnerInvariant j n i m
     => (forall b. i b -> j b)
     -> (forall b. j b -> i b)
     -> m a
     -> n a
-defaultHoistisoI f g m = nu (hoistisoI f g (un m))
+defaultHoistisoI f g m = from1 (hoistisoI f g (to1 m))
 
 
 ------------------------------------------------------------------------------
--- | Used when manually defining an instance @'MonadInnerFunctor' j n' i n@
--- for some pair of monads @n@ and @n'@.
+-- | Used when manually defining an instance @'MonadInnerFunctor' j n i m@
+-- for some pair of monads @m@ and @n@.
 --
--- @n@ and @n'@ must be G(morphism,isomorphic) to a pair of monads @m@ and
--- @m'@ for which there already is an instance
--- @'MonadInnerFunctor' j m' i m@.
---
--- 'defaultHoistI' takes the @m' -> n'@ half of the @m' ~ n'@
--- G(morphism,isomorphism) and the @n -> m@ half of the @m ~ n@
--- G(morphism,isomorphism).
+-- The constraint @'DefaultMonadInnerFunctor' j n i m@ essentially requires
+-- that @m@ and @n@ be G(morphism,isomorphic) to some pair of monads @m'@ and
+-- @n'@ for which there already exists an instance
+-- @'MonadInnerFunctor j n' i m'@. These isomorphisms are given by making @m@
+-- and @n@ instances of 'Iso1' such that @'Codomain1' m = m'@ and
+-- @'Codomain1' n = n'@.
 defaultHoistI :: DefaultMonadInnerFunctor j n i m
     => (forall b. i b -> j b)
     -> m a
     -> n a
-defaultHoistI f m = nu (hoistI f (un m))
+defaultHoistI f m = from1 (hoistI f (to1 m))
