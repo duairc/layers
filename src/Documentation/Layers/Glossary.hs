@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-#include <macros.h>
+#include <docmacros.h>
 
 {-|
 
