@@ -1393,7 +1393,7 @@ liftDiscardI f = \m -> liftControlI $ \peel -> f $ liftM (const ()) $ peel m
 ------------------------------------------------------------------------------
 -- | The constraint @'MonadInnerInvariant' i m@ holds when @i@ is an
 -- G(innermonad,inner monad) of @m@ such that it is possible to lift
--- G(moprhism, monad automorphisms) of @i@ to G(morphism,monad endomorphisms)
+-- G(morphism, monad automorphisms) of @i@ to G(morphism,monad endomorphisms)
 -- of @m@ using 'hoistisoI'. In other words, @'MonadInnerInvariant' i m@
 -- implies the existence of a
 -- G(morphism,invariant functor in the category of monads) from
