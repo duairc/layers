@@ -5,11 +5,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -57,18 +59,6 @@ import qualified Control.Concurrent (forkOn)
 #endif
 
 
-#if MIN_VERSION_mmorph(1, 0, 1)
--- mmorph --------------------------------------------------------------------
-import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
-#endif
-
-
--- transformers --------------------------------------------------------------
-#if MIN_VERSION_transformers(0, 3, 0)
-import           Data.Functor.Product (Product (Pair))
-#endif
-
-
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift.Top (MonadTopControl, liftDiscardT)
 import           Monad.Mask
@@ -80,6 +70,18 @@ import           Monad.Mask
 import           Monad.Try (MonadTry, mtry)
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
+#endif
+#if MIN_VERSION_transformers(0, 3, 0)
+-- transformers --------------------------------------------------------------
+import           Data.Functor.Product (Product (Pair))
+
+
+#endif
 ------------------------------------------------------------------------------
 -- | The 'MonadFork' type class, for monads which support a 'fork' operation.
 --
@@ -136,10 +138,10 @@ class MonadMask m => MonadFork m where
     -- recommended).
     forkOn :: Int -> m () -> m ThreadId
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL fork, forkOn #-}
-#endif
 
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadFork IO where
@@ -156,19 +158,20 @@ instance MonadFork IO where
 instance (MonadFork f, MonadFork g) => MonadFork (Product f g) where
     fork (Pair f g) = Pair (fork f) (fork g)
     forkOn n (Pair f g) = Pair (forkOn n f) (forkOn n g)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadFork (f (g m)) => MonadFork (ComposeT f g m) where
     fork (ComposeT m) = ComposeT (fork m)
     forkOn n (ComposeT m) = ComposeT (forkOn n m)
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTopControl t m, MonadFork m, MonadMask (t m)) =>
+instance __OVERLAPPABLE__ (MonadTopControl t m, MonadFork m, MonadMask (t m))
+  =>
     MonadFork (t m)
   where
     fork = liftDiscardT fork

@@ -6,11 +6,13 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -67,9 +69,9 @@ import           Data.Monoid (Monoid)
 #if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 #endif
-
-
 -- transformers --------------------------------------------------------------
 import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
 import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
@@ -120,8 +122,9 @@ class (Monad m, Monoid w) => MonadWriter w m | m -> w where
     tell w = writer ((), w)
     {-# INLINABLE tell #-}
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL listen, pass, (writer | tell) #-}
+
 #endif
 
 ------------------------------------------------------------------------------
@@ -168,9 +171,9 @@ instance (MonadWriter w f, MonadWriter w g) => MonadWriter w (Product f g)
     tell w = Pair (tell w) (tell w)
     listen (Pair f g) = Pair (listen f) (listen g)
     pass (Pair f g) = Pair (pass f) (pass g)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadWriter w (f (g m)) => MonadWriter w (ComposeT f g m) where
@@ -178,11 +181,11 @@ instance MonadWriter w (f (g m)) => MonadWriter w (ComposeT f g m) where
     tell w = ComposeT (tell w)
     listen (ComposeT m) = ComposeT (listen m)
     pass (ComposeT m) = ComposeT (pass m)
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTop t m, Monad (t m), MonadWriter w m) =>
+instance __OVERLAPPABLE__ (MonadTop t m, Monad (t m), MonadWriter w m) =>
     MonadWriter w (t m)
   where
     writer = liftT . writer

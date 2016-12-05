@@ -4,13 +4,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
-
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -77,14 +79,18 @@ import           GHC.Conc (STM, unsafeIOToSTM)
 #endif
 
 
+-- layers --------------------------------------------------------------------
+import          Control.Monad.Lift.Top (MonadTop, liftT)
+
+
 #if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 #endif
-
-
 -- transformers --------------------------------------------------------------
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 import           Control.Monad.Trans.Error (ErrorT (ErrorT), Error)
 #endif
 #if MIN_VERSION_transformers(0, 4, 0)
@@ -95,10 +101,6 @@ import           Control.Monad.Trans.List (ListT)
 #if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
 #endif
-
-
--- layers --------------------------------------------------------------------
-import          Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -127,10 +129,10 @@ class Monad m => MonadAbort e m where
     -- G(shortcircuit, short-circuit).
     abort :: e -> m a
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL abort #-}
-#endif
 
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadAbort e (Either e) where
@@ -171,36 +173,36 @@ instance Monad m => MonadAbort e (MaybeT m) where
     abort = const mzero
 
 
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 ------------------------------------------------------------------------------
 instance (Error e, Monad m) => MonadAbort e (ErrorT e m) where
     abort = ErrorT . return . Left
+
+
 #endif
-
-
 #if MIN_VERSION_transformers(0, 4, 0)
 ------------------------------------------------------------------------------
 instance Monad m => MonadAbort e (ExceptT e m) where
     abort = ExceptT . return . Left
+
+
 #endif
-
-
 #if MIN_VERSION_transformers(0, 3, 0)
 ------------------------------------------------------------------------------
 instance (MonadAbort e f, MonadAbort e g) => MonadAbort e (Product f g) where
     abort e = Pair (abort e) (abort e)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadAbort e (f (g m)) => MonadAbort e (ComposeT f g m) where
     abort = ComposeT . abort
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTop t m, MonadAbort e m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTop t m, MonadAbort e m, Monad (t m)) =>
     MonadAbort e (t m)
   where
     abort = liftT . abort

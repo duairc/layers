@@ -6,11 +6,13 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -64,12 +66,16 @@ import           Data.Monoid (Monoid (mempty))
 #endif
 
 
+-- layers --------------------------------------------------------------------
+import           Control.Monad.Lift.Top (MonadTop, liftT)
+
+
 #if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 #endif
-
-
 -- transformers --------------------------------------------------------------
 import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
@@ -78,10 +84,6 @@ import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
 #if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
 #endif
-
-
--- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -118,8 +120,9 @@ class Monad m => MonadState s m | m -> s where
 
     put s = state (\_ -> ((), s))
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL state | (get, put) #-}
+
 #endif
 
 ------------------------------------------------------------------------------
@@ -156,20 +159,20 @@ instance (MonadState s f, MonadState s g) => MonadState s (Product f g) where
     state f = Pair (state f) (state f)
     get = Pair get get
     put s = Pair (put s) (put s)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadState s (f (g m)) => MonadState s (ComposeT f g m) where
     state f = ComposeT (state f)
     get = ComposeT get
     put s = ComposeT (put s)
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTop t m, MonadState s m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTop t m, MonadState s m, Monad (t m)) =>
     MonadState s (t m)
   where
     state = liftT . state

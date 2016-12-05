@@ -9,16 +9,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
+
 #ifdef LANGUAGE_DefaultSignatures
 {-# LANGUAGE DefaultSignatures #-}
 #endif
 
-{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
-
-#include "macros.h"
+#include "docmacros.h"
+#include "overlap.h"
 
 {-|
 
@@ -132,13 +135,13 @@ import           Control.Arrow (first)
 #endif
 import           Control.Arrow ((***))
 import           Control.Monad (join, liftM)
-#if MIN_VERSION_base(4, 7, 0)
+#if MIN_VERSION_base(4, 7, 0) && __GLASGOW_HASKELL__ >= 710
 import           Data.Coerce (Coercible, coerce)
 #endif
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
 #endif
-#ifndef LANGUAGE_ClosedTypeFamilies
+#ifndef ClosedTypeFamilies
 import           GHC.Exts (Any)
 import           Unsafe.Coerce (unsafeCoerce)
 #endif
@@ -154,7 +157,7 @@ import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Class (MonadTrans (lift))
 import           Control.Monad.Trans.Cont (ContT (ContT))
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 import           Control.Monad.Trans.Error (Error, ErrorT (ErrorT))
 #endif
 #if MIN_VERSION_transformers(0, 4, 0)
@@ -477,7 +480,7 @@ data family LayerState (t :: (* -> *) -> * -> *) :: (* -> *) -> *
 #endif
 
 
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 ------------------------------------------------------------------------------
 instance Error e => MonadTransControl (ErrorT e) where
 #if __GLASGOW_HASKELL__ >= 704
@@ -497,9 +500,9 @@ type instance LayerState (ErrorT e) m = ()
 newtype instance LayerResult (ErrorT e) a = ER (Either e a)
 newtype instance LayerState (ErrorT e) m = ES ()
 #endif
+
+
 #endif
-
-
 #if MIN_VERSION_transformers(0, 4, 0)
 ------------------------------------------------------------------------------
 instance MonadTransControl (ExceptT e) where
@@ -520,9 +523,9 @@ type instance LayerState (ExceptT e) m = ()
 newtype instance LayerResult (ExceptT e) a = ExR (Either e a)
 newtype instance LayerState (ExceptT e) m = ExS ()
 #endif
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
 instance MonadTransControl IdentityT where
 #if __GLASGOW_HASKELL__ >= 704
@@ -845,24 +848,26 @@ class MInvariant t where
         -> t m a
         -> t n a
     hoistiso f _ = hoist f
-#endif
 
+#endif
 
 ------------------------------------------------------------------------------
 instance MInvariant (ContT r) where
     hoistiso f g (ContT m) = ContT $ f . m . (g .)
 
 
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 ------------------------------------------------------------------------------
 instance MInvariant (ErrorT e) where
     hoistiso f _ = hoist f
+
+
 #endif
-
-
 #if MIN_VERSION_transformers(0, 4, 0)
 instance MInvariant (ExceptT e) where
     hoistiso f _ = \(ExceptT m) -> ExceptT $ f m
+
+
 #endif
 
 
@@ -957,7 +962,8 @@ instance Monad m => MonadInner m m where
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPING (Monad m, Monad (t m)) => MonadInner (t m) (t m) where
+instance __OVERLAPPING__ (Monad m, Monad (t m)) => MonadInner (t m) (t m)
+  where
     liftI = id
 
 
@@ -967,7 +973,7 @@ instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE
+instance __OVERLAPPABLE__
     (Monad (t m), MonadInner i m, MonadInner m (t m)) => MonadInner i (t m)
   where
     liftI = liftT . liftI
@@ -1107,7 +1113,7 @@ type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 -- to worry about this; I am pretty sure it is safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
   where
     OuterResult m m = Identity
     OuterResult m (t m) = LayerResult t
@@ -1136,7 +1142,7 @@ type OuterResult i m = OuterResult_ i m
 -- safe.
 #if __GLASGOW_HASKELL__ >= 704
 type family OuterState (i :: * -> *) (m :: * -> *) :: *
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
   where
     OuterState m m = ()
     OuterState m (t m) = LayerState t m
@@ -1158,7 +1164,7 @@ newtype ComposeResult i t m a = ComposeResult
     (OuterResult i m (OuterResult m (t m) a, OuterState m (t m)))
 
 
-#ifndef LANGUAGE_ClosedTypeFamilies
+#ifndef ClosedTypeFamilies
 ------------------------------------------------------------------------------
 newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
 
@@ -1169,7 +1175,7 @@ newtype OuterState_ (i :: * -> *) (m :: * -> *) = OuterState_ Any
 
 #endif
 ------------------------------------------------------------------------------
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
 toS, fromS, toR, fromR :: a -> a
 toS = id; fromS = id; toR = id; fromR = id
 #else
@@ -1193,7 +1199,7 @@ instance MonadInner m m => MonadInnerControl m m where
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPING
+instance __OVERLAPPING__
     (Monad m, MonadInner (t m) (t m)) => MonadInnerControl (t m) (t m)
   where
     suspendI m _ = liftM (\a -> (toR $ Identity a, toS ())) m
@@ -1206,7 +1212,7 @@ instance _OVERLAPPING
 instance
     ( MonadTransControl t
     , MonadInner m (t m)
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
     , OuterState m (t m) ~ LayerState t m
     , OuterResult m (t m) ~ LayerResult t
 #endif
@@ -1221,11 +1227,11 @@ instance
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE
+instance __OVERLAPPABLE__
     ( MonadInner i (t m)
     , MonadInnerControl i m
     , MonadInnerControl m (t m)
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
     , OuterResult i (t m) ~ ComposeResult i t m
     , OuterState i (t m) ~ (OuterState m (t m), OuterState i m)
 #endif
@@ -1289,7 +1295,7 @@ instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
 
 
 #endif
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 type instance LayerResult (ComposeT f g) =
@@ -1424,7 +1430,7 @@ instance (MonadInner m m, MonadInner n n) => MonadInnerInvariant n n m m where
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPING (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
+instance __OVERLAPPING__ (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
     MonadInnerInvariant n n (t m) (t m)
   where
     hoistisoI f _ = f
@@ -1438,7 +1444,7 @@ instance (MInvariant t, MonadInner m (t m), MonadInner n (t n)) =>
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE
+instance __OVERLAPPABLE__
     ( MonadInner i (t m)
     , MonadInner j (t n)
     , MonadInnerInvariant j n i m
@@ -1461,11 +1467,18 @@ instance _OVERLAPPABLE
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance DefaultMonadInnerInvariant
-    (h (k n))
-    (ComposeT h k n)
-    (f (g m))
-    (ComposeT f g m)
+instance
+    ( DefaultMonadInnerInvariant
+        (h (k n))
+        (ComposeT h k n)
+        (f (g m))
+        (ComposeT f g m)
+#if __GLASGOW_HASKELL__ >= 700 && __GLASGOW_HASKELL__ < 702
+-- don't know why I have to do this on GHC 7.0, but I do
+    , Monad (k n)
+    , h ~ f
+#endif
+    )
   =>
     MonadInnerInvariant (h (k n)) (ComposeT h k n) (f (g m)) (ComposeT f g m)
   where
@@ -1501,7 +1514,7 @@ instance MonadInnerInvariant n n m m => MonadInnerFunctor n n m m where
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPING (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
+instance __OVERLAPPING__ (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
     MonadInnerFunctor n n (t m) (t m)
   where
     hoistI f = f
@@ -1515,7 +1528,7 @@ instance (MFunctor t, MonadInnerInvariant n (t n) m (t m)) =>
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPING
+instance __OVERLAPPING__
     ( MonadInnerFunctor j n i m
     , MonadInnerFunctor n (t n) m (t m)
     , MonadInnerInvariant j (t n) i (t m)
@@ -1535,11 +1548,19 @@ instance _OVERLAPPING
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance DefaultMonadInnerFunctor
-    (h (k n))
-    (ComposeT h k n)
-    (f (g m))
-    (ComposeT f g m)
+instance
+    ( DefaultMonadInnerFunctor
+        (h (k n))
+        (ComposeT h k n)
+        (f (g m))
+        (ComposeT f g m)
+#if __GLASGOW_HASKELL__ >= 700 && __GLASGOW_HASKELL__ < 702
+-- don't know why I have to do this on GHC 7.0, but I do
+    , Monad (k n)
+    , h ~ f
+    , k ~ g
+#endif
+    )
   =>
     MonadInnerFunctor (h (k n)) (ComposeT h k n) (f (g m)) (ComposeT f g m)
   where
@@ -1614,6 +1635,8 @@ class Iso1 t where
     to1 :: forall a. t a -> Codomain1 t a
     from1 :: forall a. Codomain1 t a -> t a
 #if MIN_VERSION_base(4, 7, 0)
+-- fails on GHC 7.8 for some reason
+#if __GLASGOW_HASKELL__ >= 710
 
     default to1 :: Coercible t (Codomain1 t) => forall a. t a -> Codomain1 t a
     to1 = coerce
@@ -1621,6 +1644,7 @@ class Iso1 t where
     default from1
         :: Coercible (Codomain1 t) t => forall a. Codomain1 t a -> t a
     from1 = coerce
+#endif
 #endif
 
 
@@ -1634,8 +1658,8 @@ instance Iso1 (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
--- | A constraint synonym that helps us write the type signature of
--- 'defaultLiftI'.
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultLiftI'.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInner i m = (Iso1 m, Monad i, MonadInner i (Codomain1 m))
 #else
@@ -1646,15 +1670,15 @@ instance (Iso1 m, Monad i, MonadInner i (Codomain1 m))
 
 
 ------------------------------------------------------------------------------
--- | A constraint synonym that helps us write the type signatures of
--- 'defaultSuspendI', 'defaultResumeI', 'defaultCaptureI' and
--- 'defaultExtractI'.
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signatures of 'defaultSuspendI', 'defaultResumeI',
+-- 'defaultCaptureI' and 'defaultExtractI'.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerControl i m =
     ( MonadInner i m
     , DefaultMonadInner i m
     , MonadInnerControl i (Codomain1 m)
-#ifdef LANGUAGE_ClosedTypeFamilies
+#ifdef ClosedTypeFamilies
     , OuterResult i m ~ OuterResult i (Codomain1 m)
     , OuterState i m ~ OuterState i (Codomain1 m)
 #endif
@@ -1678,8 +1702,8 @@ instance
 
 
 ------------------------------------------------------------------------------
--- | A constraint synonym that helps us write the type signature of
--- 'defaultHoistisoI'.
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistisoI'.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerInvariant j n i m =
     ( MonadInner i m
@@ -1715,8 +1739,8 @@ instance
 
 
 ------------------------------------------------------------------------------
--- | A constraint synonym that helps us write the type signature of
--- 'defaultHoistI.
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistI.
 #ifdef LANGUAGE_ConstraintKinds
 type DefaultMonadInnerFunctor j n i m =
     ( MonadInnerInvariant j n i m

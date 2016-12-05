@@ -2,14 +2,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
-
-#include <macros.h>
+#include <docmacros.h>
 
 {-|
 
@@ -35,7 +36,7 @@ where
 -- base ----------------------------------------------------------------------
 import           Control.Exception
                      ( Exception
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
                      , PatternMatchFail (PatternMatchFail)
 #endif
                      , SomeException
@@ -45,7 +46,7 @@ import           Control.Exception
 
 -- layers --------------------------------------------------------------------
 import           Monad.Abort (MonadAbort, abort)
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
 import           Control.Monad.Trans.Error (Error, noMsg, strMsg)
 #endif
 
@@ -67,9 +68,9 @@ instance MonadAbort SomeException m => MonadThrow m
 -- 'MonadThrow'.
 throw :: (Exception e, MonadThrow m) => e -> m a
 throw = abort . toException
+#if !MIN_VERSION_transformers(0, 6, 0)
 
 
-#if !MIN_VERSION_transformers(0, 5, 0)
 ------------------------------------------------------------------------------
 -- | Cheeky orphan instance of 'Error' for 'SomeException'. This allows
 -- 'SomeException' to be used with the 'Control.Monad.Trans.Error.ErrorT'

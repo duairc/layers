@@ -3,11 +3,13 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -36,9 +38,9 @@ where
 #ifndef LANGUAGE_ConstraintKinds
 -- base ----------------------------------------------------------------------
 import           Data.Monoid (Monoid)
+
+
 #endif
-
-
 -- layers --------------------------------------------------------------------
 import           Monad.Reader
                      ( MonadReader (reader, ask, local)
@@ -57,9 +59,9 @@ import           Monad.Writer
 
 
 ------------------------------------------------------------------------------
--- | The 'MonadRWS' constraint is defined as a type synonym (using
--- the @<https://www.haskell.org/ghc/docs/latest/html/users_guide/constraint-kind.html ConstraintKinds>@ extension)
--- for the combination of 'MonadReader', 'MonadState' and 'MonadWriter'.
+-- | 'MonadRWS' is simply a
+-- UG(glasgow_exts.html#the-constraint-kind,constraint synonym) for the
+-- combination of 'MonadReader', 'MonadState' and 'MonadWriter'.
 #ifdef LANGUAGE_ConstraintKinds
 type MonadRWS r w s m = (MonadReader r m, MonadWriter w m, MonadState s m)
 #else

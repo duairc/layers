@@ -7,6 +7,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
@@ -50,10 +51,6 @@ import           GHC.Conc (STM)
 #endif
 
 
--- transformers --------------------------------------------------------------
-import           Data.Functor.Identity (Identity)
-
-
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift
                      ( MonadInner
@@ -76,6 +73,10 @@ import           Control.Monad.Lift
                      , MonadInnerFunctor
                      , hoistI
                      )
+
+
+-- transformers --------------------------------------------------------------
+import           Data.Functor.Identity (Identity)
 
 
 ------------------------------------------------------------------------------

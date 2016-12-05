@@ -6,11 +6,13 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -64,12 +66,16 @@ import           Data.Monoid (Monoid (mempty))
 #endif
 
 
+-- layers --------------------------------------------------------------------
+import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
+
+
 #if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 #endif
-
-
 -- transformers --------------------------------------------------------------
 import           Control.Monad.Trans.Reader (ReaderT (ReaderT))
 import qualified Control.Monad.Trans.RWS.Lazy as L (RWST (RWST))
@@ -77,10 +83,6 @@ import           Control.Monad.Trans.RWS.Strict (RWST (RWST))
 #if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
 #endif
-
-
--- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
 
 
 ------------------------------------------------------------------------------
@@ -109,8 +111,9 @@ class Monad m => MonadReader r m | m -> r where
     ask = reader id
     {-# INLINABLE ask #-}
 
-#ifdef MINIMALSupport
-    {-# MINIMAL local, (reader, ask) #-}
+#ifdef MinimalPragma
+    {-# MINIMAL local, (reader | ask) #-}
+
 #endif
 
 ------------------------------------------------------------------------------
@@ -149,20 +152,20 @@ instance (MonadReader r f, MonadReader r g) =>
     reader f = Pair (reader f) (reader f)
     ask = Pair ask ask
     local t (Pair f g) = Pair (local t f) (local t g)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadReader r (f (g m)) => MonadReader r (ComposeT f g m) where
     reader f = ComposeT (reader f)
     ask = ComposeT ask
     local t (ComposeT m) = ComposeT (local t m)
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE
+instance __OVERLAPPABLE__
     ( MonadTopInvariant m t m
     , MonadReader r m
     , Monad (t m)

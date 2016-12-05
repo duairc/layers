@@ -7,11 +7,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-#if LANGUAGE_ConstraintKinds
+
+#ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -96,9 +98,9 @@ import           Data.Proxy (Proxy)
 #if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
 #endif
-
-
 -- transformers --------------------------------------------------------------
 import           Data.Functor.Identity (Identity)
 #if MIN_VERSION_transformers(0, 3, 0)
@@ -158,15 +160,16 @@ class MonadMask m => MonadTry m where
     --     @'mtry' ('return' a) ≡ 'return' ('Right' a)@
     --
     -- [Implies-Non-Zero]
-    --     @('mtry' m ≡ 'liftM' 'Right' m) ^ ((a ≢ b) ⇒ ('return' a ≢ 'return' b)) ⇒ (∃f. m '>>=' f ≢ m)@
+    --     @('mtry' m ≡ 'liftM' 'Right' m) ∧ ((a ≢ b) ⇒ ('return' a ≢ 'return' b)) ⇒ (∃f. m '>>=' f ≢ m)@
     --
     -- [Implies-Zero]
     --     @('mtry' m ≡ 'return' ('Left' m)) ⇒ (∀f. m '>>=' f ≡ m)@
     mtry :: m a -> m (Either (m a) a)
     mtry = liftM Right
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL #-}
+
 #endif
 
 ------------------------------------------------------------------------------
@@ -179,16 +182,16 @@ instance (MonadTry f, MonadTry g) => MonadTry (Product f g) where
     mtry (Pair f g) = Pair
         (liftM (either (Left . (flip Pair g)) Right) (mtry f))
         (liftM (either (Left . (Pair f)) Right) (mtry g))
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadTry (f (g m)) => MonadTry (ComposeT f g m) where
     mtry (ComposeT m) = ComposeT (liftM (left ComposeT) (mtry m))
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
 instance MonadTry Maybe where
     mtry = return . maybe (Left Nothing) Right
@@ -251,7 +254,8 @@ data Pm (m :: * -> *) = Pm
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTopControl t m, MonadMask (t m), MonadTry m) =>
+instance __OVERLAPPABLE__ (MonadTopControl t m, MonadMask (t m), MonadTry m)
+  =>
     MonadTry (t m)
   where
     mtry (m :: t m a) = do

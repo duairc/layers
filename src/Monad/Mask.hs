@@ -9,14 +9,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-#if LANGUAGE_ConstraintKinds
+
+#ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
+
 #if __GLASGOW_HASKELL__ >= 707
 {-# LANGUAGE ImpredicativeTypes #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -88,6 +91,7 @@ import           Control.Exception (block, unblock, blocked)
 #endif
 import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
+import           Data.Functor.Identity (Identity)
 #if MIN_VERSION_base(4, 7, 0)
 import           Data.Proxy (Proxy)
 #endif
@@ -104,23 +108,22 @@ import           GHC.Conc (STM)
 #endif
 
 
-#if MIN_VERSION_mmorph(1, 0, 1)
--- mmorph --------------------------------------------------------------------
-import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
-#endif
-
-
--- transformers --------------------------------------------------------------
-import           Data.Functor.Identity (Identity)
-#if MIN_VERSION_transformers(0, 3, 0)
-import           Data.Functor.Product (Product (Pair))
-#endif
-
-
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
+#endif
+#if MIN_VERSION_transformers(0, 3, 0)
+-- transformers --------------------------------------------------------------
+import           Data.Functor.Product (Product (Pair))
+
+
+#endif
 ------------------------------------------------------------------------------
 -- | The 'MonadMask' type class is for dealing with asynchronous exceptions.
 -- It contains the 'getMaskingState' and 'setMaskingState' operations for
@@ -158,10 +161,10 @@ class Monad m => MonadMask m where
     getMaskingState = return MaskedInterruptible
     setMaskingState = const id
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL #-}
-#endif
 
+#endif
 
 #if !MIN_VERSION_base(4, 3, 0)
 ------------------------------------------------------------------------------
@@ -190,17 +193,17 @@ instance (MonadMask f, MonadMask g) => MonadMask (Product f g) where
     getMaskingState = Pair getMaskingState getMaskingState
     setMaskingState s (Pair f g)
         = Pair (setMaskingState s f) (setMaskingState s g)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadMask (f (g m)) => MonadMask (ComposeT f g m) where
     getMaskingState = ComposeT getMaskingState
     setMaskingState s (ComposeT m) = ComposeT (setMaskingState s m)
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
 instance MonadMask Maybe
 
@@ -252,7 +255,8 @@ instance MonadMask IO where
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTopInvariant m t m, MonadMask m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTopInvariant m t m, MonadMask m, Monad (t m))
+  =>
     MonadMask (t m)
   where
     getMaskingState = liftT getMaskingState

@@ -3,13 +3,14 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
-
-#include <macros.h>
+#include <docmacros.h>
 
 {-|
 
@@ -22,7 +23,7 @@ the H(mtl) package. It consists of:
   * The 'MonadError' constraint (a synonym for 'MonadRecover').
   * The 'throwError' operation (a synonym for 'abort').
   * The 'catchError' operation (a synonym for 'recover').
-#if !MIN_VERSION_transformers(0, 5, 0)
+#if !MIN_VERSION_transformers(0, 6, 0)
   * The 'Error' class and its 'noMsg' and 'strMsg' operations (re-exported
   from H(transformers)).
 #endif
@@ -41,6 +42,10 @@ module Monad.Error
     )
 where
 
+-- layers --------------------------------------------------------------------
+import           Monad.Abort (MonadAbort (abort))
+import           Monad.Recover (MonadRecover (recover))
+
 
 #if !MIN_VERSION_transformers(0, 6, 0)
 -- transformers --------------------------------------------------------------
@@ -49,14 +54,9 @@ import           Control.Monad.Trans.Error (Error (noMsg, strMsg))
 #else
 import           Control.Monad.Trans.Error (Error (..))
 #endif
+
+
 #endif
-
-
--- layers --------------------------------------------------------------------
-import           Monad.Abort (MonadAbort (abort))
-import           Monad.Recover (MonadRecover (recover))
-
-
 ------------------------------------------------------------------------------
 -- | The strategy of combining computations that can throw exceptions by
 -- bypassing bound functions from the point an exception is thrown to the

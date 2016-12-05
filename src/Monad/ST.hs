@@ -6,11 +6,13 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -77,22 +79,22 @@ import           GHC.Conc (STM, TVar, newTVar, readTVar, writeTVar)
 #endif
 
 
-#if MIN_VERSION_mmorph(1, 0, 1)
--- mmorph --------------------------------------------------------------------
-import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
-#endif
-
-
--- transformers --------------------------------------------------------------
-#if MIN_VERSION_transformers(0, 3, 0)
-import           Data.Functor.Product (Product (Pair))
-#endif
-
-
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
+#if MIN_VERSION_mmorph(1, 0, 1)
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
+#endif
+#if MIN_VERSION_transformers(0, 3, 0)
+-- transformers --------------------------------------------------------------
+import           Data.Functor.Product (Product (Pair))
+
+
+#endif
 ------------------------------------------------------------------------------
 -- | The type class 'MonadST' represents the class of \"'ST'-like\" monads
 -- (i.e., monads which have mutable variables and operations for mutating the
@@ -118,8 +120,8 @@ class Monad m => MonadST ref m | m -> ref where
     -- conditions.
     --
     -- Extending the atomicity to multiple mutable variables is problematic,
-    -- so it is recommended that if you need to do anything more complicated
-    -- then using 'Control.Concurrent.MVar.MVar' instead is a good idea.
+    -- so if you need to do anything more complicated, it is recommended you
+    -- use an 'Control.Concurrent.MVar.MVar' instead.
     --
     -- 'atomicModifyRef' does not apply the function strictly. This is
     -- important to know even if all you are doing is replacing the value.
@@ -138,8 +140,9 @@ class Monad m => MonadST ref m | m -> ref where
         return b
     {-# INLINABLE atomicModifyRef #-}
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL newRef, readRef, writeRef #-}
+
 #endif
 
 ------------------------------------------------------------------------------
@@ -180,9 +183,9 @@ instance (MonadST ref f, MonadST ref g) => MonadST ref (Product f g) where
     atomicModifyRef ref f = Pair
         (atomicModifyRef ref f)
         (atomicModifyRef ref f)
+
+
 #endif
-
-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadST ref (f (g m)) => MonadST ref (ComposeT f g m) where
@@ -190,11 +193,13 @@ instance MonadST ref (f (g m)) => MonadST ref (ComposeT f g m) where
     readRef ref = ComposeT (readRef ref)
     writeRef ref a = ComposeT (writeRef ref a)
     atomicModifyRef ref f = ComposeT (atomicModifyRef ref f)
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTop t m, Monad (t m), MonadST ref m) => MonadST ref (t m) where
+instance __OVERLAPPABLE__ (MonadTop t m, Monad (t m), MonadST ref m) =>
+    MonadST ref (t m)
+  where
     newRef = liftT . newRef
     {-# INLINABLE newRef #-}
     readRef = liftT . readRef
@@ -246,7 +251,7 @@ modifyRef' ref f = do
 
 ------------------------------------------------------------------------------
 -- | Variant of 'writeRef' with the \"barrier to reordering\" property that
--- 'atomicModifyRef' has. 
+-- 'atomicModifyRef' has.
 atomicWriteRef :: MonadST ref m => ref a -> a -> m ()
 atomicWriteRef ref a = do
     x <- atomicModifyRef ref (\_ -> (a, ()))

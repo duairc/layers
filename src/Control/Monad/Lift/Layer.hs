@@ -8,11 +8,12 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <overlap.h>
 
 {-|
 
@@ -74,7 +75,7 @@ instance MonadInner i (t i) => MonadLayer i t (t i)
 
 
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadLayer i s m, MonadInner (s i) (t m))
+instance __OVERLAPPABLE__ (MonadLayer i s m, MonadInner (s i) (t m))
     => MonadLayer i s (t m)
 
 

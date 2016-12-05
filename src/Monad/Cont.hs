@@ -4,11 +4,13 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 #ifdef LANGUAGE_ConstraintKinds
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
-#include <macros.h>
+#include <docmacros.h>
+#include <overlap.h>
 
 {-|
 
@@ -41,16 +43,6 @@ module Monad.Cont
     )
 where
 
-#if MIN_VERSION_mmorph(1, 0, 1)
--- mmorph --------------------------------------------------------------------
-import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
-#endif
-
-
--- transformers --------------------------------------------------------------
-import           Control.Monad.Trans.Cont (ContT (ContT))
-
-
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift.Top
                     ( MonadTopControl
@@ -58,6 +50,16 @@ import           Control.Monad.Lift.Top
                     , liftControlT
                     , resumeT
                     )
+
+
+#if MIN_VERSION_mmorph(1, 0, 1)
+-- mmorph --------------------------------------------------------------------
+import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+
+
+#endif
+-- transformers --------------------------------------------------------------
+import           Control.Monad.Trans.Cont (ContT (ContT))
 
 
 ------------------------------------------------------------------------------
@@ -100,10 +102,10 @@ class Monad m => MonadCont m where
     -- layers deep within nested computations.
     callCC :: ((a -> m b) -> m a) -> m a
 
-#ifdef MINIMALSupport
+#ifdef MinimalPragma
     {-# MINIMAL callCC #-}
-#endif
 
+#endif
 
 ------------------------------------------------------------------------------
 instance MonadCont (ContT r m) where
@@ -117,11 +119,11 @@ instance MonadCont (f (g m)) => MonadCont (ComposeT f g m) where
     callCC f =
         ComposeT (callCC (\c -> let ComposeT m = f (ComposeT . c) in m))
     {-# INLINABLE callCC #-}
+
+
 #endif
-
-
 ------------------------------------------------------------------------------
-instance _OVERLAPPABLE (MonadTopControl t m, MonadCont m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTopControl t m, MonadCont m, Monad (t m)) =>
     MonadCont (t m)
   where
     callCC f = liftControlT (\peel -> callCC $ \c -> peel . f $ \a ->
