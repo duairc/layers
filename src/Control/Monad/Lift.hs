@@ -962,19 +962,15 @@ instance Monad m => MonadInner m m where
 
 
 ------------------------------------------------------------------------------
-instance __OVERLAPPING__ (Monad m, Monad (t m)) => MonadInner (t m) (t m)
-  where
-    liftI = id
-
-
-------------------------------------------------------------------------------
 instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
     liftI = lift
 
 
 ------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
-    (Monad (t m), MonadInner i m, MonadInner m (t m)) => MonadInner i (t m)
+    (Monad i, Monad (t m), MonadInner i m, MonadInner m (t m), tm ~ t m)
+  =>
+    MonadInner i tm
   where
     liftI = liftT . liftI
       where
@@ -1199,16 +1195,6 @@ instance MonadInner m m => MonadInnerControl m m where
 
 
 ------------------------------------------------------------------------------
-instance __OVERLAPPING__
-    (Monad m, MonadInner (t m) (t m)) => MonadInnerControl (t m) (t m)
-  where
-    suspendI m _ = liftM (\a -> (toR $ Identity a, toS ())) m
-    resumeI _ (r, _) = let Identity a = fromR r in return a
-    captureI _ = return $ toS ()
-    extractI _ _ r = let Identity a = fromR r in Just a
-
-
-------------------------------------------------------------------------------
 instance
     ( MonadTransControl t
     , MonadInner m (t m)
@@ -1235,9 +1221,10 @@ instance __OVERLAPPABLE__
     , OuterResult i (t m) ~ ComposeResult i t m
     , OuterState i (t m) ~ (OuterState m (t m), OuterState i m)
 #endif
+    , tm ~ t m
     )
   =>
-    MonadInnerControl i (t m)
+    MonadInnerControl i tm
   where
     suspendI (m :: t m a) s = do
         let (ls, os) = fromS s
@@ -1430,13 +1417,6 @@ instance (MonadInner m m, MonadInner n n) => MonadInnerInvariant n n m m where
 
 
 ------------------------------------------------------------------------------
-instance __OVERLAPPING__ (Monad m, MonadInner n n, MonadInner (t m) (t m)) =>
-    MonadInnerInvariant n n (t m) (t m)
-  where
-    hoistisoI f _ = f
-
-
-------------------------------------------------------------------------------
 instance (MInvariant t, MonadInner m (t m), MonadInner n (t n)) =>
     MonadInnerInvariant n (t n) m (t m)
   where
@@ -1450,9 +1430,11 @@ instance __OVERLAPPABLE__
     , MonadInnerInvariant j n i m
     , MonadInnerInvariant i m j n
     , MonadInnerInvariant n (t n) m (t m)
+    , tn ~ t n
+    , tm ~ t m
     )
   =>
-    MonadInnerInvariant j (t n) i (t m)
+    MonadInnerInvariant j tn i tm
   where
     hoistisoI f g = hoistisoT (hoistisoI f g) (hoistisoI g f)
       where
@@ -1473,11 +1455,9 @@ instance
         (ComposeT h k n)
         (f (g m))
         (ComposeT f g m)
-#if __GLASGOW_HASKELL__ >= 700 && __GLASGOW_HASKELL__ < 702
 -- don't know why I have to do this on GHC 7.0, but I do
     , Monad (k n)
     , h ~ f
-#endif
     )
   =>
     MonadInnerInvariant (h (k n)) (ComposeT h k n) (f (g m)) (ComposeT f g m)
@@ -1514,13 +1494,6 @@ instance MonadInnerInvariant n n m m => MonadInnerFunctor n n m m where
 
 
 ------------------------------------------------------------------------------
-instance __OVERLAPPING__ (Monad m, MonadInnerInvariant n n (t m) (t m)) =>
-    MonadInnerFunctor n n (t m) (t m)
-  where
-    hoistI f = f
-
-
-------------------------------------------------------------------------------
 instance (MFunctor t, MonadInnerInvariant n (t n) m (t m)) =>
     MonadInnerFunctor n (t n) m (t m)
   where
@@ -1532,9 +1505,11 @@ instance __OVERLAPPING__
     ( MonadInnerFunctor j n i m
     , MonadInnerFunctor n (t n) m (t m)
     , MonadInnerInvariant j (t n) i (t m)
+    , tn ~ t n
+    , tm ~ t m
     )
   =>
-    MonadInnerFunctor j (t n) i (t m)
+    MonadInnerFunctor j tn i tm
   where
     hoistI f = hoistT (hoistI f)
       where
@@ -1554,12 +1529,10 @@ instance
         (ComposeT h k n)
         (f (g m))
         (ComposeT f g m)
-#if __GLASGOW_HASKELL__ >= 700 && __GLASGOW_HASKELL__ < 702
 -- don't know why I have to do this on GHC 7.0, but I do
     , Monad (k n)
     , h ~ f
     , k ~ g
-#endif
     )
   =>
     MonadInnerFunctor (h (k n)) (ComposeT h k n) (f (g m)) (ComposeT f g m)
