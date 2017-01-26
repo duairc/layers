@@ -170,7 +170,7 @@ catchJust p a handler = catch a (\e -> maybe (throw e) handler (p e))
 
 ------------------------------------------------------------------------------
 -- | A version of 'catch' with the arguments swapped around; useful in
--- situations where the code for the handler is shorter.  For example:
+-- situations where the code for the handler is shorter. For example:
 --
 -- @do 'handle' (\\'Control.Exception.NonTermination' -> 'System.Exit.exitWith' ('System.Exit.ExitFailure' 1)) '$'
 --   ...@
@@ -199,7 +199,7 @@ handleJust = flip . catchJust
 -- is raised than it will be propogated up to the next enclosing exception
 -- handler.
 --
--- @'try' a = 'catch' ('Right' \``liftM`\` a) ('return' '.' 'Left')@
+-- @'try' a = 'handle' ('return' '.' 'Left') '.' 'liftM' 'Right'@
 try :: (Exception e, MonadCatch m) => m a -> m (Either e a)
 try = handle (return . Left) . liftM Right
 {-# INLINABLE try #-}
@@ -207,7 +207,7 @@ try = handle (return . Left) . liftM Right
 
 ------------------------------------------------------------------------------
 -- | A variant of 'try' that takes an exception predicate to select which
--- exceptions are caught (c.f. 'catchJust').  If the exception does not match
+-- exceptions are caught (c.f. 'catchJust'). If the exception does not match
 -- the predicate, it is re-thrown.
 tryJust
     :: (Exception e, MonadCatch m)

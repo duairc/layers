@@ -55,7 +55,7 @@ consists of:
           G(monadlayer,monad layers) has an existing instance for
           'MonadTry'.
 
-  * The \"bracket\" family of functions (as defined in "Control.Exception"):
+  * The \"bracket\" family of operations (as defined in "Control.Exception"):
 
       * 'bracket'
       * 'bracket_'
@@ -274,9 +274,8 @@ instance __OVERLAPPABLE__ (MonadTopControl t m, MonadMask (t m), MonadTry m)
 -- | When you want to acquire a resource, do some work with it, and then
 -- release the resource, it is a good idea to use 'bracket', because 'bracket'
 -- will install the necessary handler to release the resource in the event
--- that the monad G(shortcircuit,short-circuits) during the
--- G(computation,computation). If the monad G(shortcircuit,short-circuits),
--- then 'bracket' will re-return the monad in its
+-- that the G(computation,computation) G(shortcircuit,short-circuits). In such
+-- a case, 'bracket' will re-return the G(computation,computation) in its
 -- G(shortcircuit,short-circuited) state (after performing the release).
 --
 -- A common example is opening a file:
