@@ -20,6 +20,10 @@
 {-# LANGUAGE DefaultSignatures #-}
 #endif
 
+#ifdef LANGUAGE_SafeHaskell
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 #include "docmacros.h"
 #include "overlap.h"
 
