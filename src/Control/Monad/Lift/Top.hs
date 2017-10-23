@@ -13,6 +13,10 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#ifdef LANGUAGE_SafeHaskell
+{-# LANGUAGE Safe #-}
+#endif
+
 {-|
 
 

@@ -8,6 +8,10 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#ifdef LANGUAGE_SafeHaskell
+{-# LANGUAGE Safe #-}
+#endif
+
 #include <docmacros.h>
 #include <overlap.h>
 

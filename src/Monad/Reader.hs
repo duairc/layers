@@ -11,6 +11,14 @@
 {-# LANGUAGE ConstraintKinds #-}
 #endif
 
+#ifdef LANGUAGE_SafeHaskell
+#if __GLASGOW_HASKELL__ >= 704
+{-# LANGUAGE Safe #-}
+#else
+{-# LANGUAGE Trustworthy #-}
+#endif
+#endif
+
 #include <docmacros.h>
 #include <overlap.h>
 
