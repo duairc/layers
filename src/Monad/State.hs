@@ -56,13 +56,13 @@ package. It consists of:
           G(monadlayer,monad layers) has an existing instance for
           'MonadState'.
 
-  * The 'gets' and 'modify' utility operations.
+  * The 'gets', 'modify' and 'modify'' utility operations.
 
 -}
 
 module Monad.State
     ( MonadState (state, get, put)
-    , modify
+    , modify, modify'
     , gets
     )
 where
@@ -205,6 +205,13 @@ instance __OVERLAPPABLE__ (MonadTop t m, MonadState s m, Monad (t m)) =>
 modify :: MonadState s m => (s -> s) -> m ()
 modify f = state (\s -> ((), f s))
 {-# INLINABLE modify #-}
+
+
+------------------------------------------------------------------------------
+-- | A variant of 'modify' in which the computation is strict in the
+-- new state.
+modify' :: MonadState s m => (s -> s) -> m ()
+modify' f = state (\s -> let s' = f s in s' `seq` ((), s'))
 
 
 ------------------------------------------------------------------------------
