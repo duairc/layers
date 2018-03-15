@@ -1505,7 +1505,7 @@ instance (MFunctor t, MonadInnerInvariant n (t n) m (t m)) =>
 
 
 ------------------------------------------------------------------------------
-instance __OVERLAPPING__
+instance __OVERLAPPABLE__
     ( MonadInnerFunctor j n i m
     , MonadInnerFunctor n (t n) m (t m)
     , MonadInnerInvariant j (t n) i (t m)
