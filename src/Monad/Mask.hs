@@ -10,16 +10,12 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
 #if __GLASGOW_HASKELL__ >= 707
 {-# LANGUAGE ImpredicativeTypes #-}
 #endif
 
-#include <docmacros.h>
-#include <overlap.h>
+#include "docmacros.h"
+#include "overlap.h"
 
 {-|
 

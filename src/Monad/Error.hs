@@ -1,16 +1,14 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
-#include <docmacros.h>
+#include "docmacros.h"
+#include "newtypec.h"
 
 {-|
 
@@ -72,12 +70,7 @@ import           Control.Monad.Trans.Error (Error (..))
 -- constructor other than @'Either' 'String'@ or
 -- @'Either' 'Control.Exception.IOError'@. In these cases you will have to
 -- explicitly define instances of the 'Error' and\/or 'MonadError' classes.
-#ifdef LANGUAGE_ConstraintKinds
-type MonadError = MonadRecover
-#else
-class MonadRecover e m => MonadError e m
-instance MonadRecover e m => MonadError e m
-#endif
+newtypeC(MonadError e m, MonadRecover e m)
 
 
 ------------------------------------------------------------------------------

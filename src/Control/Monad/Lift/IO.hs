@@ -8,11 +8,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
 #include "docmacros.h"
+#include "newtypec.h"
 
 {-|
 
@@ -98,12 +95,7 @@ import           Control.Monad.Lift
 -- <Control-Monad-Lift-Base.html base> (or indeed any \"base\" monad @m@ that
 -- satisfies the constraint @'MonadInner' 'IO' m@) is isomatically an instance
 -- of 'MonadIO'.
-#if LANGUAGE_ConstraintKinds
-type MonadIO = MonadInner IO
-#else
-class MonadInner IO m => MonadIO m
-instance MonadInner IO m => MonadIO m
-#endif
+newtypeC(MonadIO m, MonadInner IO m)
 
 
 ------------------------------------------------------------------------------
@@ -122,12 +114,7 @@ liftIO = liftI
 -- <Control-Monad-Lift-Base.html base> (or indeed any \"base\" monad @m@ that
 -- satisfies the constraint @'MonadInner' 'IO' m@) is isomatically an instance
 -- of 'MonadIO'.
-#if LANGUAGE_ConstraintKinds
-type MonadIOControl = MonadInnerControl IO
-#else
-class MonadInnerControl IO m => MonadIOControl m
-instance MonadInnerControl IO m => MonadIOControl m
-#endif
+newtypeC(MonadIOControl m, MonadInnerControl IO m)
 
 
 ------------------------------------------------------------------------------
@@ -197,16 +184,7 @@ liftDiscardIO = liftDiscardI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadIOInvariant j n = MonadInnerInvariant j n IO
-#else
-class MonadInnerInvariant j n IO m =>
-    MonadIOInvariant j n m
-        | j m -> n
-        , j n -> m
-        , n m -> j
-instance MonadInnerInvariant j n IO m => MonadIOInvariant j n m
-#endif
+newtypeC(MonadIOInvariant j n m, MonadInnerInvariant j n IO m)
 
 
 ------------------------------------------------------------------------------
@@ -219,16 +197,7 @@ hoistisoIO = hoistisoI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadIOFunctor j n = MonadInnerFunctor j n IO
-#else
-class MonadInnerFunctor j n IO m =>
-    MonadIOFunctor j n m
-        | j m -> n
-        , j n -> m
-        , n m -> j
-instance MonadInnerFunctor j n IO m => MonadIOFunctor j n m
-#endif
+newtypeC(MonadIOFunctor j n m, MonadInnerFunctor j n IO m)
 
 
 ------------------------------------------------------------------------------

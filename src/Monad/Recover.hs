@@ -9,12 +9,9 @@
 
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
-#include <docmacros.h>
-#include <overlap.h>
+#include "docmacros.h"
+#include "newtypec.h"
+#include "overlap.h"
 
 {-|
 

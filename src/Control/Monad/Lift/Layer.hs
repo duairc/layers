@@ -10,11 +10,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
-#include <overlap.h>
+#include "newtypec.h"
+#include "overlap.h"
 
 {-|
 
@@ -86,13 +83,10 @@ liftL = liftI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadLayerControl i t m = (MonadInnerControl (t i) m, MonadLayer i t m)
-#else
-class (MonadInnerControl (t i) m, MonadLayer i t m) => MonadLayerControl i t m
-instance (MonadInnerControl (t i) m, MonadLayer i t m) =>
-    MonadLayerControl i t m
-#endif
+newtypeC(MonadLayerControl i t m,
+    ( MonadInnerControl (t i) m
+    , MonadLayer i t m
+    ))
 
 
 ------------------------------------------------------------------------------
@@ -168,23 +162,10 @@ liftDiscardL = liftDiscardI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadLayerInvariant j n i t m =
-    (MonadInnerInvariant j n (t i) m, MonadLayer i t m)
-#else
-class (MonadInnerInvariant j n (t i) m, MonadLayer i t m) =>
-    MonadLayerInvariant j n i t m
-        | t m -> i
-        , i m -> t
-        , i j m -> n
-        , t i j m -> n
-        , j n m -> i
-        , j n m -> t
-        , i n m -> j
-        , t n m -> j
-instance (MonadInnerInvariant j n (t i) m, MonadLayer i t m) =>
-    MonadLayerInvariant j n i t m
-#endif
+newtypeC(MonadLayerInvariant j n i t m,
+    ( MonadInnerInvariant j n (t i) m
+    , MonadLayer i t m
+    ))
 
 
 ------------------------------------------------------------------------------
@@ -197,37 +178,11 @@ hoistisoL = hoistisoI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadLayerFunctor j n i t m =
+newtypeC(MonadLayerFunctor j n i t m,
     ( MonadInnerFunctor j n (t i) m
     , MonadLayer i t m
     , MonadLayerInvariant j n i t m
-    )
-#else
-class
-    ( MonadInnerFunctor j n (t i) m
-    , MonadLayer i t m
-    , MonadLayerInvariant j n i t m
-    )
-  =>
-    MonadLayerFunctor j n i t m
-        | t m -> i
-        , i m -> t
-        , i j m -> n
-        , t j m -> n
-        , t i j n -> m
-        , j n m -> i
-        , j n m -> t
-        , i n m -> j
-        , t n m -> j
-instance
-    ( MonadInnerFunctor j n (t i) m
-    , MonadLayer i t m
-    , MonadLayerInvariant j n i t m
-    )
-  =>
-    MonadLayerFunctor j n i t m
-#endif
+    ))
 
 
 ------------------------------------------------------------------------------

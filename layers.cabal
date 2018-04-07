@@ -132,9 +132,6 @@ Library
   if impl(ghc >= 7.2)
     cpp-options: -DLANGUAGE_SafeHaskell
 
-  if impl(ghc >= 7.4)
-    cpp-options: -DLANGUAGE_ConstraintKinds
-
   if impl(ghc >= 7.8)
     cpp-options: -DClosedTypeFamilies
 

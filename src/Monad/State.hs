@@ -7,10 +7,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
 #ifdef LANGUAGE_SafeHaskell
 #if __GLASGOW_HASKELL__ >= 704
 {-# LANGUAGE Safe #-}
@@ -19,8 +15,8 @@
 #endif
 #endif
 
-#include <docmacros.h>
-#include <overlap.h>
+#include "docmacros.h"
+#include "overlap.h"
 
 {-|
 

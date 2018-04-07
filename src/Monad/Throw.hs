@@ -1,16 +1,14 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
-#include <docmacros.h>
+#include "docmacros.h"
+#include "newtypec.h"
 
 {-|
 
@@ -52,12 +50,7 @@ import           Control.Monad.Trans.Error (Error, noMsg, strMsg)
 -- | 'MonadThrow' is an alias of 'MonadAbort' where the failure state type @e@
 -- is fixed to 'SomeException'. It represents the class of monads which
 -- support some sort of 'Control.Exception.throwIO'-like operation.
-#ifdef LANGUAGE_ConstraintKinds
-type MonadThrow = MonadAbort SomeException
-#else
-class MonadAbort SomeException m => MonadThrow m
-instance MonadAbort SomeException m => MonadThrow m
-#endif
+newtypeC(MonadThrow m, MonadAbort SomeException m)
 
 
 ------------------------------------------------------------------------------

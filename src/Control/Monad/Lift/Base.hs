@@ -9,9 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
+#include "newtypec.h"
 
 {-|
 
@@ -136,12 +134,7 @@ liftB = liftI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadBaseControl b m = (MonadInnerControl b m, MonadBase b m)
-#else
-class (MonadInnerControl b m, MonadBase b m) => MonadBaseControl b m | m -> b
-instance (MonadInnerControl b m, MonadBase b m) => MonadBaseControl b m
-#endif
+newtypeC(MonadBaseControl b m, (MonadInnerControl b m, MonadBase b m))
 
 
 ------------------------------------------------------------------------------
@@ -216,18 +209,10 @@ liftDiscardB = liftDiscardI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadBaseInvariant j n b m = (MonadInnerInvariant j n b m, MonadBase b m)
-#else
-class (MonadInnerInvariant j n b m, MonadBase b m) =>
-    MonadBaseInvariant j n b m
-        | m -> b
-        , j m -> n
-        , b j n -> m
-        , n m -> j
-instance (MonadInnerInvariant j n b m, MonadBase b m) =>
-    MonadBaseInvariant j n b m
-#endif
+newtypeC(MonadBaseInvariant j n b m,
+    ( MonadInnerInvariant j n b m
+    , MonadBase b m
+    ))
 
 
 ------------------------------------------------------------------------------
@@ -240,18 +225,7 @@ hoistisoB = hoistisoI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadBaseFunctor j n b m = (MonadInnerFunctor j n b m, MonadBase b m)
-#else
-class (MonadInnerFunctor j n b m, MonadBase b m) =>
-    MonadBaseFunctor j n b m
-        | m -> b
-        , j m -> n
-        , b j n -> m
-        , n m -> j
-instance (MonadInnerFunctor j n b m, MonadBase b m) =>
-    MonadBaseFunctor j n b m
-#endif
+newtypeC(MonadBaseFunctor j n b m, (MonadInnerFunctor j n b m, MonadBase b m))
 
 
 ------------------------------------------------------------------------------

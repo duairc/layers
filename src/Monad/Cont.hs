@@ -5,12 +5,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
-#include <docmacros.h>
-#include <overlap.h>
+#include "docmacros.h"
+#include "overlap.h"
 
 {-|
 

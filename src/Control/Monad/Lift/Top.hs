@@ -9,13 +9,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
 #ifdef LANGUAGE_SafeHaskell
 {-# LANGUAGE Safe #-}
 #endif
+
+#include "newtypec.h"
 
 {-|
 
@@ -68,12 +66,7 @@ import           Control.Monad.Lift
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadTop t m = MonadInner m (t m)
-#else
-class MonadInner m (t m) => MonadTop t m
-instance MonadInner m (t m) => MonadTop t m
-#endif
+newtypeC(MonadTop t m, MonadInner m (t m))
 
 
 ------------------------------------------------------------------------------
@@ -82,12 +75,7 @@ liftT = liftI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadTopControl t m = (MonadInnerControl m (t m), MonadTop t m)
-#else
-class (MonadInnerControl m (t m), MonadTop t m) => MonadTopControl t m
-instance (MonadInnerControl m (t m), MonadTop t m) => MonadTopControl t m
-#endif
+newtypeC(MonadTopControl t m, (MonadInnerControl m (t m), MonadTop t m))
 
 
 ------------------------------------------------------------------------------
@@ -160,15 +148,11 @@ liftDiscardT = liftDiscardI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadTopInvariant n t m =
-    (MonadInnerInvariant n (t n) m (t m), MonadTop t m, MonadTop t n)
-#else
-class (MonadInnerInvariant n (t n) m (t m), MonadTop t m, MonadTop t n) =>
-    MonadTopInvariant n t m
-instance (MonadInnerInvariant n (t n) m (t m), MonadTop t m, MonadTop t n) =>
-    MonadTopInvariant n t m
-#endif
+newtypeC(MonadTopInvariant n t m,
+    ( MonadInnerInvariant n (t n) m (t m)
+    , MonadTop t m
+    , MonadTop t n
+    ))
 
 
 ------------------------------------------------------------------------------

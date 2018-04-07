@@ -12,10 +12,6 @@
 
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
-#ifdef LANGUAGE_ConstraintKinds
-{-# LANGUAGE ConstraintKinds #-}
-#endif
-
 #ifdef LANGUAGE_DefaultSignatures
 {-# LANGUAGE DefaultSignatures #-}
 #endif
@@ -25,6 +21,7 @@
 #endif
 
 #include "docmacros.h"
+#include "newtypec.h"
 #include "overlap.h"
 
 {-|
@@ -976,7 +973,7 @@ instance __OVERLAPPABLE__
 
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance (DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
+instance (Monad (f (g m)), DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
     MonadInner (f (g m)) (ComposeT f g m)
   where
     liftI = defaultLiftI
@@ -1202,13 +1199,13 @@ instance __OVERLAPPABLE__
   =>
     MonadInnerControl i tm
   where
-    suspendI (m :: t m a) s = do
+    suspendI (m :: tm a) s = do
         let (ls, os) = fromS s
         let compose or_ = ComposeResult or_ :: ComposeResult i t m a
         let f (or_, os') = (toR (compose or_), toS (ls, os'))
         liftM f $ suspendI (suspend m ls) os
 
-    resumeI p ((r, s) :: OuterEffects i (t m) a) = do
+    resumeI p ((r, s) :: OuterEffects i tm a) = do
         let ComposeResult r' = (fromR r :: ComposeResult i t m a)
         let (_, s') = fromS s
         lift (resumeI p (r', s')) >>= resume
@@ -1216,10 +1213,11 @@ instance __OVERLAPPABLE__
     captureI p = capture >>= \a -> lift (captureI p) >>= \b ->
         return $ toS (a, b)
 
-    extractI _ _ (r :: OuterResult i (t m) a) =
+    extractI _ _ (r :: OuterResult i tm a) =
         let ComposeResult r' = (fromR r :: ComposeResult i t m a) in join $
             fmap (extract (Pt :: Pt t) . fst) $
                 extractI (Pm :: Pm i) (Pm :: Pm m) r'
+
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -1553,113 +1551,50 @@ instance Iso1 (ComposeT f g m) where
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signature of 'defaultLiftI'.
-#ifdef LANGUAGE_ConstraintKinds
-type DefaultMonadInner i m = (Iso1 m, Monad i, MonadInner i (Codomain1 m))
-#else
-class (Iso1 m, Monad i, MonadInner i (Codomain1 m)) => DefaultMonadInner i m
-instance (Iso1 m, Monad i, MonadInner i (Codomain1 m))
-    => DefaultMonadInner i m
-#endif
+newtypeC(DefaultMonadInner i m, (Iso1 m, MonadInner i (Codomain1 m)))
 
 
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signatures of 'defaultSuspendI', 'defaultResumeI',
 -- 'defaultCaptureI' and 'defaultExtractI'.
-#ifdef LANGUAGE_ConstraintKinds
-type DefaultMonadInnerControl i m =
+#ifdef ClosedTypeFamilies
+newtypeC(DefaultMonadInnerControl i m,
     ( MonadInner i m
     , DefaultMonadInner i m
     , MonadInnerControl i (Codomain1 m)
-#ifdef ClosedTypeFamilies
     , OuterResult i m ~ OuterResult i (Codomain1 m)
     , OuterState i m ~ OuterState i (Codomain1 m)
-#endif
-    )
+    ))
 #else
-class
+newtypeC(DefaultMonadInnerControl i m,
     ( MonadInner i m
     , DefaultMonadInner i m
     , MonadInnerControl i (Codomain1 m)
-    )
-  =>
-    DefaultMonadInnerControl i m
-instance
-    ( MonadInner i m
-    , DefaultMonadInner i m
-    , MonadInnerControl i (Codomain1 m)
-    )
-  =>
-    DefaultMonadInnerControl i m
+    ))
 #endif
 
 
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signature of 'defaultHoistisoI'.
-#ifdef LANGUAGE_ConstraintKinds
-type DefaultMonadInnerInvariant j n i m =
+newtypeC(DefaultMonadInnerInvariant j n i m,
     ( MonadInner i m
     , MonadInner j n
     , DefaultMonadInner i m
     , DefaultMonadInner j n
     , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
-    )
-#else
-class
-    ( MonadInner i m
-    , MonadInner j n
-    , DefaultMonadInner j n
-    , DefaultMonadInner i m
-    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
-    )
-  =>
-    DefaultMonadInnerInvariant j n i m
-        | i j m -> n
-        , i j n -> m
-        , j n m -> i
-        , i n m -> j
-instance
-    ( MonadInner i m
-    , MonadInner j n
-    , DefaultMonadInner j n
-    , DefaultMonadInner i m
-    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
-    )
-  =>
-    DefaultMonadInnerInvariant j n i m
-#endif
+    ))
 
 
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signature of 'defaultHoistI.
-#ifdef LANGUAGE_ConstraintKinds
-type DefaultMonadInnerFunctor j n i m =
+newtypeC(DefaultMonadInnerFunctor j n i m,
     ( MonadInnerInvariant j n i m
     , DefaultMonadInnerInvariant j n i m
     , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
-    )
-#else
-class
-    ( MonadInnerInvariant j n i m
-    , DefaultMonadInnerInvariant j n i m
-    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
-    )
-  =>
-    DefaultMonadInnerFunctor j n i m
-        | i j m -> n
-        , i j n -> m
-        , j n m -> i
-        , i n m -> j
-instance
-    ( MonadInnerInvariant j n i m
-    , DefaultMonadInnerInvariant j n i m
-    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
-    )
-  =>
-    DefaultMonadInnerFunctor j n i m
-#endif
+    ))
 
 
 ------------------------------------------------------------------------------
