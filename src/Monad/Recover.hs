@@ -93,19 +93,10 @@ module Monad.Recover
     ( MonadRecover (recover)
 
     -- * \"catch\" operations
-    , recoverJust
-    , handle
-    , handleJust
-    , try
-    , tryJust
+    , recoverJust, handle, handleJust, try, tryJust
 
     -- * \"bracket\" operations
-    , bracket
-    , bracket_
-    , bracketOnError
-    , finally
-    , onException
-    , orElse
+    , bracket, bracket_, bracketOnError, finally, onException, orElse
     )
 where
 
@@ -123,7 +114,7 @@ import           Prelude hiding (catch)
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTopControl, controlT)
+import           Control.Monad.Lift (MonadTransControl, control)
 import           Monad.Abort (MonadAbort, abort)
 
 
@@ -255,14 +246,11 @@ instance MonadRecover e (f (g m)) => MonadRecover e (ComposeT f g m) where
 #endif
 ------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
-    ( MonadTopControl t m
-    , MonadRecover e m
-    , MonadAbort e (t m)
-    )
+    (MonadTransControl t, MonadRecover e m, MonadAbort e (t m))
   =>
     MonadRecover e (t m)
   where
-    recover m h = controlT (\peel -> recover (peel m) (peel . h))
+    recover m h = control (\peel -> recover (peel m) (peel . h))
     {-# INLINABLE recover #-}
 
 

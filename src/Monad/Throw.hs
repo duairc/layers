@@ -28,19 +28,16 @@ consists of:
 -}
 
 module Monad.Throw
-    ( MonadThrow
-    , throw
+    ( MonadThrow, throw
     )
 where
 
 -- base ----------------------------------------------------------------------
 import           Control.Exception
-                     ( Exception
+                     ( Exception, SomeException, toException
 #if !MIN_VERSION_transformers(0, 6, 0)
                      , PatternMatchFail (PatternMatchFail)
 #endif
-                     , SomeException
-                     , toException
                      )
 
 

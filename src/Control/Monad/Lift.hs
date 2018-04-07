@@ -966,20 +966,12 @@ instance Monad m => MonadInner m m where
 
 
 ------------------------------------------------------------------------------
-instance (MonadTrans t, Monad m, Monad (t m)) => MonadInner m (t m) where
-    liftI = lift
-
-
-------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
-    (Monad i, Monad (t m), MonadInner i m, MonadInner m (t m), tm ~ t m)
+    (Monad i, Monad (t m), MonadInner i m, MonadTrans t, tm ~ t m)
   =>
     MonadInner i tm
   where
-    liftI = liftT . liftI
-      where
-        liftT :: m a -> t m a
-        liftT = liftI
+    liftI = lift . liftI
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -1116,7 +1108,6 @@ type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef ClosedTypeFamilies
   where
     OuterResult m m = Identity
-    OuterResult m (t m) = LayerResult t
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult i (Codomain1 m)
 -- closed type families are only supported on GHC 7.8 and above
@@ -1145,8 +1136,7 @@ type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef ClosedTypeFamilies
   where
     OuterState m m = ()
-    OuterState m (t m) = LayerState t m
-    OuterState i (t m) = (OuterState m (t m), OuterState i m)
+    OuterState i (t m) = (LayerState t m, OuterState i m)
     OuterState i m = OuterState i (Codomain1 m)
 -- closed type families are only supported on GHC 7.8 and above
 #else
@@ -1161,7 +1151,7 @@ type OuterState i m = OuterState_ i m
 
 ------------------------------------------------------------------------------
 newtype ComposeResult i t m a = ComposeResult
-    (OuterResult i m (OuterResult m (t m) a, OuterState m (t m)))
+    (OuterResult i m (LayerResult t a, LayerState t m))
 
 
 #ifndef ClosedTypeFamilies
@@ -1199,31 +1189,13 @@ instance MonadInner m m => MonadInnerControl m m where
 
 
 ------------------------------------------------------------------------------
-instance
-    ( MonadTransControl t
-    , MonadInner m (t m)
-#ifdef ClosedTypeFamilies
-    , OuterState m (t m) ~ LayerState t m
-    , OuterResult m (t m) ~ LayerResult t
-#endif
-    )
-  =>
-    MonadInnerControl m (t m)
-  where
-    suspendI m s = liftM (toR *** toS) $ suspend m (fromS s)
-    resumeI _ = resume . (fromR *** fromS)
-    captureI _ = liftM toS capture
-    extractI _ _ r = extract (Pt :: Pt t) (fromR r)
-
-
-------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
     ( MonadInner i (t m)
     , MonadInnerControl i m
-    , MonadInnerControl m (t m)
+    , MonadTransControl t
 #ifdef ClosedTypeFamilies
     , OuterResult i (t m) ~ ComposeResult i t m
-    , OuterState i (t m) ~ (OuterState m (t m), OuterState i m)
+    , OuterState i (t m) ~ (LayerState t m, OuterState i m)
 #endif
     , tm ~ t m
     )
@@ -1234,44 +1206,20 @@ instance __OVERLAPPABLE__
         let (ls, os) = fromS s
         let compose or_ = ComposeResult or_ :: ComposeResult i t m a
         let f (or_, os') = (toR (compose or_), toS (ls, os'))
-        liftM f $ suspendI (suspendT m ls) os
-      where
-          suspendT
-              :: t m a
-              -> OuterState m (t m)
-              -> m (OuterEffects m (t m) a)
-          suspendT = suspendI
+        liftM f $ suspendI (suspend m ls) os
 
     resumeI p ((r, s) :: OuterEffects i (t m) a) = do
         let ComposeResult r' = (fromR r :: ComposeResult i t m a)
         let (_, s') = fromS s
-        liftT (resumeI p (r', s')) >>= resumeT
-      where
-        liftT :: m b -> t m b
-        liftT = liftI
+        lift (resumeI p (r', s')) >>= resume
 
-        resumeT :: OuterEffects m (t m) b -> t m b
-        resumeT = resumeI (Pm :: Pm m)
-
-    captureI p = captureT >>= \a -> liftT (captureI p) >>= \b ->
+    captureI p = capture >>= \a -> lift (captureI p) >>= \b ->
         return $ toS (a, b)
-      where
-        liftT :: m a -> t m a
-        liftT = liftI
-
-        captureT :: t m (OuterState m (t m))
-        captureT = captureI (Pm :: Pm m)
 
     extractI _ _ (r :: OuterResult i (t m) a) =
         let ComposeResult r' = (fromR r :: ComposeResult i t m a) in join $
-            fmap (extractT (Pt :: Pt t) . fst) $
+            fmap (extract (Pt :: Pt t) . fst) $
                 extractI (Pm :: Pm i) (Pm :: Pm m) r'
-      where
-        extractT
-            :: proxy t
-            -> OuterResult m (t m) b
-            -> Maybe b
-        extractT _ = extractI (Pm :: Pm m) (Pm :: Pm (t m))
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -1421,33 +1369,16 @@ instance (MonadInner m m, MonadInner n n) => MonadInnerInvariant n n m m where
 
 
 ------------------------------------------------------------------------------
-instance (MInvariant t, MonadInner m (t m), MonadInner n (t n)) =>
-    MonadInnerInvariant n (t n) m (t m)
-  where
-    hoistisoI = hoistiso
-
-
-------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
-    ( MonadInner i (t m)
-    , MonadInner j (t n)
-    , MonadInnerInvariant j n i m
-    , MonadInnerInvariant i m j n
-    , MonadInnerInvariant n (t n) m (t m)
-    , tn ~ t n
-    , tm ~ t m
+    ( MonadInner i (t m), MonadInner j (t n)
+    , MonadInnerInvariant j n i m, MonadInnerInvariant i m j n
+    , MInvariant t
+    , tn ~ t n, tm ~ t m
     )
   =>
     MonadInnerInvariant j tn i tm
   where
-    hoistisoI f g = hoistisoT (hoistisoI f g) (hoistisoI g f)
-      where
-        hoistisoT
-            :: (forall b. m b -> n b)
-            -> (forall b. n b -> m b)
-            -> t m a
-            -> t n a
-        hoistisoT = hoistisoI
+    hoistisoI f g = hoistiso (hoistisoI f g) (hoistisoI g f)
     {-# INLINABLE hoistisoI #-}
 
 
@@ -1498,30 +1429,15 @@ instance MonadInnerInvariant n n m m => MonadInnerFunctor n n m m where
 
 
 ------------------------------------------------------------------------------
-instance (MFunctor t, MonadInnerInvariant n (t n) m (t m)) =>
-    MonadInnerFunctor n (t n) m (t m)
-  where
-    hoistI = hoist
-
-
-------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
-    ( MonadInnerFunctor j n i m
-    , MonadInnerFunctor n (t n) m (t m)
+    ( MonadInnerFunctor j n i m, MFunctor t
     , MonadInnerInvariant j (t n) i (t m)
-    , tn ~ t n
-    , tm ~ t m
+    , tn ~ t n, tm ~ t m
     )
   =>
     MonadInnerFunctor j tn i tm
   where
-    hoistI f = hoistT (hoistI f)
-      where
-        hoistT
-            :: (forall b. m b -> n b)
-            -> t m a
-            -> t n a
-        hoistT = hoistI
+    hoistI f = hoist (hoistI f)
     {-# INLINABLE hoistI #-}
 
 

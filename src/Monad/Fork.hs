@@ -46,9 +46,7 @@ H(base). It consists of:
 
 module Monad.Fork
     ( MonadFork (fork, forkOn)
-    , forkWithUnmask
-    , forkOnWithUnmask
-    , forkFinally
+    , forkWithUnmask, forkOnWithUnmask, forkFinally
     )
 where
 
@@ -60,12 +58,10 @@ import qualified Control.Concurrent (forkOn)
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTopControl, liftDiscardT)
+import           Control.Monad.Lift (MonadTransControl, liftDiscard)
 import           Monad.Mask
-                     ( MonadMask
-                     , MaskingState (Unmasked)
-                     , mask
-                     , setMaskingState
+                     ( MonadMask, mask
+                     , MaskingState (Unmasked), setMaskingState
                      )
 import           Monad.Try (MonadTry, mtry)
 
@@ -170,13 +166,13 @@ instance MonadFork (f (g m)) => MonadFork (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTopControl t m, MonadFork m, MonadMask (t m))
+instance __OVERLAPPABLE__ (MonadTransControl t, MonadFork m, MonadMask (t m))
   =>
     MonadFork (t m)
   where
-    fork = liftDiscardT fork
+    fork = liftDiscard fork
     {-# INLINABLE fork #-}
-    forkOn = liftDiscardT . forkOn
+    forkOn = liftDiscard . forkOn
     {-# INLINABLE forkOn #-}
 
 

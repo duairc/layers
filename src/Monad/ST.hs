@@ -53,10 +53,7 @@ to generalise and be largely consistent with the interfaces provided by
 
 module Monad.ST
     ( MonadST (newRef, readRef, writeRef, atomicModifyRef)
-    , atomicModifyRef'
-    , atomicWriteRef
-    , modifyRef
-    , modifyRef'
+    , atomicModifyRef', atomicWriteRef, modifyRef, modifyRef'
     )
 where
 
@@ -65,10 +62,7 @@ import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
 import           Data.IORef
                      ( IORef
-                     , newIORef
-                     , readIORef
-                     , writeIORef
-                     , atomicModifyIORef
+                     , newIORef, readIORef, writeIORef, atomicModifyIORef
                      )
 import           Data.STRef (STRef, newSTRef, readSTRef, writeSTRef)
 import qualified Data.STRef.Lazy as L (newSTRef, readSTRef, writeSTRef)
@@ -80,7 +74,7 @@ import           GHC.Conc (STM, TVar, newTVar, readTVar, writeTVar)
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTop, liftT)
+import           Control.Monad.Lift (MonadTrans, lift)
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -197,16 +191,16 @@ instance MonadST ref (f (g m)) => MonadST ref (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTop t m, Monad (t m), MonadST ref m) =>
+instance __OVERLAPPABLE__ (MonadTrans t, Monad (t m), MonadST ref m) =>
     MonadST ref (t m)
   where
-    newRef = liftT . newRef
+    newRef = lift . newRef
     {-# INLINABLE newRef #-}
-    readRef = liftT . readRef
+    readRef = lift . readRef
     {-# INLINABLE readRef #-}
-    writeRef ref = liftT . writeRef ref
+    writeRef ref = lift . writeRef ref
     {-# INLINABLE writeRef #-}
-    atomicModifyRef ref = liftT . atomicModifyRef ref
+    atomicModifyRef ref = lift . atomicModifyRef ref
     {-# INLINABLE atomicModifyRef #-}
 
 

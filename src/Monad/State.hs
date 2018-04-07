@@ -75,7 +75,7 @@ import           Data.Monoid (Monoid (mempty))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTop, liftT)
+import           Control.Monad.Lift (MonadTrans, lift)
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -180,14 +180,14 @@ instance MonadState s (f (g m)) => MonadState s (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTop t m, MonadState s m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTrans t, MonadState s m, Monad (t m)) =>
     MonadState s (t m)
   where
-    state = liftT . state
+    state = lift . state
     {-# INLINABLE state #-}
-    get = liftT get
+    get = lift get
     {-# INLINABLE get #-}
-    put = liftT . put
+    put = lift . put
     {-# INLINABLE put #-}
 
 

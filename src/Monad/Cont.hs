@@ -44,11 +44,9 @@ module Monad.Cont
 where
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top
-                    ( MonadTopControl
-                    , liftT
-                    , liftControlT
-                    , resumeT
+import           Control.Monad.Lift
+                    ( MonadTransControl
+                    , lift, liftControl, resume
                     )
 
 
@@ -123,9 +121,9 @@ instance MonadCont (f (g m)) => MonadCont (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTopControl t m, MonadCont m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTransControl t, MonadCont m, Monad (t m)) =>
     MonadCont (t m)
   where
-    callCC f = liftControlT (\peel -> callCC $ \c -> peel . f $ \a ->
-        liftT (peel (return a) >>= c)) >>= resumeT
+    callCC f = liftControl (\peel -> callCC $ \c -> peel . f $ \a ->
+        lift (peel (return a) >>= c)) >>= resume
     {-# INLINABLE callCC #-}

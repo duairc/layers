@@ -75,7 +75,7 @@ import           Data.Monoid (Monoid (mempty))
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
+import           Control.Monad.Lift (MonadTrans, lift, MInvariant, hoistiso)
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -174,18 +174,15 @@ instance MonadReader r (f (g m)) => MonadReader r (ComposeT f g m) where
 #endif
 ------------------------------------------------------------------------------
 instance __OVERLAPPABLE__
-    ( MonadTopInvariant m t m
-    , MonadReader r m
-    , Monad (t m)
-    )
+    (MonadTrans t, MInvariant t, MonadReader r m, Monad (t m))
   =>
     MonadReader r (t m)
   where
-    reader = liftT . reader
+    reader = lift . reader
     {-# INLINABLE reader #-}
-    ask = liftT ask
+    ask = lift ask
     {-# INLINABLE ask #-}
-    local f m = liftT ask >>= \r -> hoistisoT (local f) (local (const r)) m
+    local f m = lift ask >>= \r -> hoistiso (local f) (local (const r)) m
     {-# INLINABLE local #-}
 
 

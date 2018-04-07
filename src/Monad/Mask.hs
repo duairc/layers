@@ -109,7 +109,7 @@ import           GHC.Conc (STM)
 
 
 -- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTopInvariant, liftT, hoistisoT)
+import           Control.Monad.Lift (MonadTrans, lift, MInvariant, hoistiso)
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -255,14 +255,15 @@ instance MonadMask IO where
 
 
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTopInvariant m t m, MonadMask m, Monad (t m))
+instance __OVERLAPPABLE__
+    (MonadTrans t, MInvariant t, MonadMask m, Monad (t m))
   =>
     MonadMask (t m)
   where
-    getMaskingState = liftT getMaskingState
+    getMaskingState = lift getMaskingState
     {-# INLINABLE getMaskingState #-}
-    setMaskingState s m = liftT getMaskingState >>= \s' ->
-        hoistisoT (setMaskingState s) (setMaskingState s') m
+    setMaskingState s m = lift getMaskingState >>= \s' ->
+        hoistiso (setMaskingState s) (setMaskingState s') m
     {-# INLINABLE setMaskingState #-}
 
 

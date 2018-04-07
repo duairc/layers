@@ -47,18 +47,14 @@ import           Data.Monoid (Monoid)
 #endif
 -- layers --------------------------------------------------------------------
 import           Monad.Reader
-                     ( MonadReader (reader, ask, local)
-                     , asks
+                     ( MonadReader (reader, ask, local), asks
                      )
 import           Monad.State
-                     ( MonadState (state, get, put)
-                     , modify
-                     , gets
+                     ( MonadState (state, get, put), modify, gets
                      )
 import           Monad.Writer
                      ( MonadWriter (writer, tell, listen, pass)
-                     , listens
-                     , censor
+                     , listens, censor
                      )
 
 
@@ -69,20 +65,8 @@ import           Monad.Writer
 #ifdef LANGUAGE_ConstraintKinds
 type MonadRWS r w s m = (MonadReader r m, MonadWriter w m, MonadState s m)
 #else
-class
-    ( Monoid w
-    , MonadReader r m
-    , MonadWriter w m
-    , MonadState s m
-    )
-  =>
+class (Monoid w, MonadReader r m, MonadWriter w m, MonadState s m) =>
     MonadRWS r w s m | m -> r, m -> w, m -> s
-instance
-    ( Monoid w
-    , MonadReader r m
-    , MonadWriter w m
-    , MonadState s m
-    )
-  =>
+instance (Monoid w, MonadReader r m, MonadWriter w m, MonadState s m) =>
     MonadRWS r w s m
 #endif

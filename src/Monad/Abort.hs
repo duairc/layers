@@ -80,7 +80,7 @@ import           GHC.Conc (STM, unsafeIOToSTM)
 
 
 -- layers --------------------------------------------------------------------
-import          Control.Monad.Lift.Top (MonadTop, liftT)
+import          Control.Monad.Lift (MonadTrans, lift)
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -202,8 +202,8 @@ instance MonadAbort e (f (g m)) => MonadAbort e (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTop t m, MonadAbort e m, Monad (t m)) =>
+instance __OVERLAPPABLE__ (MonadTrans t, MonadAbort e m, Monad (t m)) =>
     MonadAbort e (t m)
   where
-    abort = liftT . abort
+    abort = lift . abort
     {-# INLINABLE abort #-}

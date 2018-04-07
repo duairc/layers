@@ -68,11 +68,8 @@ consists of:
 
 module Monad.Try
     ( MonadTry (mtry)
-    , bracket
-    , bracket_
-    , bracketOnError
-    , finally
-    , onException
+    , bracket, bracket_, bracketOnError
+    , finally, onException
     , orElse
     )
 where
@@ -95,6 +92,14 @@ import           Data.Proxy (Proxy)
 #endif
 
 
+-- layers --------------------------------------------------------------------
+import           Monad.Mask (MonadMask, mask)
+import           Control.Monad.Lift
+                     ( MonadTransControl
+                     , extract, lift, suspend, resume, capture
+                     )
+
+
 #if MIN_VERSION_mmorph(1, 0, 1)
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
@@ -106,18 +111,6 @@ import           Data.Functor.Identity (Identity)
 #if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
 #endif
-
-
--- layers --------------------------------------------------------------------
-import           Monad.Mask (MonadMask, mask)
-import           Control.Monad.Lift.Top
-                     ( MonadTopControl
-                     , extractT
-                     , liftT
-                     , suspendT
-                     , resumeT
-                     , captureT
-                     )
 
 
 ------------------------------------------------------------------------------
@@ -250,23 +243,19 @@ data Pt (t :: (* -> *) -> * -> *) = Pt
 
 
 ------------------------------------------------------------------------------
-data Pm (m :: * -> *) = Pm
-
-
-------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTopControl t m, MonadMask (t m), MonadTry m)
+instance __OVERLAPPABLE__ (MonadTransControl t, MonadMask (t m), MonadTry m)
   =>
     MonadTry (t m)
   where
-    mtry (m :: t m a) = do
-        state <- captureT
-        ma <- liftT . mtry $ suspendT m state
+    mtry m = do
+        state <- capture
+        ma <- lift . mtry $ suspend m state
         case ma of
-            Left m' -> return . Left $ liftT m' >>= resumeT
+            Left m' -> return . Left $ lift m' >>= resume
             Right (result, state') ->
-                case extractT (Pt :: Pt t) (Pm :: Pm m) result of
-                    Nothing ->  return . Left $ resumeT (result, state')
-                    Just _ -> liftM Right $ resumeT (result, state')
+                case extract (Pt :: Pt t) result of
+                    Nothing ->  return . Left $ resume (result, state')
+                    Just _ -> liftM Right $ resume (result, state')
     {-# INLINE mtry #-}
 
 

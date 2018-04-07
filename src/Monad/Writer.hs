@@ -62,8 +62,7 @@ package. It consists of:
 
 module Monad.Writer
     ( MonadWriter (writer, tell, listen, pass)
-    , listens
-    , censor
+    , listens, censor
     )
 where
 
@@ -72,6 +71,10 @@ import           Control.Monad (liftM)
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid)
 #endif
+
+
+-- layers --------------------------------------------------------------------
+import           Control.Monad.Lift (MonadTrans, lift)
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -88,10 +91,6 @@ import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
 #if MIN_VERSION_transformers(0, 3, 0)
 import           Data.Functor.Product (Product (Pair))
 #endif
-
-
--- layers --------------------------------------------------------------------
-import           Control.Monad.Lift.Top (MonadTop, liftT)
 
 
 ------------------------------------------------------------------------------
@@ -193,16 +192,16 @@ instance MonadWriter w (f (g m)) => MonadWriter w (ComposeT f g m) where
 
 #endif
 ------------------------------------------------------------------------------
-instance __OVERLAPPABLE__ (MonadTop t m, Monad (t m), MonadWriter w m) =>
+instance __OVERLAPPABLE__ (MonadTrans t, Monad (t m), MonadWriter w m) =>
     MonadWriter w (t m)
   where
-    writer = liftT . writer
+    writer = lift . writer
     {-# INLINABLE writer #-}
-    tell = liftT . tell
+    tell = lift . tell
     {-# INLINABLE tell #-}
-    listen m = m >>= liftT . listen . return
+    listen m = m >>= lift . listen . return
     {-# INLINABLE listen #-}
-    pass m = m >>= liftT . pass . return
+    pass m = m >>= lift . pass . return
     {-# INLINABLE pass #-}
 
 
