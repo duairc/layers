@@ -63,6 +63,7 @@ import           Control.Monad.Lift
                      , MonadInnerFunctor
                      , hoistI
                      )
+import           Control.Monad.Lift.Internal (coercePeelI)
 
 
 ------------------------------------------------------------------------------
@@ -115,7 +116,7 @@ extractT _ proxy = extractI proxy (Pm :: Pm (t m))
 liftControlT :: MonadTopControl t m
     => ((forall b. t m b -> m (OuterEffects m (t m) b)) -> m a)
     -> t m a
-liftControlT = liftControlI
+liftControlT f = liftControlI (\peel -> f (coercePeelI peel))
 
 
 ------------------------------------------------------------------------------
@@ -123,7 +124,7 @@ controlT :: MonadTopControl t m
     => ((forall b. t m b -> m (OuterEffects m (t m) b))
         -> m (OuterEffects m (t m) a))
     -> t m a
-controlT = controlI
+controlT f = controlI (\peel -> f (coercePeelI peel))
 
 
 ------------------------------------------------------------------------------

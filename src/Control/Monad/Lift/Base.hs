@@ -72,6 +72,7 @@ import           Control.Monad.Lift
                      , MonadInnerFunctor
                      , hoistI
                      )
+import           Control.Monad.Lift.Internal (coercePeelI)
 
 
 -- transformers --------------------------------------------------------------
@@ -174,14 +175,14 @@ extractB = extractI (Pm :: Pm b)
 liftControlB :: MonadBaseControl b m
     => ((forall c. m c -> b (OuterEffects b m c)) -> b a)
     -> m a
-liftControlB = liftControlI
+liftControlB f = liftControlI (\peel -> f (coercePeelI peel))
 
 
 ------------------------------------------------------------------------------
 controlB :: MonadBaseControl b m
     => ((forall c. m c -> b (OuterEffects b m c)) -> b (OuterEffects b m a))
     -> m a
-controlB = controlI
+controlB f = controlI (\peel -> f (coercePeelI peel))
 
 
 ------------------------------------------------------------------------------

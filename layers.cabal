@@ -115,6 +115,9 @@ Library
     Monad.Try
     Monad.Writer
 
+  other-modules:
+    Control.Monad.Lift.Internal
+
   build-depends:
     base >= 4 && < 5,
     mmorph >= 1.0 && < 1.1,

@@ -82,6 +82,7 @@ import           Control.Monad.Lift
                      , MonadInnerFunctor
                      , hoistI
                      )
+import           Control.Monad.Lift.Internal (coercePeelI)
 
 
 ------------------------------------------------------------------------------
@@ -151,7 +152,7 @@ extractIO = extractI (Pm :: Pm IO)
 liftControlIO :: MonadIOControl m
     => ((forall b. m b -> IO (OuterEffects IO m b)) -> IO a)
     -> m a
-liftControlIO = liftControlI
+liftControlIO f = liftControlI (\peel -> f (coercePeelI peel))
 
 
 ------------------------------------------------------------------------------
@@ -159,7 +160,7 @@ controlIO :: MonadIOControl m
     => ((forall b. m b -> IO (OuterEffects IO m b))
         -> IO (OuterEffects IO m a))
     -> m a
-controlIO = controlI
+controlIO f = controlI (\peel -> f (coercePeelI peel))
 
 
 ------------------------------------------------------------------------------

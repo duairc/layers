@@ -131,10 +131,7 @@ module Control.Monad.Lift
 where
 
 -- base ----------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 704
-import           Control.Arrow (first)
-#endif
-import           Control.Arrow ((***))
+import           Control.Arrow ((***), first)
 import           Control.Monad (join, liftM)
 #if MIN_VERSION_base(4, 7, 0) && __GLASGOW_HASKELL__ >= 710
 import           Data.Coerce (Coercible, coerce)
@@ -451,40 +448,17 @@ type LayerEffects t m a = (LayerResult t a, LayerState t m)
 
 ------------------------------------------------------------------------------
 -- | The G(layerresult,layer result) of @t@.
---
--- Note: On versions of GHC prior to 7.4, 'LayerResult' is a /data/ family
--- instead of a type family due to GHC bug B(5595). If you're defining an
--- instance of 'MonadTransControl' and you want it to work on older versions
--- of GHC as well, you're unfortunately going to have to write two versions of
--- the instance, once using type families, the other using data families, and
--- then use @CPP@ directives to switch between them.
-#if __GLASGOW_HASKELL__ >= 704
 type family LayerResult (t :: (* -> *) -> * -> *) :: * -> *
-#else
-data family LayerResult (t :: (* -> *) -> * -> *) :: * -> *
-#endif
 
 
 ------------------------------------------------------------------------------
 -- | The G(layerstate,layer state) of @t@.
---
--- Note: On versions of GHC prior to 7.4, 'LayerState' is a /data/ family
--- instead of a type family due to GHC bug B(5595). If you're defining an
--- instance of 'MonadTransControl' and you want it to work on older versions
--- of GHC as well, you're unfortunately going to have to write two versions of
--- the instance, once using type families, the other using data families, and
--- then use @CPP@ directives to switch between them.
-#if __GLASGOW_HASKELL__ >= 704
 type family LayerState (t :: (* -> *) -> * -> *) (m :: * -> *) :: *
-#else
-data family LayerState (t :: (* -> *) -> * -> *) :: (* -> *) -> *
-#endif
 
 
 #if !MIN_VERSION_transformers(0, 6, 0)
 ------------------------------------------------------------------------------
 instance Error e => MonadTransControl (ErrorT e) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (ErrorT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ErrorT $ return a
     capture = return ()
@@ -492,22 +466,12 @@ instance Error e => MonadTransControl (ErrorT e) where
 
 type instance LayerResult (ErrorT e) = Either e
 type instance LayerState (ErrorT e) m = ()
-#else
-    suspend (ErrorT m) _ = liftM (\a -> (ER a, ES ())) m
-    resume (ER a, _) = ErrorT $ return a
-    capture = return (ES ())
-    extract _ (ER e) = either (const Nothing) Just e
-
-newtype instance LayerResult (ErrorT e) a = ER (Either e a)
-newtype instance LayerState (ErrorT e) m = ES ()
-#endif
 
 
 #endif
 #if MIN_VERSION_transformers(0, 4, 0)
 ------------------------------------------------------------------------------
 instance MonadTransControl (ExceptT e) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (ExceptT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ExceptT $ return a
     capture = return ()
@@ -515,21 +479,11 @@ instance MonadTransControl (ExceptT e) where
 
 type instance LayerResult (ExceptT e) = Either e
 type instance LayerState (ExceptT e) m = ()
-#else
-    suspend (ExceptT m) _ = liftM (\a -> (ExR a, ExS ())) m
-    resume (ExR a, _) = ExceptT $ return a
-    capture = return (ExS ())
-    extract _ (ExR e) = either (const Nothing) Just e
-
-newtype instance LayerResult (ExceptT e) a = ExR (Either e a)
-newtype instance LayerState (ExceptT e) m = ExS ()
-#endif
 
 
 #endif
 ------------------------------------------------------------------------------
 instance MonadTransControl IdentityT where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (IdentityT m) _ = liftM (\a -> (Identity a, ())) m
     resume (Identity a, _) = IdentityT $ return a
     capture = return ()
@@ -537,20 +491,10 @@ instance MonadTransControl IdentityT where
 
 type instance LayerResult IdentityT = Identity
 type instance LayerState IdentityT m = ()
-#else
-    suspend (IdentityT m) _ = liftM (\a -> (IR a, IS ())) m
-    resume (IR a, _) = IdentityT $ return a
-    capture = return (IS ())
-    extract _ (IR a) = Just a
-
-newtype instance LayerResult IdentityT a = IR a
-newtype instance LayerState IdentityT m = IS ()
-#endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl ListT where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (ListT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ListT $ return a
     capture = return ()
@@ -558,20 +502,10 @@ instance MonadTransControl ListT where
 
 type instance LayerResult ListT = []
 type instance LayerState ListT m = ()
-#else
-    suspend (ListT m) _ = liftM (\a -> (LR a, LS ())) m
-    resume (LR a, _) = ListT $ return a
-    capture = return (LS ())
-    extract _ (LR xs) = foldr (const . Just) Nothing xs
-
-newtype instance LayerResult ListT a = LR [a]
-newtype instance LayerState ListT m = LS ()
-#endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl MaybeT where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (MaybeT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = MaybeT $ return a
     capture = return ()
@@ -579,20 +513,10 @@ instance MonadTransControl MaybeT where
 
 type instance LayerResult MaybeT = Maybe
 type instance LayerState MaybeT m = ()
-#else
-    suspend (MaybeT m) _ = liftM (\a -> (MR a, MS ())) m
-    resume (MR a, _) = MaybeT $ return a
-    capture = return (MS ())
-    extract _ (MR a) = a
-
-newtype instance LayerResult MaybeT a = MR (Maybe a)
-newtype instance LayerState MaybeT m = MS ()
-#endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (ReaderT r) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (ReaderT m) r = liftM (\a -> (Identity a, r)) (m r)
     resume (Identity a, _) = ReaderT $ \_ -> return a
     capture = ReaderT return
@@ -600,20 +524,10 @@ instance MonadTransControl (ReaderT r) where
 
 type instance LayerResult (ReaderT r) = Identity
 type instance LayerState (ReaderT r) m = r
-#else
-    suspend (ReaderT m) (RS r) = liftM (\a -> (RR a, RS r)) (m r)
-    resume (RR a, _) = ReaderT $ \_ -> return a
-    capture = ReaderT $ \r -> return (RS r)
-    extract _ (RR a) = Just a
-
-newtype instance LayerResult (ReaderT r) a = RR a
-newtype instance LayerState (ReaderT r) m = RS r
-#endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (StateT s) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (StateT m) s = liftM (first Identity) (m s)
     resume (Identity a, s) = StateT $ \_ -> return (a, s)
     capture = StateT $ \s -> return (s, s)
@@ -621,20 +535,10 @@ instance MonadTransControl (StateT s) where
 
 type instance LayerResult (StateT s) = Identity
 type instance LayerState (StateT s) m = s
-#else
-    suspend (StateT m) (SS s) = liftM (SR *** SS) (m s)
-    resume (SR a, SS s) = StateT $ \_ -> return (a, s)
-    capture = StateT $ \s -> return (SS s, s)
-    extract _ (SR a) = Just a
-
-newtype instance LayerResult (StateT s) a = SR a
-newtype instance LayerState (StateT s) m = SS s
-#endif
 
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (L.StateT s) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (L.StateT m) s = liftM (first Identity) (m s)
     resume (Identity a, s) = L.StateT $ \_ -> return (a, s)
     capture = L.StateT $ \s -> return (s, s)
@@ -642,20 +546,10 @@ instance MonadTransControl (L.StateT s) where
 
 type instance LayerResult (L.StateT s) = Identity
 type instance LayerState (L.StateT s) m = s
-#else
-    suspend (L.StateT m) (SS' s) = liftM (SR' *** SS') (m s)
-    resume (SR' a, SS' s) = L.StateT $ \_ -> return (a, s)
-    capture = L.StateT $ \s -> return (SS' s, s)
-    extract _ (SR' a) = Just a
-
-newtype instance LayerResult (L.StateT s) a = SR' a
-newtype instance LayerState (L.StateT s) m = SS' s
-#endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (RWST r w s) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     resume ((w, a), (_, s)) = RWST $ \_ _ -> return (a, s, w)
     capture = RWST $ \r s -> return ((r, s), s, mempty)
@@ -663,21 +557,10 @@ instance Monoid w => MonadTransControl (RWST r w s) where
 
 type instance LayerResult (RWST r w s) = (,) w
 type instance LayerState (RWST r w s) m = (r, s)
-#else
-    suspend (RWST m) (RWSS (r, s)) =
-        liftM (\(a, s', w) -> (RWSR (a, w), RWSS (r, s'))) (m r s)
-    resume (RWSR (a, w),  RWSS (_, s)) = RWST $ \_ _ -> return (a, s, w)
-    capture = RWST $ \r s -> return (RWSS (r, s), s, mempty)
-    extract _ (RWSR (a, _)) = Just a
-
-newtype instance LayerResult (RWST r w s) a = RWSR (a, w)
-newtype instance LayerState (RWST r w s) m = RWSS (r, s)
-#endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (L.RWST r w s) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (L.RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     resume ((w, a), (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     capture = L.RWST $ \r s -> return ((r, s), s, mempty)
@@ -685,21 +568,10 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
 
 type instance LayerResult (L.RWST r w s) = (,) w
 type instance LayerState (L.RWST r w s) m = (r, s)
-#else
-    suspend (L.RWST m) (RWSS' (r, s)) =
-        liftM (\(a, s', w) -> (RWSR' (a, w), RWSS' (r, s'))) (m r s)
-    resume (RWSR' (a, w), RWSS' (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
-    capture = L.RWST $ \r s -> return (RWSS' (r, s), s, mempty)
-    extract _ (RWSR' (a, _)) = Just a
-
-newtype instance LayerResult (L.RWST r w s) a = RWSR' (a, w)
-newtype instance LayerState (L.RWST r w s) m = RWSS' (r, s)
-#endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (WriterT w) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     resume ((w, a), _) = WriterT $ return (a, w)
     capture = return ()
@@ -707,20 +579,10 @@ instance Monoid w => MonadTransControl (WriterT w) where
 
 type instance LayerResult (WriterT w) = (,) w
 type instance LayerState (WriterT w) m = ()
-#else
-    suspend (WriterT m) _ = liftM (\a -> (WR a, WS ())) m
-    resume (WR a, _) = WriterT $ return a
-    capture = return (WS ())
-    extract _ (WR (a, _)) = Just a
-
-newtype instance LayerResult (WriterT w) a = WR (a, w)
-newtype instance LayerState (WriterT w) m = WS ()
-#endif
 
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (L.WriterT w) where
-#if __GLASGOW_HASKELL__ >= 704
     suspend (L.WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     resume ((w, a), _) = L.WriterT $ return (a, w)
     capture = return ()
@@ -728,15 +590,6 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
 
 type instance LayerResult (L.WriterT w) = (,) w
 type instance LayerState (L.WriterT w) m = ()
-#else
-    suspend (L.WriterT m) _ = liftM (\a -> (WR' a, WS' ())) m
-    resume ((WR' a), _) = L.WriterT $ return a
-    capture = return (WS' ())
-    extract _ (WR' (a, _)) = Just a
-
-newtype instance LayerResult (L.WriterT w) a = WR' (a, w)
-newtype instance LayerState (L.WriterT w) m = WS' ()
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -748,7 +601,7 @@ newtype instance LayerState (L.WriterT w) m = WS' ()
 -- G(computation,computation) in the monad @m@, which returns the
 -- G(layereffect,reified) G(sideeffect,side-effects) of the @t@
 -- G(monadlayer,layer) of the original computation.
-liftControl :: (MonadTransControl t, Monad (t m), Monad m)
+liftControl :: forall t m a. (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m a)
     -> t m a
 liftControl f = capture >>= \s -> lift $ f (flip suspend s)
@@ -764,7 +617,7 @@ liftControl f = capture >>= \s -> lift $ f (flip suspend s)
 control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m (LayerEffects t m a))
     -> t m a
-control f = liftControl f >>= resume
+control f = liftControl (\peel -> f (coercePeel peel)) >>= resume
 {-# INLINE control #-}
 
 
@@ -1100,21 +953,14 @@ type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 -- GHC do not support closed type families, but we use various hacks involving
 -- 'Any' and 'unsafeCoerce' to provide the same interface. You should not need
 -- to worry about this; I am pretty sure it is safe.
-#if __GLASGOW_HASKELL__ >= 704
 type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef ClosedTypeFamilies
   where
     OuterResult m m = Identity
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult i (Codomain1 m)
--- closed type families are only supported on GHC 7.8 and above
 #else
 type instance OuterResult i m = OuterResult_ i m
-#endif
-#else
-type OuterResult i m = OuterResult_ i m
--- we can't use a type family on GHC 7.2 and older because we run into GHC
--- bug B(5595), so we use a type synonym instead
 #endif
 
 
@@ -1128,21 +974,14 @@ type OuterResult i m = OuterResult_ i m
 -- 'GHC.Exts.Any' and 'Unsafe.Coerce.unsafeCoerce' to provide the same
 -- interface. You should not need to worry about this; I am pretty sure it is
 -- safe.
-#if __GLASGOW_HASKELL__ >= 704
 type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef ClosedTypeFamilies
   where
     OuterState m m = ()
     OuterState i (t m) = (LayerState t m, OuterState i m)
     OuterState i m = OuterState i (Codomain1 m)
--- closed type families are only supported on GHC 7.8 and above
 #else
 type instance OuterState i m = OuterState_ i m
-#endif
-#else
-type OuterState i m = OuterState_ i m
--- we can't use a type family on GHC 7.2 and older because we run into GHC
--- bug B(#5595), so we use a type synonym instead
 #endif
 
 
@@ -1269,8 +1108,7 @@ data Pt (t :: (* -> *) -> * -> *) = Pt
 liftControlI :: forall i m a. MonadInnerControl i m
     => ((forall b. m b -> i (OuterEffects i m b)) -> i a)
     -> m a
-liftControlI f = captureI (Pm :: Pm i) >>= \s -> liftI $
-    f (flip suspendI s)
+liftControlI f = captureI (Pm :: Pm i) >>= \s -> liftI $ f (flip suspendI s)
 {-# INLINE liftControlI #-}
 
 
@@ -1283,7 +1121,9 @@ liftControlI f = captureI (Pm :: Pm i) >>= \s -> liftI $
 controlI :: forall i m a. MonadInnerControl i m
     => ((forall b. m b -> i (OuterEffects i m b)) -> i (OuterEffects i m a))
     -> m a
-controlI f = liftControlI f >>= resumeI (Pm :: Pm i)
+controlI f = liftControlI (\peel -> f (coercePeelI peel))
+    >>= resumeI (Pm :: Pm i)
+{-# INLINE controlI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1706,3 +1546,27 @@ defaultHoistI :: DefaultMonadInnerFunctor j n i m
     -> m a
     -> n a
 defaultHoistI f m = from1 (hoistI f (to1 m))
+
+
+------------------------------------------------------------------------------
+coercePeel :: forall t m. ()
+    => (forall a. t m a -> m (LayerEffects t m a))
+    -> (forall a. t m a -> m (LayerEffects t m a))
+#if __GLASGOW_HASKELL__ >= 704
+coercePeel f = f
+#else
+coercePeel = unsafeCoerce
+#endif
+{-# INLINE coercePeel #-}
+
+
+------------------------------------------------------------------------------
+coercePeelI :: forall i m. ()
+    => (forall a. m a -> i (OuterEffects i m a))
+    -> (forall a. m a -> i (OuterEffects i m a))
+#if __GLASGOW_HASKELL__ >= 704
+coercePeelI f = f
+#else
+coercePeelI = unsafeCoerce
+#endif
+{-# INLINE coercePeelI #-}
