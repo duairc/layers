@@ -752,7 +752,7 @@ liftControl :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m a)
     -> t m a
 liftControl f = capture >>= \s -> lift $ f (flip suspend s)
-{-# INLINABLE liftControl #-}
+{-# INLINE liftControl #-}
 
 
 ------------------------------------------------------------------------------
@@ -765,7 +765,7 @@ control :: (MonadTransControl t, Monad (t m), Monad m)
     => ((forall b. t m b -> m (LayerEffects t m b)) -> m (LayerEffects t m a))
     -> t m a
 control f = liftControl f >>= resume
-{-# INLINABLE control #-}
+{-# INLINE control #-}
 
 
 ------------------------------------------------------------------------------
@@ -780,7 +780,7 @@ liftOp :: (MonadTransControl t, Monad (t m), Monad m)
     -> (a -> t m b)
     -> t m c
 liftOp f = \g -> control (\peel -> f $ peel . g)
-{-# INLINABLE liftOp #-}
+{-# INLINE liftOp #-}
 
 
 ------------------------------------------------------------------------------
@@ -795,7 +795,7 @@ liftOp_ :: (MonadTransControl t, Monad (t m), Monad m)
     -> t m a
     -> t m b
 liftOp_ f = \m -> control (\peel -> f $ peel m)
-{-# INLINABLE liftOp_ #-}
+{-# INLINE liftOp_ #-}
 
 
 ------------------------------------------------------------------------------
@@ -816,7 +816,7 @@ liftDiscard :: (MonadTransControl t, Monad (t m), Monad m)
     -> t m ()
     -> t m a
 liftDiscard f m = liftControl $ \peel -> f $ liftM (const ()) $ peel m
-{-# INLINABLE liftDiscard #-}
+{-# INLINE liftDiscard #-}
 
 
 ------------------------------------------------------------------------------
@@ -1204,19 +1204,23 @@ instance __OVERLAPPABLE__
         let compose or_ = ComposeResult or_ :: ComposeResult i t m a
         let f (or_, os') = (toR (compose or_), toS (ls, os'))
         liftM f $ suspendI (suspend m ls) os
+    {-# INLINE suspendI #-}
 
     resumeI p ((r, s) :: OuterEffects i tm a) = do
         let ComposeResult r' = (fromR r :: ComposeResult i t m a)
         let (_, s') = fromS s
         lift (resumeI p (r', s')) >>= resume
+    {-# INLINE resumeI #-}
 
     captureI p = capture >>= \a -> lift (captureI p) >>= \b ->
         return $ toS (a, b)
+    {-# INLINE captureI #-}
 
     extractI _ _ (r :: OuterResult i tm a) =
         let ComposeResult r' = (fromR r :: ComposeResult i t m a) in join $
             fmap (extract (Pt :: Pt t) . fst) $
                 extractI (Pm :: Pm i) (Pm :: Pm m) r'
+    {-# INLINE extractI #-}
 
 
 
@@ -1267,7 +1271,7 @@ liftControlI :: forall i m a. MonadInnerControl i m
     -> m a
 liftControlI f = captureI (Pm :: Pm i) >>= \s -> liftI $
     f (flip suspendI s)
-{-# INLINABLE liftControlI #-}
+{-# INLINE liftControlI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1294,7 +1298,7 @@ liftOpI :: MonadInnerControl i m
      -> (a -> m b)
      -> m c
 liftOpI f = \g -> controlI $ \peel -> f $ peel . g
-{-# INLINABLE liftOpI #-}
+{-# INLINE liftOpI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1308,7 +1312,7 @@ liftOpI_ :: MonadInnerControl i m
      -> m a
      -> m b
 liftOpI_ f = \m -> controlI $ \peel -> f $ peel m
-{-# INLINABLE liftOpI_ #-}
+{-# INLINE liftOpI_ #-}
 
 
 ------------------------------------------------------------------------------
@@ -1324,7 +1328,7 @@ liftOpI_ f = \m -> controlI $ \peel -> f $ peel m
 -- in @i@. Its side-effects in the outer layers of @m@ are discarded.
 liftDiscardI :: MonadInnerControl i m => (i () -> i a) -> m () -> m a
 liftDiscardI f = \m -> liftControlI $ \peel -> f $ liftM (const ()) $ peel m
-{-# INLINABLE liftDiscardI #-}
+{-# INLINE liftDiscardI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1377,7 +1381,7 @@ instance __OVERLAPPABLE__
     MonadInnerInvariant j tn i tm
   where
     hoistisoI f g = hoistiso (hoistisoI f g) (hoistisoI g f)
-    {-# INLINABLE hoistisoI #-}
+    {-# INLINE hoistisoI #-}
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
@@ -1436,7 +1440,7 @@ instance __OVERLAPPABLE__
     MonadInnerFunctor j tn i tm
   where
     hoistI f = hoist (hoistI f)
-    {-# INLINABLE hoistI #-}
+    {-# INLINE hoistI #-}
 
 
 #if MIN_VERSION_mmorph(1, 0, 1)
