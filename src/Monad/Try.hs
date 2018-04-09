@@ -42,8 +42,6 @@ consists of:
           * Any G(innermonad,inner monad) with an existing 'MonadTry'
           instance wrapped by any G(monadlayer,monad layer) implementing
           'Control.Monad.Lift.MonadTransControl'.
-          * The 'Product' of any two G(monadictype,monadic types) which both
-          have existing 'MonadTry' instances.
           * The <M(mmorph,Control-Monad-Trans-Compose)#t:ComposeT composition>
           of two G(monadlayer,monad layers) wrapped around an
           G(innermonad,inner monad), where either the
@@ -78,6 +76,7 @@ import           Control.Exception (SomeException, throwIO, try)
 import           Control.Monad (liftM)
 import           Control.Monad.ST (ST)
 import qualified Control.Monad.ST.Lazy as L (ST)
+import           Data.Functor.Identity (Identity)
 #if MIN_VERSION_base(4, 3, 0)
 import           GHC.Conc.Sync (STM, catchSTM, throwSTM)
 #else
@@ -102,13 +101,6 @@ import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
 
 
 #endif
--- transformers --------------------------------------------------------------
-import           Data.Functor.Identity (Identity)
-#if MIN_VERSION_transformers(0, 3, 0)
-import           Data.Functor.Product (Product (Pair))
-#endif
-
-
 ------------------------------------------------------------------------------
 -- | The 'MonadTry' type class provides a single operation 'mtry', which is a
 -- generalised way to observe G(shortcircuit,short-circuiting) in monads.
@@ -153,7 +145,7 @@ class MonadMask m => MonadTry m where
     --
     -- [Implies-Zero]
     --     @('mtry' m ≡ 'return' ('Left' m)) ⇒ (∀f. m '>>=' f ≡ m)@
-    mtry :: m a -> m (Either (m a) a)
+    mtry :: m a -> m (Either (m b) a)
     mtry = liftM Right
 
 #ifdef MinimalPragma
@@ -165,15 +157,6 @@ class MonadMask m => MonadTry m where
 instance MonadTry Identity
 
 
-#if MIN_VERSION_transformers(0, 3, 0)
-------------------------------------------------------------------------------
-instance (MonadTry f, MonadTry g) => MonadTry (Product f g) where
-    mtry (Pair f g) = Pair
-        (liftM (either (Left . (flip Pair g)) Right) (mtry f))
-        (liftM (either (Left . (Pair f)) Right) (mtry g))
-
-
-#endif
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance MonadTry (f (g m)) => MonadTry (ComposeT f g m) where
@@ -247,11 +230,10 @@ instance __OVERLAPPABLE__ (MonadTransControl t, MonadMask (t m), MonadTry m)
         state <- capture
         ma <- lift . mtry $ suspend m state
         case ma of
-            Left m' -> return . Left $ lift m' >>= resume
-            Right (result, state') ->
-                case extract (Pt :: Pt t) result of
-                    Nothing ->  return . Left $ resume (result, state')
-                    Just _ -> liftM Right $ resume (result, state')
+            Left m' -> lift m'
+            Right (result, state') -> case extract (Pt :: Pt t) result of
+                Left result' -> return . Left $ resume (result', state')
+                Right _ -> liftM Right $ resume (result, state')
     {-# INLINE mtry #-}
 
 

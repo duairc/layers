@@ -148,7 +148,8 @@ captureIO = captureI (Pm :: Pm IO)
 
 
 ------------------------------------------------------------------------------
-extractIO :: MonadIOControl m => proxy m -> OuterResult IO m a -> Maybe a
+extractIO :: MonadIOControl m
+    => proxy m -> OuterResult IO m a -> Either (OuterResult IO m b) a
 extractIO = extractI (Pm :: Pm IO)
 
 

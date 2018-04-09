@@ -104,11 +104,11 @@ captureT = captureI (Pm :: Pm m)
 
 
 ------------------------------------------------------------------------------
-extractT :: forall proxy proxy' t m a. MonadTopControl t m
+extractT :: forall t m a b proxy proxy'. MonadTopControl t m
     => proxy t
     -> proxy' m
     -> OuterResult m (t m) a
-    -> Maybe a
+    -> Either (OuterResult m (t m) b) a
 extractT _ proxy = extractI proxy (Pm :: Pm (t m))
 
 
@@ -166,31 +166,12 @@ hoistisoT = hoistisoI
 
 
 ------------------------------------------------------------------------------
-#if LANGUAGE_ConstraintKinds
-type MonadTopFunctor n t m =
+newtypeC(MonadTopFunctor n t m,
     ( MonadInnerFunctor n (t n) m (t m)
     , MonadTop t m
     , MonadTop t n
     , MonadTopInvariant n t m
-    )
-#else
-class
-    ( MonadInnerFunctor n (t n) m (t m)
-    , MonadTop t m
-    , MonadTop t n
-    , MonadTopInvariant n t m
-    )
-  =>
-    MonadTopFunctor n t m
-instance
-    ( MonadInnerFunctor n (t n) m (t m)
-    , MonadTop t m
-    , MonadTop t n
-    , MonadTopInvariant n t m
-    )
-  =>
-    MonadTopFunctor n t m
-#endif
+    ))
 
 
 ------------------------------------------------------------------------------

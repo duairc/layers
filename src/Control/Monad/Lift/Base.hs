@@ -168,10 +168,10 @@ captureB = captureI (Pm :: Pm b)
 
 
 ------------------------------------------------------------------------------
-extractB :: forall proxy b m a. MonadBaseControl b m
+extractB :: forall b m a c proxy. MonadBaseControl b m
     => proxy m
     -> OuterResult b m a
-    -> Maybe a
+    -> Either (OuterResult b m c) a
 extractB = extractI (Pm :: Pm b)
 
 

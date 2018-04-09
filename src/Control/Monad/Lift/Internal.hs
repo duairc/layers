@@ -1,7 +1,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -16,16 +20,18 @@
 #endif
 
 #include "docmacros.h"
+#include "overlap.h"
 
 module Control.Monad.Lift.Internal
     ( LayerEffects, LayerResult, LayerState, coercePeel
     , OuterEffects, OuterResult, OuterState, coercePeelI
     , ComposeResult (ComposeResult), fromR, toR, fromS, toS
-    , Iso1 (Codomain1, from1, to1)
+    , Iso1, Codomain1, from1, to1
     )
 where
 
 -- base ----------------------------------------------------------------------
+import           Control.Arrow (first)
 #if MIN_VERSION_base(4, 7, 0) && __GLASGOW_HASKELL__ >= 710
 import           Data.Coerce (Coercible, coerce)
 #endif
@@ -136,14 +142,14 @@ type OuterEffects i m a = (OuterResult i m a, OuterState i m)
 -- GHC do not support closed type families, but we use various hacks involving
 -- 'Any' and 'unsafeCoerce' to provide the same interface. You should not need
 -- to worry about this; I am pretty sure it is safe.
-type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
 #ifdef ClosedTypeFamilies
+type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
   where
     OuterResult m m = Identity
     OuterResult i (t m) = ComposeResult i t m
     OuterResult i m = OuterResult i (Codomain1 m)
 #else
-type instance OuterResult i m = OuterResult_ i m
+type OuterResult i m = OuterResult_ i m
 #endif
 
 
@@ -157,14 +163,14 @@ type instance OuterResult i m = OuterResult_ i m
 -- 'GHC.Exts.Any' and 'Unsafe.Coerce.unsafeCoerce' to provide the same
 -- interface. You should not need to worry about this; I am pretty sure it is
 -- safe.
-type family OuterState (i :: * -> *) (m :: * -> *) :: *
 #ifdef ClosedTypeFamilies
+type family OuterState (i :: * -> *) (m :: * -> *) :: *
   where
     OuterState m m = ()
     OuterState i (t m) = (LayerState t m, OuterState i m)
     OuterState i m = OuterState i (Codomain1 m)
 #else
-type instance OuterState i m = OuterState_ i m
+type OuterState i m = OuterState_ i m
 #endif
 
 
@@ -173,9 +179,47 @@ newtype ComposeResult i t m a = ComposeResult
     (OuterResult i m (LayerResult t a, LayerState t m))
 
 
+------------------------------------------------------------------------------
+instance (Functor (OuterResult i m), Functor (LayerResult t)) =>
+    Functor (ComposeResult i t m)
+  where
+    fmap f (ComposeResult or_) = ComposeResult (fmap (first (fmap f)) or_)
+
+
 #ifndef ClosedTypeFamilies
 ------------------------------------------------------------------------------
 newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
+
+
+------------------------------------------------------------------------------
+instance Functor (OuterResult_ m m) where
+    fmap f (r :: OuterResult_ m m a) = toR (fmap f a)
+      where
+        a = fromR r :: Identity a
+
+
+------------------------------------------------------------------------------
+instance __OVERLAPPABLE__
+    ( Functor (OuterResult_ i m), Functor (LayerResult t)
+    )
+  =>
+    Functor (OuterResult_ i (t m))
+  where
+    fmap f (r :: OuterResult_ i (t m) a) = toR (fmap f a)
+      where
+        a = fromR r :: ComposeResult i t m a
+
+
+------------------------------------------------------------------------------
+instance __OVERLAPPABLE__
+    ( Functor (OuterResult_ i (Codomain1 m))
+    )
+  =>
+    Functor (OuterResult_ i m)
+  where
+    fmap f (r :: OuterResult_ i m a) = toR (fmap f a)
+      where
+        a = fromR r :: OuterResult_ i (Codomain1 m) a
 
 
 ------------------------------------------------------------------------------

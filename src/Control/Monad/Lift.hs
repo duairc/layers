@@ -132,7 +132,7 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Arrow ((***), first)
-import           Control.Monad (join, liftM)
+import           Control.Monad (liftM)
 import           Data.Functor.Identity (Identity (Identity))
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
@@ -379,7 +379,7 @@ operations reflect this relationship.
 --    'resume' ((w, a), (_, s)) = 'RWST' '$' \\_ _ -> 'return' (a, s, w)
 --    'capture' = 'RWST' '$' \\r s -> 'return' ((r, s), s, 'mempty')
 --    'extract' _ (_, a) = 'Just' a@
-class MonadTrans t => MonadTransControl t where
+class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- | Given a G(computation,computation) @m@ of type @t m a@ and the
     -- current G(layerstate,layer state) of the @t@ G(monadlayer,layer),
     -- 'suspend' suspends the G(sideeffect,side-effects) of @m@ which come
@@ -439,7 +439,7 @@ class MonadTrans t => MonadTransControl t where
     --    'lift' '$' do
     --        (result, _) <- 'suspend' t state
     --        'return' '$' 'extract' ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' t) result@
-    extract :: proxy t -> LayerResult t a -> Maybe a
+    extract :: proxy t -> LayerResult t a -> Either (LayerResult t b) a
 
 
 #if !MIN_VERSION_transformers(0, 6, 0)
@@ -448,7 +448,7 @@ instance Error e => MonadTransControl (ErrorT e) where
     suspend (ErrorT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ErrorT $ return a
     capture = return ()
-    extract _ = either (const Nothing) Just
+    extract _ = either (Left . Left) Right
 
 
 #endif
@@ -458,7 +458,7 @@ instance MonadTransControl (ExceptT e) where
     suspend (ExceptT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ExceptT $ return a
     capture = return ()
-    extract _ = either (const Nothing) Just
+    extract _ = either (Left . Left) Right
 
 
 #endif
@@ -467,7 +467,7 @@ instance MonadTransControl IdentityT where
     suspend (IdentityT m) _ = liftM (\a -> (Identity a, ())) m
     resume (Identity a, _) = IdentityT $ return a
     capture = return ()
-    extract _ (Identity a) = Just a
+    extract _ (Identity a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -475,7 +475,7 @@ instance MonadTransControl ListT where
     suspend (ListT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = ListT $ return a
     capture = return ()
-    extract _ = foldr (const . Just) Nothing
+    extract _ = foldr (const . Right) (Left [])
 
 
 ------------------------------------------------------------------------------
@@ -483,7 +483,7 @@ instance MonadTransControl MaybeT where
     suspend (MaybeT m) _ = liftM (\a -> (a, ())) m
     resume (a, _) = MaybeT $ return a
     capture = return ()
-    extract _ = id
+    extract _ = maybe (Left Nothing) Right
 
 
 ------------------------------------------------------------------------------
@@ -491,7 +491,7 @@ instance MonadTransControl (ReaderT r) where
     suspend (ReaderT m) r = liftM (\a -> (Identity a, r)) (m r)
     resume (Identity a, _) = ReaderT $ \_ -> return a
     capture = ReaderT return
-    extract _ (Identity a) = Just a
+    extract _ (Identity a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -499,7 +499,7 @@ instance MonadTransControl (StateT s) where
     suspend (StateT m) s = liftM (first Identity) (m s)
     resume (Identity a, s) = StateT $ \_ -> return (a, s)
     capture = StateT $ \s -> return (s, s)
-    extract _ (Identity a) = Just a
+    extract _ (Identity a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -507,7 +507,7 @@ instance MonadTransControl (L.StateT s) where
     suspend (L.StateT m) s = liftM (first Identity) (m s)
     resume (Identity a, s) = L.StateT $ \_ -> return (a, s)
     capture = L.StateT $ \s -> return (s, s)
-    extract _ (Identity a) = Just a
+    extract _ (Identity a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -515,7 +515,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     suspend (RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     resume ((w, a), (_, s)) = RWST $ \_ _ -> return (a, s, w)
     capture = RWST $ \r s -> return ((r, s), s, mempty)
-    extract _ (_, a) = Just a
+    extract _ (_, a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -523,7 +523,7 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
     suspend (L.RWST m) (r, s) = liftM (\(a, s', w) -> ((w, a), (r, s'))) (m r s)
     resume ((w, a), (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     capture = L.RWST $ \r s -> return ((r, s), s, mempty)
-    extract _ (_, a) = Just a
+    extract _ (_, a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -531,7 +531,7 @@ instance Monoid w => MonadTransControl (WriterT w) where
     suspend (WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     resume ((w, a), _) = WriterT $ return (a, w)
     capture = return ()
-    extract _ (_, a) = Just a
+    extract _ (_, a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -539,7 +539,7 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
     suspend (L.WriterT m) _ = liftM (\(a, w) -> ((w, a), ())) m
     resume ((w, a), _) = L.WriterT $ return (a, w)
     capture = return ()
-    extract _ (_, a) = Just a
+    extract _ (_, a) = Right a
 
 
 ------------------------------------------------------------------------------
@@ -792,7 +792,8 @@ instance (Monad (f (g m)), DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
 -- 'liftControlI', 'controlI', 'liftOpI', 'liftOpI_' and 'liftDiscardI'. These
 -- are all built on top of the more primitive 'captureI', 'suspendI' and
 -- 'resumeI' operations.
-class MonadInner i m => MonadInnerControl i m where
+class (MonadInner i m, Functor (OuterResult i m)) => MonadInnerControl i m
+  where
     -- | Given a G(computation,computation) @m@ of type @m a@ and the current
     -- G(layerstate,layer state) of the G(outerlayer,outer layers) around
     -- @i@ of @m@, 'suspendI' suspends the
@@ -856,7 +857,8 @@ class MonadInner i m => MonadInnerControl i m where
     --    'liftI' '$' do
     --        (result, _) <- 'suspendI' m state
     --        'return' '$' 'extractI' i ('Data.Proxy.Proxy' :: 'Data.Proxy.Proxy' m) result@
-    extractI :: proxy i -> proxy' m -> OuterResult i m a -> Maybe a
+    extractI :: proxy i -> proxy' m -> OuterResult i m a
+        -> Either (OuterResult i m b) a
 
 #ifdef LANGUAGE_DefaultSignatures
 -- DefaultSignatures doesn't work with multi-parameter type classes in GHC 7.2
@@ -882,7 +884,7 @@ class MonadInner i m => MonadInnerControl i m where
         => proxy i
         -> proxy' m
         -> OuterResult i m a
-        -> Maybe a
+        -> Either (OuterResult i m b) a
     extractI = defaultExtractI
 #endif
 #endif
@@ -893,7 +895,7 @@ instance MonadInner m m => MonadInnerControl m m where
     suspendI m _ = liftM (\a -> (toR $ Identity a, toS ())) m
     resumeI _ (r, _) = let Identity a = fromR r in return a
     captureI _ = return $ toS ()
-    extractI _ _ r = let Identity a = fromR r in Just a
+    extractI _ _ r = let Identity a = fromR r in Right a
 
 
 ------------------------------------------------------------------------------
@@ -905,36 +907,55 @@ instance __OVERLAPPABLE__
     , OuterResult i (t m) ~ ComposeResult i t m
     , OuterState i (t m) ~ (LayerState t m, OuterState i m)
 #endif
-    , tm ~ t m
     )
   =>
-    MonadInnerControl i tm
+    MonadInnerControl i (t m)
   where
-    suspendI (m :: tm a) s = do
-        let (ls, os) = fromS s
-        let compose or_ = ComposeResult or_ :: ComposeResult i t m a
-        let f (or_, os') = (toR (compose or_), toS (ls, os'))
-        liftM f $ suspendI (suspend m ls) os
+    suspendI (m :: t m a) s = liftM f $ suspendI (suspend m ls) os
+      where
+        (ls, os) = fromS s
+        compose or_ = ComposeResult or_ :: ComposeResult i t m a
+        f (or_, os') = (toR (compose or_), toS (ls, os'))
     {-# INLINE suspendI #-}
 
-    resumeI p ((r, s) :: OuterEffects i tm a) = do
-        let ComposeResult r' = (fromR r :: ComposeResult i t m a)
-        let (_, s') = fromS s
+    resumeI p ((r, s) :: OuterEffects i (t m) a) =
         lift (resumeI p (r', s')) >>= resume
+      where
+        (_, s') = fromS s
+        ComposeResult r' = fromR r :: ComposeResult i t m a
     {-# INLINE resumeI #-}
 
-    captureI p = capture >>= \a -> lift (captureI p) >>= \b ->
+    captureI p = do
+        a <- capture
+        b <- lift (captureI p)
         return $ toS (a, b)
     {-# INLINE captureI #-}
 
-    extractI _ _ (r :: OuterResult i tm a) =
-        let ComposeResult r' = (fromR r :: ComposeResult i t m a) in join $
-            fmap (extract (Pt :: Pt t) . fst) $
-                extractI (Pm :: Pm i) (Pm :: Pm m) r'
+    extractI _ _ (r :: OuterResult i (t m) a) = either left right $
+        extractI (Pm :: Pm i) (Pm :: Pm m) r'
+      where
+        ComposeResult r' = fromR r :: ComposeResult i t m a
+
+        left :: forall b. OuterResult
+                        i m (LayerResult t b, LayerState t m)
+                      -> Either (OuterResult i (t m) b) a
+        left or_ = Left $ toR or'
+          where
+            or' :: ComposeResult i t m b
+            or' = ComposeResult or_
+
+        right :: forall b. (LayerResult t a, LayerState t m)
+                      -> Either (OuterResult i (t m) b) a
+        right (lr, ls) = case extract (Pt :: Pt t) lr of
+            Left e -> Left $ toR or'
+              where
+                or' :: ComposeResult i t m b
+                or' = ComposeResult $ fmap (const (e, ls)) r'
+            Right a -> Right a
     {-# INLINE extractI #-}
 
 
-
+{-
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
 instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
@@ -960,6 +981,7 @@ type instance LayerState (ComposeT f g) m = OuterState m (f (g m))
 
 #endif
 #endif
+-}
 ------------------------------------------------------------------------------
 data Pm (m :: * -> *) = Pm
 
@@ -1347,12 +1369,16 @@ defaultCaptureI p = from1 (liftM toS (captureI p))
 -- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
 -- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
 -- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
-defaultExtractI :: forall proxy proxy' i m a. DefaultMonadInnerControl i m
+defaultExtractI :: forall i m a b proxy proxy'. DefaultMonadInnerControl i m
     => proxy i
     -> proxy' m
     -> OuterResult i m a
-    -> Maybe a
-defaultExtractI p _ r = extractI p (Pm :: Pm (Codomain1 m)) (fromR r)
+    -> Either (OuterResult i m b) a
+defaultExtractI p _ r = either (Left . coerceResult) Right $
+    extractI p (Pm :: Pm (Codomain1 m)) (fromR r)
+  where
+    coerceResult :: OuterResult i (Codomain1 m) b -> OuterResult i m b
+    coerceResult = toR . fromR
 
 
 ------------------------------------------------------------------------------

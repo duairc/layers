@@ -107,7 +107,7 @@ suspendL = suspendI
 
 
 ------------------------------------------------------------------------------
-resumeL :: forall proxy i t m a. MonadLayerControl i t m
+resumeL :: forall i t m a proxy. MonadLayerControl i t m
     => proxy t
     -> OuterEffects (t i) m a
     -> m a
@@ -115,18 +115,18 @@ resumeL _ = resumeI (Pm :: Pm (t i))
 
 
 ------------------------------------------------------------------------------
-captureL :: forall proxy i t m. MonadLayerControl i t m
+captureL :: forall i t m proxy. MonadLayerControl i t m
     => proxy t
     -> m (OuterState (t i) m)
 captureL _ = captureI (Pm :: Pm (t i))
 
 
 ------------------------------------------------------------------------------
-extractL :: forall proxy proxy' i t m a. MonadLayerControl i t m
+extractL :: forall i t m a b proxy proxy'. MonadLayerControl i t m
     => proxy t
     -> proxy' m
     -> OuterResult (t i) m a
-    -> Maybe a
+    -> Either (OuterResult (t i) m b) a
 extractL _ = extractI (Pm :: Pm (t i))
 
 
