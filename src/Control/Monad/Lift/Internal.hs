@@ -24,6 +24,7 @@
 
 module Control.Monad.Lift.Internal
     ( LayerEffects, LayerResult, LayerState, coercePeel
+    , ComposeResult2 (ComposeResult2), ComposeResult3 (ComposeResult3)
     , OuterEffects, OuterResult, OuterState, coercePeelI
     , ComposeResult (ComposeResult), fromR, toR, fromS, toS
     , Iso1, Codomain1, from1, to1
@@ -116,6 +117,36 @@ type instance LayerState (L.WriterT w) = ()
 
 
 ------------------------------------------------------------------------------
+newtype ComposeResult2 u v a = ComposeResult2
+    (LayerResult v (LayerResult u a, LayerState u))
+
+
+------------------------------------------------------------------------------
+instance (Functor (LayerResult u), Functor (LayerResult v)) =>
+    Functor (ComposeResult2 u v)
+  where
+    fmap f (ComposeResult2 a) = ComposeResult2 (fmap (first (fmap f)) a)
+
+
+------------------------------------------------------------------------------
+newtype ComposeResult3 u v w a = ComposeResult3
+    (LayerResult w
+        (LayerResult v (LayerResult u a, LayerState u), LayerState v))
+
+
+------------------------------------------------------------------------------
+instance
+    ( Functor (LayerResult u), Functor (LayerResult v)
+    , Functor (LayerResult w)
+    )
+  =>
+    Functor (ComposeResult3 u v w)
+  where
+    fmap f (ComposeResult3 a) = ComposeResult3
+        (fmap (first (fmap (first (fmap f)))) a)
+
+
+------------------------------------------------------------------------------
 coercePeel :: forall t m. ()
     => (forall a. t m a -> m (LayerEffects t a))
     -> (forall a. t m a -> m (LayerEffects t a))
@@ -183,7 +214,7 @@ newtype ComposeResult i t m a = ComposeResult
 instance (Functor (OuterResult i m), Functor (LayerResult t)) =>
     Functor (ComposeResult i t m)
   where
-    fmap f (ComposeResult or_) = ComposeResult (fmap (first (fmap f)) or_)
+    fmap f (ComposeResult a) = ComposeResult (fmap (first (fmap f)) a)
 
 
 #ifndef ClosedTypeFamilies

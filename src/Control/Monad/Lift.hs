@@ -69,18 +69,11 @@ module Control.Monad.Lift
 
     -- ** Lifting control operations
     , MonadTransControl (suspend, resume, capture, extract)
-    , LayerEffects
-    , LayerResult
-    , LayerState
-    , liftControl
-    , control
-    , liftOp
-    , liftOp_
-    , liftDiscard
+    , LayerEffects, LayerResult, LayerState
+    , liftControl, control, liftOp, liftOp_, liftDiscard
 
     -- ** Lifting morphisms
-    , MInvariant (hoistiso)
-    , MFunctor (hoist)
+    , MInvariant (hoistiso), MFunctor (hoist)
 
     -- * The @MonadInner@ family
     -- $innerfamily
@@ -90,49 +83,52 @@ module Control.Monad.Lift
 
     -- ** Lifting control operations
     , MonadInnerControl (suspendI, resumeI, captureI, extractI)
-    , OuterEffects
-    , OuterResult
-    , OuterState
-    , liftControlI
-    , controlI
-    , liftOpI
-    , liftOpI_
-    , liftDiscardI
+    , OuterEffects, OuterResult, OuterState
+    , liftControlI, controlI, liftOpI, liftOpI_, liftDiscardI
 
     -- ** Lifting morphisms
-    , MonadInnerInvariant (hoistisoI)
-    , MonadInnerFunctor (hoistI)
+    , MonadInnerInvariant (hoistisoI), MonadInnerFunctor (hoistI)
 
-    -- ** Defaults
+    -- * Defaults
     -- $defaults
-    , Iso1
-    , Codomain1
-    , from1
-    , to1
+    , Iso1, Codomain1, from1, to1
 
-    , DefaultMonadInner
-    , DefaultMonadInnerControl
-    , DefaultMonadInnerInvariant
-    , DefaultMonadInnerFunctor
-
+    -- ** For the @MonadTrans@ family
     -- *** Computations
-    , defaultLiftI
+    , DefaultMonadTrans, defaultLift
+    , DefaultMonadTrans2, defaultLift2
+    , DefaultMonadTrans3, defaultLift3
 
     -- *** Control operations
-    , defaultSuspendI
-    , defaultResumeI
-    , defaultExtractI
-    , defaultCaptureI
+    , DefaultMonadTransControl, DefaultLayerResult, DefaultLayerState
+    , defaultSuspend, defaultResume, defaultExtract, defaultCapture
+    , DefaultMonadTransControl2, DefaultLayerResult2, DefaultLayerState2
+    , defaultSuspend2, defaultResume2, defaultExtract2, defaultCapture2
+    , DefaultMonadTransControl3, DefaultLayerResult3, DefaultLayerState3
+    , defaultSuspend3, defaultResume3, defaultExtract3, defaultCapture3
 
     -- *** Morphisms
-    , defaultHoistisoI
-    , defaultHoistI
+    , DefaultMInvariant, defaultHoistiso, DefaultMFunctor, defaultHoist
+    , DefaultMInvariant2, defaultHoistiso2, DefaultMFunctor2, defaultHoist2
+    , DefaultMInvariant3, defaultHoistiso3, DefaultMFunctor3, defaultHoist3
+
+    -- ** For the @MonadInner@ family
+    -- *** Computations
+    , DefaultMonadInner, defaultLiftI
+
+    -- *** Control operations
+    , DefaultMonadInnerControl
+    , defaultSuspendI, defaultResumeI, defaultExtractI, defaultCaptureI
+
+    -- *** Morphisms
+    , DefaultMonadInnerInvariant, defaultHoistisoI
+    , DefaultMonadInnerFunctor, defaultHoistI
     )
 where
 
 -- base ----------------------------------------------------------------------
 import           Control.Arrow ((***), first)
-import           Control.Monad (liftM)
+import           Control.Monad (liftM, liftM2, liftM3)
 import           Data.Functor.Identity (Identity (Identity))
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
@@ -142,6 +138,8 @@ import           Data.Monoid (Monoid, mempty)
 -- layers --------------------------------------------------------------------
 import           Control.Monad.Lift.Internal
                      ( LayerEffects, LayerResult, LayerState, coercePeel
+                     , ComposeResult2 (ComposeResult2)
+                     , ComposeResult3 (ComposeResult3)
                      , OuterEffects, OuterResult, OuterState, coercePeelI
                      , ComposeResult (ComposeResult), fromR, toR, fromS, toS
                      , Iso1, Codomain1, from1, to1
@@ -639,7 +637,7 @@ class MInvariant t where
     -- Note: The G(morphism,homomorphism) produced by @'hoistiso' f g@ is
     -- only valid if @f@ and @g@ form a valid G(morphism,isomorphism), i.e.,
     -- @f '.' g ≡ 'id'@ and @g '.' f ≡ 'id'@.
-    hoistiso :: Monad m
+    hoistiso :: (Monad m, Monad n)
         => (forall b. m b -> n b)
         -> (forall b. n b -> m b)
         -> t m a
@@ -907,18 +905,19 @@ instance __OVERLAPPABLE__
     , OuterResult i (t m) ~ ComposeResult i t m
     , OuterState i (t m) ~ (LayerState t, OuterState i m)
 #endif
+    , tm ~ t m
     )
   =>
-    MonadInnerControl i (t m)
+    MonadInnerControl i tm
   where
-    suspendI (m :: t m a) s = liftM f $ suspendI (suspend m ls) os
+    suspendI (m :: tm a) s = liftM f $ suspendI (suspend m ls) os
       where
         (ls, os) = fromS s
         compose or_ = ComposeResult or_ :: ComposeResult i t m a
         f (or_, os') = (toR (compose or_), toS (ls, os'))
     {-# INLINE suspendI #-}
 
-    resumeI p ((r, s) :: OuterEffects i (t m) a) =
+    resumeI p ((r, s) :: OuterEffects i tm a) =
         lift (resumeI p (r', s')) >>= resume
       where
         (_, s') = fromS s
@@ -931,26 +930,28 @@ instance __OVERLAPPABLE__
         return $ toS (a, b)
     {-# INLINE captureI #-}
 
-    extractI _ _ (r :: OuterResult i (t m) a) = either left right $
+    extractI _ _ (r :: OuterResult i tm a) = either left right $
         extractI (Pm :: Pm i) (Pm :: Pm m) r'
       where
         ComposeResult r' = fromR r :: ComposeResult i t m a
 
         left :: forall b. OuterResult i m (LayerResult t b, LayerState t)
-            -> Either (OuterResult i (t m) b) a
+            -> Either (OuterResult i tm b) a
         left or_ = Left $ toR or'
           where
             or' :: ComposeResult i t m b
             or' = ComposeResult or_
+        {-# INLINE left #-}
 
         right :: forall b. (LayerResult t a, LayerState t)
-            -> Either (OuterResult i (t m) b) a
+            -> Either (OuterResult i tm b) a
         right (lr, ls) = case extract (Pt :: Pt t) lr of
             Left e -> Left $ toR or'
               where
                 or' :: ComposeResult i t m b
                 or' = ComposeResult $ fmap (const (e, ls)) r'
             Right a -> Right a
+        {-# INLINE right #-}
     {-# INLINE extractI #-}
 
 
@@ -1255,10 +1256,505 @@ operations to manually define an instance (as above) rather than using the
 @GeneralizedNewtypeDeriving@ extension.
 
 -}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultLift'.
+#define DMT DefaultMonadTrans t u m
+#define CDMT MonadTrans u, Monad m, Iso1 (t m)
+#define EDMT Codomain1 (t m) ~ u m
+newtypeCE(DMT, CDMT, EDMT)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTrans' @t@.
+--
+-- The constraint @'DefaultMonadTrans' t u m@ essentially requires that @t@
+-- be G(morphism,isomorphic) to a monad transformer @u@ which is already an
+-- instance of 'MonadTrans'. This isomorphism is given by making @t m@ an
+-- instance of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u m@.
+defaultLift :: CE(DMT, EDMT) => m a -> t m a
+defaultLift = from1 . lift
+{-# INLINE defaultLift #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultLift2'.
+#define DMT2 DefaultMonadTrans2 t u v m
+#define CDMT2 MonadTrans u, MonadTrans v\
+    , Monad m, Monad (v m)\
+    , Iso1 (t m)
+#define EDMT2 Codomain1 (t m) ~ u (v m)
+newtypeCE(DMT2, CDMT2, EDMT2)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTrans' @t@.
+--
+-- The constraint @'DefaultMonadTrans2' t u v m@ essentially requires that @t@
+-- be G(morphism,isomorphic) to a composition of two monad transformers @u@
+-- and @v@ which are already instances of 'MonadTrans'. This isomorphism is
+-- given by making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u (v m)@.
+defaultLift2 :: CE(DMT2, EDMT2) => m a -> t m a
+defaultLift2 = from1 . lift . lift
+{-# INLINE defaultLift2 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultLift3'.
+#define DMT3 DefaultMonadTrans3 t u v w m
+#define CDMT3 MonadTrans u, MonadTrans v, MonadTrans w\
+    , Monad m, Monad (w m), Monad (v (w m))\
+    , Iso1 (t m)
+#define EDMT3 Codomain1 (t m) ~ u (v (w m))
+newtypeCE(DMT3, CDMT3, EDMT3)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTrans' @t@.
+--
+-- The constraint @'DefaultMonadTrans3' t u v w m@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of three monad transformers
+-- @u@, @v@ and @w@ which are already instances of 'MonadTrans'. This
+-- isomorphism is given by making @t m@ an instance of 'Iso1' for all @m@ such
+-- that @'Codomain1' (t m) = u (v (w m))@.
+defaultLift3 :: CE(DMT3, EDMT3) => m a -> t m a
+defaultLift3 = from1 . lift . lift . lift
+{-# INLINE defaultLift3 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signatures of 'defaultSuspend', 'defaultResume',
+-- 'defaultCapture' and 'defaultExtract'.
+#define DMTC(m) DefaultMonadTransControl t u m
+#define CDMTC(m) MonadTransControl u\
+    , Monad m, Monad (u m)\
+    , Iso1 (t m)
+#define EDMTC(m) Codomain1 (t m) ~ u m\
+    , LayerResult t ~ DefaultLayerResult u, LayerState t ~ DefaultLayerState u
+newtypeCE(DMTC(m), CDMTC(m), EDMTC(m))
+
+
+------------------------------------------------------------------------------
+-- | The G(layerresult,layer result) of @u@.
+type DefaultLayerResult u = LayerResult u
+
+
+------------------------------------------------------------------------------
+-- | The G(layerresult,layer state) of @u@.
+type DefaultLayerState u = LayerState u
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl' t u m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a monad transformer @u@ which is
+-- already an instance of 'MonadTransControl'. This isomorphism is given by
+-- making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u m@.
+defaultSuspend :: CE(DMTC(m), EDMTC(m))
+    => t m a -> LayerState t -> m (LayerEffects t a)
+defaultSuspend m us = suspend (to1 m) us
+{-# INLINE defaultSuspend #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl' t u m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a monad transformer @u@ which is
+-- already an instance of 'MonadTransControl'. This isomorphism is given by
+-- making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u m@.
+defaultResume :: CE(DMTC(m), EDMTC(m)) => LayerEffects t a -> t m a
+defaultResume = from1 . resume
+{-# INLINE defaultResume #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl' t u m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a monad transformer @u@ which is
+-- already an instance of 'MonadTransControl'. This isomorphism is given by
+-- making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u m@.
+defaultCapture :: CE(DMTC(m), EDMTC(m)) => t m (LayerState t)
+defaultCapture = from1 capture
+{-# INLINE defaultCapture #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl' t u m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a monad transformer @u@ which is
+-- already an instance of 'MonadTransControl'. This isomorphism is given by
+-- making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u m@.
+defaultExtract
+    :: forall t u a b proxy. CE(DMTC(Identity), EDMTC(Identity))
+    => proxy t -> LayerResult t a -> Either (LayerResult t b) a
+defaultExtract _ = extract (Pt :: Pt u)
+{-# INLINE defaultExtract #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signatures of 'defaultSuspend2', 'defaultResume2',
+-- 'defaultCapture2' and 'defaultExtract2'.
+#define DMTC2(m) DefaultMonadTransControl2 t u v m
+#define CDMTC2(m) MonadTransControl u, MonadTransControl v\
+    , Monad m, Monad (v m), Monad (u (v m))\
+    , Iso1 (t m)
+#define EDMTC2(m) Codomain1 (t m) ~ u (v m)\
+    , LayerResult t ~ DefaultLayerResult2 u v\
+    , LayerState t ~ DefaultLayerState2 u v
+newtypeCE(DMTC2(m), CDMTC2(m), EDMTC2(m))
+
+
+------------------------------------------------------------------------------
+-- | The combined G(layerresult,layer results) of @u@ and @v@.
+type DefaultLayerResult2 u v = ComposeResult2 u v
+
+
+------------------------------------------------------------------------------
+-- | The combined G(layerresult,layer states) of @u@ and @v@.
+type DefaultLayerState2 u v = (LayerState u, LayerState v)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl2' t u v m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of two monad
+-- transformers @u@ and @v@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v m)@.
+defaultSuspend2 :: CE(DMTC2(m), EDMTC2(m))
+    => t m a -> LayerState t -> m (LayerEffects t a)
+defaultSuspend2 m (us, vs) = liftM f $ suspend (suspend (to1 m) us) vs
+  where
+    f (vr, vs') = (ComposeResult2 vr, (us, vs'))
+{-# INLINE defaultSuspend2 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl2' t u v m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of two monad
+-- transformers @u@ and @v@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v m)@.
+defaultResume2 :: CE(DMTC2(m), EDMTC2(m))
+    => LayerEffects t a -> t m a
+defaultResume2 (ComposeResult2 vr, (_, vs)) =
+    from1 $ lift (resume (vr, vs)) >>= resume
+{-# INLINE defaultResume2 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl2' t u v m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of two monad
+-- transformers @u@ and @v@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v m)@.
+defaultCapture2 :: CE(DMTC2(m), EDMTC2(m)) => t m (LayerState t)
+defaultCapture2 = from1 $ liftM2 (,) capture (lift capture)
+{-# INLINE defaultCapture2 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl2' t u v m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of two monad
+-- transformers @u@ and @v@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v m)@.
+defaultExtract2
+    :: forall t u v a b proxy. CE(DMTC2(Identity), EDMTC2(Identity))
+    => proxy t -> LayerResult t a -> Either (LayerResult t b) a
+defaultExtract2 _ (ComposeResult2 vr) = case extract (Pt :: Pt v) vr of
+    Left vre -> Left (ComposeResult2 vre)
+    Right (ur, us) -> case extract (Pt :: Pt u) ur of
+        Left ure -> Left $ ComposeResult2 $ fmap (const (ure, us)) vr
+        Right a -> Right a
+{-# INLINE defaultExtract2 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signatures of 'defaultSuspend3', 'defaultResume3',
+-- 'defaultCapture3' and 'defaultExtract3'.
+#define DMTC3(m) DefaultMonadTransControl3 t u v w m
+#define CDMTC3(m) MonadTransControl u, MonadTransControl v\
+    , MonadTransControl w\
+    , Monad m, Monad (w m), Monad (v (w m)), Monad (u (v (w m)))\
+    , Iso1 (t m)
+#define EDMTC3(m) Codomain1 (t m) ~ u (v (w m))\
+    , LayerResult t ~ DefaultLayerResult3 u v w\
+    , LayerState t ~ DefaultLayerState3 u v w
+newtypeCE(DMTC3(m), CDMTC3(m), EDMTC3(m))
+
+
+------------------------------------------------------------------------------
+-- | The combined G(layerresult,layer results) of @u@, @v@ and @w@.
+type DefaultLayerResult3 u v w = ComposeResult3 u v w
+
+
+------------------------------------------------------------------------------
+-- | The combined G(layerresult,layer states) of @u@, @v@ and @w@.
+type DefaultLayerState3 u v w = (LayerState u, LayerState v, LayerState w)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl3' t u v w m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of three monad
+-- transformers @u@, @v@ and @w@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w m))@.
+defaultSuspend3 :: CE(DMTC3(m), EDMTC3(m))
+    => t m a -> LayerState t -> m (LayerEffects t a)
+defaultSuspend3 m (us, vs, ws) =
+    liftM f $ suspend (suspend (suspend (to1 m) us) vs) ws
+  where
+    f (wr, ws') = (ComposeResult3 wr, (us, vs, ws'))
+{-# INLINE defaultSuspend3 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl3' t u v w m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of three monad
+-- transformers @u@, @v@ and @w@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w m))@.
+defaultResume3 :: CE(DMTC3(m), EDMTC3(m))
+    => LayerEffects t a -> t m a
+defaultResume3 (ComposeResult3 wr, (_, _, ws)) =
+    from1 $ lift (lift (resume (wr, ws))) >>= lift . resume >>= resume
+{-# INLINE defaultResume3 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl3' t u v w m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of three monad
+-- transformers @u@, @v@ and @w@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w m))@.
+defaultCapture3 :: CE(DMTC3(m), EDMTC3(m)) => t m (LayerState t)
+defaultCapture3 = from1 $
+    liftM3 (,,) capture (lift capture) (lift (lift capture))
+{-# INLINE defaultCapture3 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl3' t u v w m@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of three monad
+-- transformers @u@, @v@ and @w@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w m))@.
+defaultExtract3
+    :: forall t u v w a b proxy. CE(DMTC3(Identity), EDMTC3(Identity))
+    => proxy t -> LayerResult t a -> Either (LayerResult t b) a
+defaultExtract3 _ (ComposeResult3 wr) = case extract (Pt :: Pt w) wr of
+    Left wre -> Left (ComposeResult3 wre)
+    Right (vr, vs) -> case extract (Pt :: Pt v) vr of
+        Left vre -> Left $ ComposeResult3 $ fmap (const (vre, vs)) wr
+        Right (ur, us) -> case extract (Pt :: Pt u) ur of
+            Left ure -> Left $ ComposeResult3 $
+                fmap (first (fmap (const (ure, us)))) wr
+            Right a -> Right a
+{-# INLINE defaultExtract3 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistiso'.
+#define DMI DefaultMInvariant t u m n
+#define CDMI MInvariant u\
+    , Monad m, Monad n\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMI Codomain1 (t m) ~ u m, Codomain1 (t n) ~ u n
+newtypeCE(DMI, CDMI, EDMI)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MInvariant' @t@.
+--
+-- The constraint @'DefaultMInvariant' t u m n@ essentially requires that @t@
+-- be G(morphism,isomorphic) to a monad transformers @u@ which is already an
+-- instance of 'MInvariant'. This isomorphism is given by making @t m@ an
+-- instance of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u m@.
+defaultHoistiso :: CE(DMI, EDMI)
+    => (forall b. m b -> n b) -> (forall b. n b -> m b) -> t m a -> t n a
+defaultHoistiso f g = from1 . hoistiso f g . to1
+{-# INLINE defaultHoistiso #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistiso2'.
+#define DMI2 DefaultMInvariant2 t u v m n
+#define CDMI2 MInvariant u, MInvariant v\
+    , Monad m, Monad (v m), Monad n, Monad (v n)\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMI2 Codomain1 (t m) ~ u (v m), Codomain1 (t n) ~ u (v n)
+newtypeCE(DMI2, CDMI2, EDMI2)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MInvariant' @t@.
+--
+-- The constraint @'DefaultMInvariant2' t u v m n@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of two monad transformers
+-- @u@ and @v@ which are already instances of 'MInvariant'. This isomorphism
+-- is given by making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u (v m)@.
+defaultHoistiso2 :: CE(DMI2, EDMI2)
+    => (forall b. m b -> n b) -> (forall b. n b -> m b) -> t m a -> t n a
+defaultHoistiso2 f g = from1 . hoistiso (hoistiso f g) (hoistiso g f) . to1
+{-# INLINE defaultHoistiso2 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistiso3'.
+#define DMI3 DefaultMInvariant3 t u v w m n
+#define CDMI3 MInvariant u, MInvariant v, MInvariant w\
+    , Monad m, Monad (w m), Monad (v (w m))\
+    , Monad n, Monad (w n), Monad (v (w n))\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMI3 Codomain1 (t m) ~ u (v (w m)), Codomain1 (t n) ~ u (v (w n))
+newtypeCE(DMI3, CDMI3, EDMI3)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MInvariant' @t@.
+--
+-- The constraint @'DefaultMInvariant3' t u v w m n@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of three monad transformers
+-- @u@, @v@ and @w@ which are already instances of 'MInvariant'. This
+-- isomorphism is given by making @t m@ an instance of 'Iso1' for all @m@ such
+-- that @'Codomain1' (t m) = u (v m)@.
+defaultHoistiso3 :: CE(DMI3, EDMI3)
+    => (forall b. m b -> n b) -> (forall b. n b -> m b) -> t m a -> t n a
+defaultHoistiso3 f g = from1
+    . hoistiso
+        (hoistiso (hoistiso f g) (hoistiso g f))
+        (hoistiso (hoistiso g f) (hoistiso f g))
+    . to1
+{-# INLINE defaultHoistiso3 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoist2'.
+#define DMF DefaultMFunctor t u m n
+#define CDMF MFunctor u\
+    , Monad m\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMF Codomain1 (t m) ~ u m, Codomain1 (t n) ~ u n
+newtypeCE(DMF, CDMF, EDMF)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MFunctor' @t@.
+--
+-- The constraint @'DefaultMFunctor' t u m n@ essentially requires that @t@ be
+-- G(morphism,isomorphic) to a monad transformer @u@ which is already an
+-- instance of 'MFunctor'. This isomorphism is given by making @t m@ an
+-- instance of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u m@.
+defaultHoist :: CE(DMF, EDMF)
+    => (forall b. m b -> n b) -> t m a -> t n a
+defaultHoist f = from1 . hoist f . to1
+{-# INLINE defaultHoist #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoist2'.
+#define DMF2 DefaultMFunctor2 t u v m n
+#define CDMF2 MFunctor u, MFunctor v\
+    , Monad m, Monad (v m)\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMF2 Codomain1 (t m) ~ u (v m), Codomain1 (t n) ~ u (v n)
+newtypeCE(DMF2, CDMF2, EDMF2)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MFunctor' @t@.
+--
+-- The constraint @'DefaultMFunctor2' t u v m n@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of two monad transformers
+-- @u@ and @v@ which are already instances of 'MFunctor'. This isomorphism is
+-- given by making @t m@ an instance of 'Iso1' for all @m@ such that
+-- @'Codomain1' (t m) = u (v m)@.
+defaultHoist2 :: CE(DMF2, EDMF2)
+    => (forall b. m b -> n b) -> t m a -> t n a
+defaultHoist2 f = from1 . hoist (hoist f) . to1
+{-# INLINE defaultHoist2 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoist3'.
+#define DMF3 DefaultMFunctor3 t u v w m n
+#define CDMF3 MFunctor u, MFunctor v, MFunctor w\
+    , Monad m, Monad (w m), Monad (v (w m))\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMF3 Codomain1 (t m) ~ u (v (w m)), Codomain1 (t n) ~ u (v (w n))
+newtypeCE(DMF3, CDMF3, EDMF3)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MFunctor' @t@.
+--
+-- The constraint @'DefaultMFunctor3' t u v w m n@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of three monad transformers
+-- @u@, @v@ and @w@ which are already instances of 'MFunctor'. This
+-- isomorphism is given by making @t m@ an instance of 'Iso1' for all @m@ such
+-- that @'Codomain1' (t m) = u (v m)@.
+defaultHoist3 :: CE(DMF3, EDMF3)
+    => (forall b. m b -> n b) -> t m a -> t n a
+defaultHoist3 f = from1 . hoist (hoist (hoist f)) . to1
+{-# INLINE defaultHoist3 #-}
+
+
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signature of 'defaultLiftI'.
 newtypeC(DefaultMonadInner i m, (Iso1 m, MonadInner i (Codomain1 m)))
+
+
+------------------------------------------------------------------------------
+-- | Used when manually defining an instance of @'MonadInner' i@ for some
+-- monad @m@.
+--
+-- The constraint @'DefaultMonadInner' i m@ essentially requires that @m@ be
+-- G(morphism,isomorphic) to some monad @m'@ which is already an instance of
+-- @'MonadInner' i@. This isomorphism is given by making @m@ an instance of
+-- 'Iso1' such that @'Codomain1' m = m'@.
+defaultLiftI :: DefaultMonadInner i m => i a -> m a
+defaultLiftI = from1 . liftI
+{-# INLINE defaultLiftI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1283,52 +1779,19 @@ newtypeC(DefaultMonadInnerControl i m,
 
 
 ------------------------------------------------------------------------------
--- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
--- us write the type signature of 'defaultHoistisoI'.
-newtypeC(DefaultMonadInnerInvariant j n i m,
-    ( MonadInner i m
-    , MonadInner j n
-    , DefaultMonadInner i m
-    , DefaultMonadInner j n
-    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
-    ))
-
-
-------------------------------------------------------------------------------
--- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
--- us write the type signature of 'defaultHoistI.
-newtypeC(DefaultMonadInnerFunctor j n i m,
-    ( MonadInnerInvariant j n i m
-    , DefaultMonadInnerInvariant j n i m
-    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
-    ))
-
-
-------------------------------------------------------------------------------
--- | Used when manually defining an instance of @'MonadInner' i@ for some
--- monad @m@.
---
--- The constraint @'DefaultMonadInner' i m@ essentially requires that @m@ be
--- G(morphism,isomorphic) to some monad @m'@ which is already an instance of
--- @'MonadInner' i@. This isomorphism is given by making instance @m@ an
--- instance 'Iso1' such that @'Codomain1' m = m'@.
-defaultLiftI :: DefaultMonadInner i m => i a -> m a
-defaultLiftI = from1 . liftI
-
-
-------------------------------------------------------------------------------
 -- | Used when manually defining an instance of @'MonadInnerControl' i@ for
 -- some monad @m@.
 --
 -- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
 -- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
 -- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
--- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
+-- @m@ an instance of 'Iso1' such that @'Codomain1' m = m'@.
 defaultSuspendI :: DefaultMonadInnerControl i m
     => m a
     -> OuterState i m
     -> i (OuterEffects i m a)
 defaultSuspendI m s = liftM (toR *** toS) $ suspendI (to1 m) (fromS s)
+{-# INLINE defaultSuspendI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1338,12 +1801,13 @@ defaultSuspendI m s = liftM (toR *** toS) $ suspendI (to1 m) (fromS s)
 -- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
 -- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
 -- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
--- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
+-- @m@ an instance of 'Iso1' such that @'Codomain1' m = m'@.
 defaultResumeI :: DefaultMonadInnerControl i m
     => proxy i
     -> OuterEffects i m a
     -> m a
 defaultResumeI p = from1 . resumeI p . (fromR *** fromS)
+{-# INLINE defaultResumeI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1353,11 +1817,12 @@ defaultResumeI p = from1 . resumeI p . (fromR *** fromS)
 -- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
 -- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
 -- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
--- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
+-- @m@ an instance of 'Iso1' such that @'Codomain1' m = m'@.
 defaultCaptureI :: DefaultMonadInnerControl i m
     => proxy i
     -> m (OuterState i m)
 defaultCaptureI p = from1 (liftM toS (captureI p))
+{-# INLINE defaultCaptureI #-}
 
 
 ------------------------------------------------------------------------------
@@ -1367,7 +1832,7 @@ defaultCaptureI p = from1 (liftM toS (captureI p))
 -- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
 -- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
 -- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
--- instance @m@ an instance 'Iso1' such that @'Codomain1' m = m'@.
+-- @m@ an of instance 'Iso1' such that @'Codomain1' m = m'@.
 defaultExtractI :: forall i m a b proxy proxy'. DefaultMonadInnerControl i m
     => proxy i
     -> proxy' m
@@ -1378,6 +1843,19 @@ defaultExtractI p _ r = either (Left . coerceResult) Right $
   where
     coerceResult :: OuterResult i (Codomain1 m) b -> OuterResult i m b
     coerceResult = toR . fromR
+{-# INLINE defaultExtractI #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistisoI'.
+newtypeC(DefaultMonadInnerInvariant j n i m,
+    ( MonadInner i m
+    , MonadInner j n
+    , DefaultMonadInner i m
+    , DefaultMonadInner j n
+    , MonadInnerInvariant j (Codomain1 n) i (Codomain1 m)
+    ))
 
 
 ------------------------------------------------------------------------------
@@ -1396,6 +1874,17 @@ defaultHoistisoI :: DefaultMonadInnerInvariant j n i m
     -> m a
     -> n a
 defaultHoistisoI f g m = from1 (hoistisoI f g (to1 m))
+{-# INLINE defaultHoistisoI #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistI.
+newtypeC(DefaultMonadInnerFunctor j n i m,
+    ( MonadInnerInvariant j n i m
+    , DefaultMonadInnerInvariant j n i m
+    , MonadInnerFunctor j (Codomain1 n) i (Codomain1 m)
+    ))
 
 
 ------------------------------------------------------------------------------
@@ -1413,3 +1902,4 @@ defaultHoistI :: DefaultMonadInnerFunctor j n i m
     -> m a
     -> n a
 defaultHoistI f m = from1 (hoistI f (to1 m))
+{-# INLINE defaultHoistI #-}
