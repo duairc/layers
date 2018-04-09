@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 #ifdef LANGUAGE_SafeHaskell
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 #endif
 
 #include "newtypec.h"

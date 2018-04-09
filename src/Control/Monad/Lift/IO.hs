@@ -8,6 +8,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+#ifdef LANGUAGE_SafeHaskell
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 #include "docmacros.h"
 #include "newtypec.h"
 

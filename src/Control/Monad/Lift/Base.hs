@@ -9,6 +9,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+#ifdef LANGUAGE_SafeHaskell
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 #include "newtypec.h"
 
 {-|

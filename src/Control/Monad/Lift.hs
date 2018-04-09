@@ -133,22 +133,25 @@ where
 -- base ----------------------------------------------------------------------
 import           Control.Arrow ((***), first)
 import           Control.Monad (join, liftM)
-#if MIN_VERSION_base(4, 7, 0) && __GLASGOW_HASKELL__ >= 710
-import           Data.Coerce (Coercible, coerce)
-#endif
+import           Data.Functor.Identity (Identity (Identity))
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
 #endif
-#ifndef ClosedTypeFamilies
-import           GHC.Exts (Any)
-import           Unsafe.Coerce (unsafeCoerce)
-#endif
+
+
+-- layers --------------------------------------------------------------------
+import           Control.Monad.Lift.Internal
+                     ( LayerEffects, LayerResult, LayerState, coercePeel
+                     , OuterEffects, OuterResult, OuterState, coercePeelI
+                     , ComposeResult (ComposeResult), fromR, toR, fromS, toS
+                     , Iso1, Codomain1, from1, to1
+                     )
 
 
 -- mmorph --------------------------------------------------------------------
 import           Control.Monad.Morph (MFunctor (hoist))
 #if MIN_VERSION_mmorph(1, 0, 1)
-import           Control.Monad.Trans.Compose (ComposeT (ComposeT))
+import           Control.Monad.Trans.Compose (ComposeT)
 #endif
 
 
@@ -171,7 +174,6 @@ import qualified Control.Monad.Trans.State.Lazy as L (StateT (StateT))
 import           Control.Monad.Trans.State.Strict (StateT (StateT))
 import qualified Control.Monad.Trans.Writer.Lazy as L (WriterT (WriterT))
 import           Control.Monad.Trans.Writer.Strict (WriterT (WriterT))
-import           Data.Functor.Identity (Identity (Identity))
 
 
 {-$transfamily
@@ -440,22 +442,6 @@ class MonadTrans t => MonadTransControl t where
     extract :: proxy t -> LayerResult t a -> Maybe a
 
 
-------------------------------------------------------------------------------
--- | The G(layereffect,layer effects) of the @t@ G(monadlayer,layer) of the
--- monad @t m@.
-type LayerEffects t m a = (LayerResult t a, LayerState t m)
-
-
-------------------------------------------------------------------------------
--- | The G(layerresult,layer result) of @t@.
-type family LayerResult (t :: (* -> *) -> * -> *) :: * -> *
-
-
-------------------------------------------------------------------------------
--- | The G(layerstate,layer state) of @t@.
-type family LayerState (t :: (* -> *) -> * -> *) (m :: * -> *) :: *
-
-
 #if !MIN_VERSION_transformers(0, 6, 0)
 ------------------------------------------------------------------------------
 instance Error e => MonadTransControl (ErrorT e) where
@@ -463,9 +449,6 @@ instance Error e => MonadTransControl (ErrorT e) where
     resume (a, _) = ErrorT $ return a
     capture = return ()
     extract _ = either (const Nothing) Just
-
-type instance LayerResult (ErrorT e) = Either e
-type instance LayerState (ErrorT e) m = ()
 
 
 #endif
@@ -477,9 +460,6 @@ instance MonadTransControl (ExceptT e) where
     capture = return ()
     extract _ = either (const Nothing) Just
 
-type instance LayerResult (ExceptT e) = Either e
-type instance LayerState (ExceptT e) m = ()
-
 
 #endif
 ------------------------------------------------------------------------------
@@ -489,9 +469,6 @@ instance MonadTransControl IdentityT where
     capture = return ()
     extract _ (Identity a) = Just a
 
-type instance LayerResult IdentityT = Identity
-type instance LayerState IdentityT m = ()
-
 
 ------------------------------------------------------------------------------
 instance MonadTransControl ListT where
@@ -499,9 +476,6 @@ instance MonadTransControl ListT where
     resume (a, _) = ListT $ return a
     capture = return ()
     extract _ = foldr (const . Just) Nothing
-
-type instance LayerResult ListT = []
-type instance LayerState ListT m = ()
 
 
 ------------------------------------------------------------------------------
@@ -511,9 +485,6 @@ instance MonadTransControl MaybeT where
     capture = return ()
     extract _ = id
 
-type instance LayerResult MaybeT = Maybe
-type instance LayerState MaybeT m = ()
-
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (ReaderT r) where
@@ -521,9 +492,6 @@ instance MonadTransControl (ReaderT r) where
     resume (Identity a, _) = ReaderT $ \_ -> return a
     capture = ReaderT return
     extract _ (Identity a) = Just a
-
-type instance LayerResult (ReaderT r) = Identity
-type instance LayerState (ReaderT r) m = r
 
 
 ------------------------------------------------------------------------------
@@ -533,9 +501,6 @@ instance MonadTransControl (StateT s) where
     capture = StateT $ \s -> return (s, s)
     extract _ (Identity a) = Just a
 
-type instance LayerResult (StateT s) = Identity
-type instance LayerState (StateT s) m = s
-
 
 ------------------------------------------------------------------------------
 instance MonadTransControl (L.StateT s) where
@@ -543,9 +508,6 @@ instance MonadTransControl (L.StateT s) where
     resume (Identity a, s) = L.StateT $ \_ -> return (a, s)
     capture = L.StateT $ \s -> return (s, s)
     extract _ (Identity a) = Just a
-
-type instance LayerResult (L.StateT s) = Identity
-type instance LayerState (L.StateT s) m = s
 
 
 ------------------------------------------------------------------------------
@@ -555,9 +517,6 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     capture = RWST $ \r s -> return ((r, s), s, mempty)
     extract _ (_, a) = Just a
 
-type instance LayerResult (RWST r w s) = (,) w
-type instance LayerState (RWST r w s) m = (r, s)
-
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (L.RWST r w s) where
@@ -565,9 +524,6 @@ instance Monoid w => MonadTransControl (L.RWST r w s) where
     resume ((w, a), (_, s)) = L.RWST $ \_ _ -> return (a, s, w)
     capture = L.RWST $ \r s -> return ((r, s), s, mempty)
     extract _ (_, a) = Just a
-
-type instance LayerResult (L.RWST r w s) = (,) w
-type instance LayerState (L.RWST r w s) m = (r, s)
 
 
 ------------------------------------------------------------------------------
@@ -577,9 +533,6 @@ instance Monoid w => MonadTransControl (WriterT w) where
     capture = return ()
     extract _ (_, a) = Just a
 
-type instance LayerResult (WriterT w) = (,) w
-type instance LayerState (WriterT w) m = ()
-
 
 ------------------------------------------------------------------------------
 instance Monoid w => MonadTransControl (L.WriterT w) where
@@ -587,9 +540,6 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
     resume ((w, a), _) = L.WriterT $ return (a, w)
     capture = return ()
     extract _ (_, a) = Just a
-
-type instance LayerResult (L.WriterT w) = (,) w
-type instance LayerState (L.WriterT w) m = ()
 
 
 ------------------------------------------------------------------------------
@@ -939,84 +889,6 @@ class MonadInner i m => MonadInnerControl i m where
 
 
 ------------------------------------------------------------------------------
--- | The combined G(layereffect,layer effects) of all the
--- G(outerlayer,outer layers) around @i@ of the monad @m@.
-type OuterEffects i m a = (OuterResult i m a, OuterState i m)
-
-
-------------------------------------------------------------------------------
--- | The combined G(layerresult,layer results) of all the
--- G(outerlayer,outer layers) around @i@ of the monad @m@.
---
--- Note: On GHC 7.8 and up, this is implemented as a
--- BWT(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of
--- GHC do not support closed type families, but we use various hacks involving
--- 'Any' and 'unsafeCoerce' to provide the same interface. You should not need
--- to worry about this; I am pretty sure it is safe.
-type family OuterResult (i :: * -> *) (m :: * -> *) :: * -> *
-#ifdef ClosedTypeFamilies
-  where
-    OuterResult m m = Identity
-    OuterResult i (t m) = ComposeResult i t m
-    OuterResult i m = OuterResult i (Codomain1 m)
-#else
-type instance OuterResult i m = OuterResult_ i m
-#endif
-
-
-------------------------------------------------------------------------------
--- | The combined G(layerstate,layer states) of all the
--- G(outerlayer,outer layers) around @i@ of the monad @m@.
---
--- Note: On GHC 7.8 and up, this is implemented as a
--- BWT(NewAxioms/ClosedTypeFamilies, closed type family). Older versions of
--- GHC do not support closed type families, but we use various hacks involving
--- 'GHC.Exts.Any' and 'Unsafe.Coerce.unsafeCoerce' to provide the same
--- interface. You should not need to worry about this; I am pretty sure it is
--- safe.
-type family OuterState (i :: * -> *) (m :: * -> *) :: *
-#ifdef ClosedTypeFamilies
-  where
-    OuterState m m = ()
-    OuterState i (t m) = (LayerState t m, OuterState i m)
-    OuterState i m = OuterState i (Codomain1 m)
-#else
-type instance OuterState i m = OuterState_ i m
-#endif
-
-
-------------------------------------------------------------------------------
-newtype ComposeResult i t m a = ComposeResult
-    (OuterResult i m (LayerResult t a, LayerState t m))
-
-
-#ifndef ClosedTypeFamilies
-------------------------------------------------------------------------------
-newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
-
-
-------------------------------------------------------------------------------
-newtype OuterState_ (i :: * -> *) (m :: * -> *) = OuterState_ Any
-
-
-#endif
-------------------------------------------------------------------------------
-#ifdef ClosedTypeFamilies
-toS, fromS, toR, fromR :: a -> a
-toS = id; fromS = id; toR = id; fromR = id
-#else
-toS :: x -> OuterState_ i m; toR :: x -> OuterResult_ i m a
-toS = OuterState_ . unsafeCoerce; toR = OuterResult_ . unsafeCoerce
-fromS :: OuterState_ i m -> x; fromR :: OuterResult_ i m a -> x
-fromS (OuterState_ x) = unsafeCoerce x; fromR (OuterResult_ x) = unsafeCoerce x
-#endif
-{-# INLINE toS #-}
-{-# INLINE toR #-}
-{-# INLINE fromS #-}
-{-# INLINE fromR #-}
-
-
-------------------------------------------------------------------------------
 instance MonadInner m m => MonadInnerControl m m where
     suspendI m _ = liftM (\a -> (toR $ Identity a, toS ())) m
     resumeI _ (r, _) = let Identity a = fromR r in return a
@@ -1362,36 +1234,6 @@ operations to manually define an instance (as above) rather than using the
 @GeneralizedNewtypeDeriving@ extension.
 
 -}
-
-
-------------------------------------------------------------------------------
-class Iso1 t where
-    type Codomain1 (t :: * -> *) :: * -> *
-    to1 :: forall a. t a -> Codomain1 t a
-    from1 :: forall a. Codomain1 t a -> t a
-#if MIN_VERSION_base(4, 7, 0)
--- fails on GHC 7.8 for some reason
-#if __GLASGOW_HASKELL__ >= 710
-
-    default to1 :: Coercible t (Codomain1 t) => forall a. t a -> Codomain1 t a
-    to1 = coerce
-
-    default from1
-        :: Coercible (Codomain1 t) t => forall a. Codomain1 t a -> t a
-    from1 = coerce
-#endif
-#endif
-
-
-#if MIN_VERSION_mmorph(1, 0, 1)
-------------------------------------------------------------------------------
-instance Iso1 (ComposeT f g m) where
-    type Codomain1 (ComposeT f g m) = f (g m)
-    to1 (ComposeT m) = m
-    from1 = ComposeT
-
-
-#endif
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signature of 'defaultLiftI'.
@@ -1546,27 +1388,3 @@ defaultHoistI :: DefaultMonadInnerFunctor j n i m
     -> m a
     -> n a
 defaultHoistI f m = from1 (hoistI f (to1 m))
-
-
-------------------------------------------------------------------------------
-coercePeel :: forall t m. ()
-    => (forall a. t m a -> m (LayerEffects t m a))
-    -> (forall a. t m a -> m (LayerEffects t m a))
-#if __GLASGOW_HASKELL__ >= 704
-coercePeel f = f
-#else
-coercePeel = unsafeCoerce
-#endif
-{-# INLINE coercePeel #-}
-
-
-------------------------------------------------------------------------------
-coercePeelI :: forall i m. ()
-    => (forall a. m a -> i (OuterEffects i m a))
-    -> (forall a. m a -> i (OuterEffects i m a))
-#if __GLASGOW_HASKELL__ >= 704
-coercePeelI f = f
-#else
-coercePeelI = unsafeCoerce
-#endif
-{-# INLINE coercePeelI #-}
