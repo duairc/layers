@@ -70,7 +70,7 @@ import           Control.Monad.Trans.Writer.Strict (WriterT)
 ------------------------------------------------------------------------------
 -- | The G(layereffect,layer effects) of the @t@ G(monadlayer,layer) of the
 -- monad @t m@.
-type LayerEffects t m a = (LayerResult t a, LayerState t m)
+type LayerEffects t a = (LayerResult t a, LayerState t)
 
 
 ------------------------------------------------------------------------------
@@ -96,29 +96,29 @@ type instance LayerResult (L.WriterT w) = (,) w
 
 ------------------------------------------------------------------------------
 -- | The G(layerstate,layer state) of @t@.
-type family LayerState (t :: (* -> *) -> * -> *) (m :: * -> *) :: *
+type family LayerState (t :: (* -> *) -> * -> *) :: *
 #if !MIN_VERSION_transformers(0, 6, 0)
-type instance LayerState (ErrorT e) m = ()
+type instance LayerState (ErrorT e) = ()
 #endif
 #if MIN_VERSION_transformers(0, 4, 0)
-type instance LayerState (ExceptT e) m = ()
+type instance LayerState (ExceptT e) = ()
 #endif
-type instance LayerState IdentityT m = ()
-type instance LayerState ListT m = ()
-type instance LayerState MaybeT m = ()
-type instance LayerState (ReaderT r) m = r
-type instance LayerState (StateT s) m = s
-type instance LayerState (L.StateT s) m = s
-type instance LayerState (RWST r w s) m = (r, s)
-type instance LayerState (L.RWST r w s) m = (r, s)
-type instance LayerState (WriterT w) m = ()
-type instance LayerState (L.WriterT w) m = ()
+type instance LayerState IdentityT = ()
+type instance LayerState ListT = ()
+type instance LayerState MaybeT = ()
+type instance LayerState (ReaderT r) = r
+type instance LayerState (StateT s) = s
+type instance LayerState (L.StateT s) = s
+type instance LayerState (RWST r w s) = (r, s)
+type instance LayerState (L.RWST r w s) = (r, s)
+type instance LayerState (WriterT w) = ()
+type instance LayerState (L.WriterT w) = ()
 
 
 ------------------------------------------------------------------------------
 coercePeel :: forall t m. ()
-    => (forall a. t m a -> m (LayerEffects t m a))
-    -> (forall a. t m a -> m (LayerEffects t m a))
+    => (forall a. t m a -> m (LayerEffects t a))
+    -> (forall a. t m a -> m (LayerEffects t a))
 #if __GLASGOW_HASKELL__ >= 704
 coercePeel f = f
 #else
@@ -167,7 +167,7 @@ type OuterResult i m = OuterResult_ i m
 type family OuterState (i :: * -> *) (m :: * -> *) :: *
   where
     OuterState m m = ()
-    OuterState i (t m) = (LayerState t m, OuterState i m)
+    OuterState i (t m) = (LayerState t, OuterState i m)
     OuterState i m = OuterState i (Codomain1 m)
 #else
 type OuterState i m = OuterState_ i m
@@ -176,7 +176,7 @@ type OuterState i m = OuterState_ i m
 
 ------------------------------------------------------------------------------
 newtype ComposeResult i t m a = ComposeResult
-    (OuterResult i m (LayerResult t a, LayerState t m))
+    (OuterResult i m (LayerResult t a, LayerState t))
 
 
 ------------------------------------------------------------------------------

@@ -260,13 +260,13 @@ operations reflect this relationship.
 -- associated type synonym to the 'MonadTransControl' class called
 -- 'LayerState'.
 -- 
--- @type 'LayerState' 'IdentityT' m = ()
---type 'LayerState' ('RWST' r w s) m = (r, s)@
+-- @type 'LayerState' 'IdentityT' = ()
+--type 'LayerState' ('RWST' r w s) = (r, s)@
 --
 -- Now we can have an operation with a single type that fits both 'RWST' and
 -- 'IdentityT':
 --
--- @peel :: 'Monad' m => t m a -> 'LayerState' t m -> m a@
+-- @peel :: 'Monad' m => t m a -> 'LayerState' t -> m a@
 --
 -- This is better, but it's still far from perfect. First of all, we don't
 -- really want to peel away the @t@ layer completely, because then we lose all
@@ -283,11 +283,11 @@ operations reflect this relationship.
 -- we can't get an @a@ out of it. The closest to the proposed type for 'peel'
 -- above that we could get for 'MaybeT' would be:
 --
--- @peel :: 'MaybeT' m a -> 'LayerState' 'MaybeT' m -> m ('Maybe' a)@
+-- @peel :: 'MaybeT' m a -> 'LayerState' 'MaybeT' -> m ('Maybe' a)@
 --
 -- Similarly, for @'ExceptT' e@, the closest we could get would be:
 --
--- @peel :: 'ExceptT' e m a -> 'LayerState' ('ExceptT' e) m -> m ('Either' e a)@
+-- @peel :: 'ExceptT' e m a -> 'LayerState' ('ExceptT' e) -> m ('Either' e a)@
 --
 -- Again, we can use an associated type synonym to make all of these
 -- operations fit a single pattern. We call this one 'LayerResult'. Here are
@@ -342,9 +342,9 @@ operations reflect this relationship.
 -- This actually captures everything we need to implement the 'suspend'
 -- operation we described above:
 --
--- @'suspend' :: 'Monad' m => t m a -> 'LayerState' t m -> m ('LayerEffects' t m a)@
+-- @'suspend' :: 'Monad' m => t m a -> 'LayerState' t -> m ('LayerEffects' t a)@
 --
--- @type 'LayerEffects' t m a = ('LayerResult' t a, 'LayerState' t m)@
+-- @type 'LayerEffects' t a = ('LayerResult' t a, 'LayerState' t)@
 --
 -- (The purpose of the 'LayerEffects' type synonym is twofold: it makes the
 -- type signatures of 'suspend' and other operations a little bit less scary,
@@ -354,13 +354,13 @@ operations reflect this relationship.
 -- There are two important operations in the 'MonadTransControl' that we have
 -- only alluded to so far: 'capture' and 'resume'.
 --
--- @'capture' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t m)
---'resume' :: ('MonadTransControl' t, 'Monad' m) => 'LayerEffects' t m a -> t m a@
+-- @'capture' :: ('MonadTransControl' t, 'Monad' m) => t m ('LayerState' t)
+--'resume' :: ('MonadTransControl' t, 'Monad' m) => 'LayerEffects' t a -> t m a@
 --
--- 'capture' captures the current @'LayerState' t m@ for the monad @t m@. This
+-- 'capture' captures the current @'LayerState' t@ for the monad @t m@. This
 -- is where the 'LayerState' that 'suspend' takes as its argument comes from.
 -- 'resume' is the inverse of 'suspend': it takes the suspended side-effects
--- of a monad transformer @t@ reified by a @'LayerEffects' t m a@ value, and
+-- of a monad transformer @t@ reified by a @'LayerEffects' t a@ value, and
 -- returns a returns a reconstructed computation of type @t m a@ with those
 -- side-effects.
 --
@@ -374,11 +374,11 @@ operations reflect this relationship.
 --
 -- @instance 'Monoid' w => 'MonadTransControl' ('RWST' r w s) where
 --    type 'LayerResult' ('RWST' r w s) = (,) w
---    type 'LayerState' ('RWST' r w s) m = (r, s)
+--    type 'LayerState' ('RWST' r w s) = (r, s)
 --    'suspend' ('RWST' m) (r, s) = 'liftM' (\\(a, s', w) -> ((w, a), (r, s'))) (m r s)
 --    'resume' ((w, a), (_, s)) = 'RWST' '$' \\_ _ -> 'return' (a, s, w)
 --    'capture' = 'RWST' '$' \\r s -> 'return' ((r, s), s, 'mempty')
---    'extract' _ (_, a) = 'Just' a@
+--    'extract' _ (_, a) = 'Right' a@
 class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- | Given a G(computation,computation) @m@ of type @t m a@ and the
     -- current G(layerstate,layer state) of the @t@ G(monadlayer,layer),
@@ -386,7 +386,7 @@ class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- from this G(monadlayer,layer) by returning a new
     -- G(computation,computation) in the monad @m@ that returns the
     -- G(layereffect,reification) of these G(sideeffects,side-effects) in
-    -- a @'LayerEffects' t m a@ value. This gives a version of @m@ which
+    -- a @'LayerEffects' t a@ value. This gives a version of @m@ which
     -- can be passed to G(controloperation,control operations) in the monad
     -- @m@.
     --
@@ -395,16 +395,16 @@ class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- expressed in the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
-    suspend :: Monad m => t m a -> LayerState t m -> m (LayerEffects t m a)
+    suspend :: Monad m => t m a -> LayerState t -> m (LayerEffects t a)
 
     -- | Reconstructs a G(computation,computation) @t m a@ with the same
     -- G(sideeffect,side-effects) in the @t@ G(monadlayer,layer) as those
-    -- G(layereffect,reified) by the given @'LayerEffects' t m a@ value.
+    -- G(layereffect,reified) by the given @'LayerEffects' t a@ value.
     --
     -- Instances should satisfy the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
-    resume :: Monad m => LayerEffects t m a -> t m a
+    resume :: Monad m => LayerEffects t a -> t m a
 
     -- | Captures the current G(layerstate,layer state) of the @t@
     -- G(monadlayer,layer) of the monad @t m@.
@@ -412,7 +412,7 @@ class (MonadTrans t, Functor (LayerResult t)) => MonadTransControl t where
     -- Instances should satisfy the following law:
     --
     -- [Preservation] @'capture' '>>=' 'lift' '.' 'suspend' t '>>=' 'resume' ≡ t@
-    capture :: Monad m => t m (LayerState t m)
+    capture :: Monad m => t m (LayerState t)
 
     -- | 'extract' inspects a G(layerresult,layer result), given by
     -- suspending the G(sideeffect,side-effects) in the @t@
@@ -552,7 +552,7 @@ instance Monoid w => MonadTransControl (L.WriterT w) where
 -- G(layereffect,reified) G(sideeffect,side-effects) of the @t@
 -- G(monadlayer,layer) of the original computation.
 liftControl :: forall t m a. (MonadTransControl t, Monad (t m), Monad m)
-    => ((forall b. t m b -> m (LayerEffects t m b)) -> m a)
+    => ((forall b. t m b -> m (LayerEffects t b)) -> m a)
     -> t m a
 liftControl f = capture >>= \s -> lift $ f (flip suspend s)
 {-# INLINE liftControl #-}
@@ -565,7 +565,7 @@ liftControl f = capture >>= \s -> lift $ f (flip suspend s)
 -- @catch' :: ('Control.Exception.Exception' e, 'MonadTransControl' t, 'Monad' (t 'IO')) => t m b -> (e -> t m b) -> t m b
 --catch' m h = 'control' (\\peel -> 'Control.Exception.catch' (peel m) (peel '.' h))@
 control :: (MonadTransControl t, Monad (t m), Monad m)
-    => ((forall b. t m b -> m (LayerEffects t m b)) -> m (LayerEffects t m a))
+    => ((forall b. t m b -> m (LayerEffects t b)) -> m (LayerEffects t a))
     -> t m a
 control f = liftControl (\peel -> f (coercePeel peel)) >>= resume
 {-# INLINE control #-}
@@ -579,7 +579,7 @@ control f = liftControl (\peel -> f (coercePeel peel)) >>= resume
 -- @withMVar' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => 'Control.Concurrent.MVar.MVar' a -> (a -> t 'IO' b) -> t 'IO' b
 --withMVar' = 'liftOp' '.' 'Control.Concurrent.MVar.withMVar'@
 liftOp :: (MonadTransControl t, Monad (t m), Monad m)
-    => ((a -> m (LayerEffects t m b)) -> m (LayerEffects t m c))
+    => ((a -> m (LayerEffects t b)) -> m (LayerEffects t c))
     -> (a -> t m b)
     -> t m c
 liftOp f = \g -> control (\peel -> f $ peel . g)
@@ -594,7 +594,7 @@ liftOp f = \g -> control (\peel -> f $ peel . g)
 -- @mask_' :: ('MonadTransControl' t, 'Monad' (t 'IO')) => t 'IO' a -> t 'IO' a
 --mask_' = 'liftOp_' 'Control.Exception.mask_'@
 liftOp_ :: (MonadTransControl t, Monad (t m), Monad m)
-    => (m (LayerEffects t m a) -> m (LayerEffects t m b))
+    => (m (LayerEffects t a) -> m (LayerEffects t b))
     -> t m a
     -> t m b
 liftOp_ f = \m -> control (\peel -> f $ peel m)
@@ -905,7 +905,7 @@ instance __OVERLAPPABLE__
     , MonadTransControl t
 #ifdef ClosedTypeFamilies
     , OuterResult i (t m) ~ ComposeResult i t m
-    , OuterState i (t m) ~ (LayerState t m, OuterState i m)
+    , OuterState i (t m) ~ (LayerState t, OuterState i m)
 #endif
     )
   =>
@@ -936,16 +936,15 @@ instance __OVERLAPPABLE__
       where
         ComposeResult r' = fromR r :: ComposeResult i t m a
 
-        left :: forall b. OuterResult
-                        i m (LayerResult t b, LayerState t m)
-                      -> Either (OuterResult i (t m) b) a
+        left :: forall b. OuterResult i m (LayerResult t b, LayerState t)
+            -> Either (OuterResult i (t m) b) a
         left or_ = Left $ toR or'
           where
             or' :: ComposeResult i t m b
             or' = ComposeResult or_
 
-        right :: forall b. (LayerResult t a, LayerState t m)
-                      -> Either (OuterResult i (t m) b) a
+        right :: forall b. (LayerResult t a, LayerState t)
+            -> Either (OuterResult i (t m) b) a
         right (lr, ls) = case extract (Pt :: Pt t) lr of
             Left e -> Left $ toR or'
               where
