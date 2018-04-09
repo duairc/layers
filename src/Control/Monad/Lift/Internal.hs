@@ -1,9 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -20,7 +18,6 @@
 #endif
 
 #include "docmacros.h"
-#include "overlap.h"
 
 module Control.Monad.Lift.Internal
     ( LayerEffects, LayerResult, LayerState, coercePeel
@@ -93,6 +90,9 @@ type instance LayerResult (RWST r w s) = (,) w
 type instance LayerResult (L.RWST r w s) = (,) w
 type instance LayerResult (WriterT w) = (,) w
 type instance LayerResult (L.WriterT w) = (,) w
+#if MIN_VERSION_mmorph(1, 0, 1)
+type instance LayerResult (ComposeT f g) = ComposeResult2 f g
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -114,6 +114,9 @@ type instance LayerState (RWST r w s) = (r, s)
 type instance LayerState (L.RWST r w s) = (r, s)
 type instance LayerState (WriterT w) = ()
 type instance LayerState (L.WriterT w) = ()
+#if MIN_VERSION_mmorph(1, 0, 1)
+type instance LayerState (ComposeT f g) = (LayerState f, LayerState g)
+#endif
 
 
 ------------------------------------------------------------------------------
@@ -220,37 +223,6 @@ instance (Functor (OuterResult i m), Functor (LayerResult t)) =>
 #ifndef ClosedTypeFamilies
 ------------------------------------------------------------------------------
 newtype OuterResult_ (i :: * -> *) (m :: * -> *) (a :: *) = OuterResult_ Any
-
-
-------------------------------------------------------------------------------
-instance Functor (OuterResult_ m m) where
-    fmap f (r :: OuterResult_ m m a) = toR (fmap f a)
-      where
-        a = fromR r :: Identity a
-
-
-------------------------------------------------------------------------------
-instance __OVERLAPPABLE__
-    ( Functor (OuterResult_ i m), Functor (LayerResult t)
-    )
-  =>
-    Functor (OuterResult_ i (t m))
-  where
-    fmap f (r :: OuterResult_ i (t m) a) = toR (fmap f a)
-      where
-        a = fromR r :: ComposeResult i t m a
-
-
-------------------------------------------------------------------------------
-instance __OVERLAPPABLE__
-    ( Functor (OuterResult_ i (Codomain1 m))
-    )
-  =>
-    Functor (OuterResult_ i m)
-  where
-    fmap f (r :: OuterResult_ i m a) = toR (fmap f a)
-      where
-        a = fromR r :: OuterResult_ i (Codomain1 m) a
 
 
 ------------------------------------------------------------------------------

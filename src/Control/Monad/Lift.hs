@@ -82,7 +82,7 @@ module Control.Monad.Lift
     , MonadInner (liftI)
 
     -- ** Lifting control operations
-    , MonadInnerControl (suspendI, resumeI, captureI, extractI)
+    , MonadInnerControl (suspendI, resumeI, captureI, extractI, mapI)
     , OuterEffects, OuterResult, OuterState
     , liftControlI, controlI, liftOpI, liftOpI_, liftDiscardI
 
@@ -101,11 +101,11 @@ module Control.Monad.Lift
 
     -- *** Control operations
     , DefaultMonadTransControl, DefaultLayerResult, DefaultLayerState
-    , defaultSuspend, defaultResume, defaultExtract, defaultCapture
+    , defaultSuspend, defaultResume, defaultCapture, defaultExtract
     , DefaultMonadTransControl2, DefaultLayerResult2, DefaultLayerState2
-    , defaultSuspend2, defaultResume2, defaultExtract2, defaultCapture2
+    , defaultSuspend2, defaultResume2, defaultCapture2, defaultExtract2
     , DefaultMonadTransControl3, DefaultLayerResult3, DefaultLayerState3
-    , defaultSuspend3, defaultResume3, defaultExtract3, defaultCapture3
+    , defaultSuspend3, defaultResume3, defaultCapture3, defaultExtract3
 
     -- *** Morphisms
     , DefaultMInvariant, defaultHoistiso, DefaultMFunctor, defaultHoist
@@ -118,7 +118,8 @@ module Control.Monad.Lift
 
     -- *** Control operations
     , DefaultMonadInnerControl
-    , defaultSuspendI, defaultResumeI, defaultExtractI, defaultCaptureI
+    , defaultSuspendI, defaultResumeI, defaultCaptureI, defaultExtractI
+    , defaultMapI
 
     -- *** Morphisms
     , DefaultMonadInnerInvariant, defaultHoistisoI
@@ -790,7 +791,14 @@ instance (Monad (f (g m)), DefaultMonadInner (f (g m)) (ComposeT f g m)) =>
 -- 'liftControlI', 'controlI', 'liftOpI', 'liftOpI_' and 'liftDiscardI'. These
 -- are all built on top of the more primitive 'captureI', 'suspendI' and
 -- 'resumeI' operations.
-class (MonadInner i m, Functor (OuterResult i m)) => MonadInnerControl i m
+class
+    ( MonadInner i m
+#ifdef ClosedTypeFamilies
+    , Functor (OuterResult i m)
+#endif
+    )
+  =>
+    MonadInnerControl i m
   where
     -- | Given a G(computation,computation) @m@ of type @m a@ and the current
     -- G(layerstate,layer state) of the G(outerlayer,outer layers) around
@@ -858,32 +866,48 @@ class (MonadInner i m, Functor (OuterResult i m)) => MonadInnerControl i m
     extractI :: proxy i -> proxy' m -> OuterResult i m a
         -> Either (OuterResult i m b) a
 
+    -- | 'mapI' maps a function @f@ over the G(layerresult,layer results) of
+    -- the G(outerlayer,outer layers) of @m@ around @i@.
+    --
+    -- On versions of GHC supporting
+    -- BWT(NewAxioms/ClosedTypeFamilies, closed type families), this is
+    -- redundant thanks to the @'Functor' ('OuterResult' i m)@ superclass
+    -- constraint on 'MonadInnerControl'. It's only necessary because of how
+    -- we implement 'OuterResult' on older GHCs.
+    --
+    -- Regardless, the only value to which this should ever be assigned is
+    -- 'defaultMapI' (see <#g:9 Defaults>).
+    mapI :: proxy i -> proxy' m -> (a -> b) -> OuterResult i m a
+        -> OuterResult i m b
+#ifdef ClosedTypeFamilies
+    mapI _ _ = fmap
+    {-# INLINE mapI #-}
+#endif
+
 #ifdef LANGUAGE_DefaultSignatures
 -- DefaultSignatures doesn't work with multi-parameter type classes in GHC 7.2
 #if __GLASGOW_HASKELL__ >= 704
     default suspendI :: DefaultMonadInnerControl i m
-        => m a
-        -> OuterState i m
-        -> i (OuterEffects i m a)
+        => m a -> OuterState i m -> i (OuterEffects i m a)
     suspendI = defaultSuspendI
 
-    default resumeI :: DefaultMonadInnerControl i m
-        => proxy i
-        -> OuterEffects i m a
-        -> m a
+    default resumeI :: DefaultMonadInnerControl i m => proxy i
+        -> OuterEffects i m a -> m a
     resumeI = defaultResumeI
 
-    default captureI :: DefaultMonadInnerControl i m
-        => proxy i
+    default captureI :: DefaultMonadInnerControl i m => proxy i
         -> m (OuterState i m)
     captureI = defaultCaptureI
 
-    default extractI :: DefaultMonadInnerControl i m
-        => proxy i
-        -> proxy' m
-        -> OuterResult i m a
-        -> Either (OuterResult i m b) a
+    default extractI :: DefaultMonadInnerControl i m => proxy i -> proxy' m
+        -> OuterResult i m a -> Either (OuterResult i m b) a
     extractI = defaultExtractI
+#ifndef ClosedTypeFamilies
+
+    default mapI :: DefaultMonadInnerControl i m => proxy i -> proxy' m
+        -> (a -> b) -> OuterResult i m a -> OuterResult i m b
+    mapI = defaultMapI
+#endif
 #endif
 #endif
 
@@ -894,6 +918,9 @@ instance MonadInner m m => MonadInnerControl m m where
     resumeI _ (r, _) = let Identity a = fromR r in return a
     captureI _ = return $ toS ()
     extractI _ _ r = let Identity a = fromR r in Right a
+    mapI _ _ f r = toR $ Identity (f a)
+      where
+        Identity a = fromR r
 
 
 ------------------------------------------------------------------------------
@@ -930,9 +957,12 @@ instance __OVERLAPPABLE__
         return $ toS (a, b)
     {-# INLINE captureI #-}
 
-    extractI _ _ (r :: OuterResult i tm a) = either left right $
-        extractI (Pm :: Pm i) (Pm :: Pm m) r'
+    extractI i _ (r :: OuterResult i tm a) = either left right $
+        extractI i m r'
       where
+        t = Pt :: Pt t
+        m = Pm :: Pm m
+
         ComposeResult r' = fromR r :: ComposeResult i t m a
 
         left :: forall b. OuterResult i m (LayerResult t b, LayerState t)
@@ -945,43 +975,43 @@ instance __OVERLAPPABLE__
 
         right :: forall b. (LayerResult t a, LayerState t)
             -> Either (OuterResult i tm b) a
-        right (lr, ls) = case extract (Pt :: Pt t) lr of
+        right (lr, ls) = case extract t lr of
             Left e -> Left $ toR or'
               where
                 or' :: ComposeResult i t m b
-                or' = ComposeResult $ fmap (const (e, ls)) r'
+                or' = ComposeResult $ mapI i m (const (e, ls)) r'
             Right a -> Right a
         {-# INLINE right #-}
     {-# INLINE extractI #-}
 
+    mapI i _ (f :: a -> b) (r :: OuterResult i tm a) = toR r'
+      where
+        m = Pm :: Pm m
+        r' :: ComposeResult i t m b
+        r' = ComposeResult $ mapI i m (first (fmap f)) r''
+          where
+            ComposeResult r'' = fromR r :: ComposeResult i t m a
+    {-# INLINE mapI #-}
 
-{-
+
+
 #if MIN_VERSION_mmorph(1, 0, 1)
 ------------------------------------------------------------------------------
-instance DefaultMonadInnerControl (f (g m)) (ComposeT f g m) =>
+instance
+    ( DefaultMonadInnerControl (f (g m)) (ComposeT f g m)
+    , Functor (LayerResult f), Functor (LayerResult g)
+    )
+  =>
     MonadInnerControl (f (g m)) (ComposeT f g m)
   where
     suspendI = defaultSuspendI
     resumeI = defaultResumeI
     captureI = defaultCaptureI
     extractI = defaultExtractI
+    mapI = defaultMapI
 
 
 #endif
-#ifdef ClosedTypeFamilies
-#if MIN_VERSION_mmorph(1, 0, 1)
-------------------------------------------------------------------------------
-type instance LayerResult (ComposeT f g) =
-    OuterResult Identity (f (g Identity))
-
-
-------------------------------------------------------------------------------
-type instance LayerState (ComposeT f g) m = OuterState m (f (g m))
-
-
-#endif
-#endif
--}
 ------------------------------------------------------------------------------
 data Pm (m :: * -> *) = Pm
 
@@ -1838,12 +1868,33 @@ defaultExtractI :: forall i m a b proxy proxy'. DefaultMonadInnerControl i m
     -> proxy' m
     -> OuterResult i m a
     -> Either (OuterResult i m b) a
-defaultExtractI p _ r = either (Left . coerceResult) Right $
+defaultExtractI p _ r = either (Left . to) Right $
     extractI p (Pm :: Pm (Codomain1 m)) (fromR r)
   where
-    coerceResult :: OuterResult i (Codomain1 m) b -> OuterResult i m b
-    coerceResult = toR . fromR
+    to :: OuterResult i (Codomain1 m) b -> OuterResult i m b
+    to = toR
 {-# INLINE defaultExtractI #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when manually defining an instance of @'MonadInnerControl' i@ for
+-- some monad @m@.
+--
+-- The constraint @'DefaultMonadInnerControl' i m@ essentially requires that
+-- @m@ be G(morphism,isomorphic) to some monad @m'@ which is already an
+-- instance of @'MonadInnerControl ' i@. This isomorphism is given by making
+-- @m@ an of instance 'Iso1' such that @'Codomain1' m = m'@.
+defaultMapI :: forall i m a b proxy proxy'. DefaultMonadInnerControl i m
+    => proxy i -> proxy' m
+    -> (a -> b) -> OuterResult i m a -> OuterResult i m b
+defaultMapI i _ f = to . mapI i (Pm :: Pm (Codomain1 m)) f . from
+  where
+    to :: OuterResult i (Codomain1 m) b -> OuterResult i m b
+    to = toR
+
+    from :: OuterResult i m a -> OuterResult i (Codomain1 m) a
+    from = fromR
+{-# INLINE defaultMapI #-}
 
 
 ------------------------------------------------------------------------------

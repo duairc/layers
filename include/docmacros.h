@@ -9,5 +9,5 @@
 #define V(p, m, va) @<https://hackage.haskell.org/package/p/docs/m.html#v:va va>@
 #define TT(p, m, ty, x) @<https://hackage.haskell.org/package/p/docs/m.html#t:ty x>@
 #define VT(p, m, va, x) @<https://hackage.haskell.org/package/p/docs/m.html#v:va x>@
-#define UG(x, y) @<https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/x y>
+#define UG(x, y) <https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/x y>
 #define G(section, text) <Documentation-Layers-Glossary.html#section text>
