@@ -98,6 +98,7 @@ module Control.Monad.Lift
     , DefaultMonadTrans, defaultLift
     , DefaultMonadTrans2, defaultLift2
     , DefaultMonadTrans3, defaultLift3
+    , DefaultMonadTrans4, defaultLift4
 
     -- *** Control operations
     , DefaultMonadTransControl, DefaultLayerResult, DefaultLayerState
@@ -106,11 +107,14 @@ module Control.Monad.Lift
     , defaultSuspend2, defaultResume2, defaultCapture2, defaultExtract2
     , DefaultMonadTransControl3, DefaultLayerResult3, DefaultLayerState3
     , defaultSuspend3, defaultResume3, defaultCapture3, defaultExtract3
+    , DefaultMonadTransControl4, DefaultLayerResult4, DefaultLayerState4
+    , defaultSuspend4, defaultResume4, defaultCapture4, defaultExtract4
 
     -- *** Morphisms
     , DefaultMInvariant, defaultHoistiso, DefaultMFunctor, defaultHoist
     , DefaultMInvariant2, defaultHoistiso2, DefaultMFunctor2, defaultHoist2
     , DefaultMInvariant3, defaultHoistiso3, DefaultMFunctor3, defaultHoist3
+    , DefaultMInvariant4, defaultHoistiso4, DefaultMFunctor4, defaultHoist4
 
     -- ** For the @MonadInner@ family
     -- *** Computations
@@ -129,7 +133,7 @@ where
 
 -- base ----------------------------------------------------------------------
 import           Control.Arrow ((***), first)
-import           Control.Monad (liftM, liftM2, liftM3)
+import           Control.Monad (liftM, liftM2, liftM3, liftM4)
 import           Data.Functor.Identity (Identity (Identity))
 #if !MIN_VERSION_base(4, 8, 0)
 import           Data.Monoid (Monoid, mempty)
@@ -141,6 +145,7 @@ import           Control.Monad.Lift.Internal
                      ( LayerEffects, LayerResult, LayerState, coercePeel
                      , ComposeResult2 (ComposeResult2)
                      , ComposeResult3 (ComposeResult3)
+                     , ComposeResult4 (ComposeResult4)
                      , OuterEffects, OuterResult, OuterState, coercePeelI
                      , ComposeResult (ComposeResult), fromR, toR, fromS, toS
                      , Iso1, Codomain1, from1, to1
@@ -1359,6 +1364,30 @@ defaultLift3 = from1 . lift . lift . lift
 
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultLift4'.
+#define DMT4 DefaultMonadTrans4 t u v w x m
+#define CDMT4 MonadTrans u, MonadTrans v, MonadTrans w, MonadTrans x\
+    , Monad m, Monad (x m), Monad (w (x m)), Monad (v (w (x m)))\
+    , Iso1 (t m)
+#define EDMT4 Codomain1 (t m) ~ u (v (w (x m)))
+newtypeCE(DMT4, CDMT4, EDMT4)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTrans' @t@.
+--
+-- The constraint @'DefaultMonadTrans4' t u v w x m@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of four monad transformers
+-- @u@, @v@, @w@ and @x@ which are already instances of 'MonadTrans'. This
+-- isomorphism is given by making @t m@ an instance of 'Iso1' for all @m@ such
+-- that @'Codomain1' (t m) = u (v (w (x m)))@.
+defaultLift4 :: CE(DMT4, EDMT4) => m a -> t m a
+defaultLift4 = from1 . lift . lift . lift . lift
+{-# INLINE defaultLift4 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signatures of 'defaultSuspend', 'defaultResume',
 -- 'defaultCapture' and 'defaultExtract'.
 #define DMTC(m) DefaultMonadTransControl t u m
@@ -1376,7 +1405,7 @@ type DefaultLayerResult u = LayerResult u
 
 
 ------------------------------------------------------------------------------
--- | The G(layerresult,layer state) of @u@.
+-- | The G(layerstate,layer state) of @u@.
 type DefaultLayerState u = LayerState u
 
 
@@ -1455,7 +1484,7 @@ type DefaultLayerResult2 u v = ComposeResult2 u v
 
 
 ------------------------------------------------------------------------------
--- | The combined G(layerresult,layer states) of @u@ and @v@.
+-- | The combined G(layerstate,layer states) of @u@ and @v@.
 type DefaultLayerState2 u v = (LayerState u, LayerState v)
 
 
@@ -1543,7 +1572,7 @@ type DefaultLayerResult3 u v w = ComposeResult3 u v w
 
 
 ------------------------------------------------------------------------------
--- | The combined G(layerresult,layer states) of @u@, @v@ and @w@.
+-- | The combined G(layerstate,layer states) of @u@, @v@ and @w@.
 type DefaultLayerState3 u v w = (LayerState u, LayerState v, LayerState w)
 
 
@@ -1613,6 +1642,105 @@ defaultExtract3 _ (ComposeResult3 wr) = case extract (Pt :: Pt w) wr of
                 fmap (first (fmap (const (ure, us)))) wr
             Right a -> Right a
 {-# INLINE defaultExtract3 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signatures of 'defaultSuspend4', 'defaultResume4',
+-- 'defaultCapture4' and 'defaultExtract4'.
+#define DMTC4(m) DefaultMonadTransControl4 t u v w x m
+#define CDMTC4(m) MonadTransControl u, MonadTransControl v\
+    , MonadTransControl w, MonadTransControl x\
+    , Monad m, Monad (x m), Monad (w (x m)), Monad (v (w (x m)))\
+    , Monad (u (v (w (x m))))\
+    , Iso1 (t m)
+#define EDMTC4(m) Codomain1 (t m) ~ u (v (w (x m)))\
+    , LayerResult t ~ DefaultLayerResult4 u v w x\
+    , LayerState t ~ DefaultLayerState4 u v w x
+newtypeCE(DMTC4(m), CDMTC4(m), EDMTC4(m))
+
+
+------------------------------------------------------------------------------
+-- | The combined G(layerresult,layer results) of @u@, @v@, @w@ and @x@.
+type DefaultLayerResult4 u v w x = ComposeResult4 u v w x
+
+
+------------------------------------------------------------------------------
+-- | The combined G(layerstate,layer states) of @u@, @v@, @w@ and @x@.
+type DefaultLayerState4 u v w x =
+    (LayerState u, LayerState v, LayerState w, LayerState x)
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl4' t u v w x m@ essentially
+-- requires that @t@ be G(morphism,isomorphic) to a composition of four monad
+-- transformers @u@, @v@, @w@ and @x@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w (x m)))@.
+defaultSuspend4 :: CE(DMTC4(m), EDMTC4(m))
+    => t m a -> LayerState t -> m (LayerEffects t a)
+defaultSuspend4 m (us, vs, ws, xs) =
+    liftM f $ suspend (suspend (suspend (suspend (to1 m) us) vs) ws) xs
+  where
+    f (xr, xs') = (ComposeResult4 xr, (us, vs, ws, xs'))
+{-# INLINE defaultSuspend4 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl4' t u v w x m@ essentially
+-- requires that @t@ be G(morphism,isomorphic) to a composition of four monad
+-- transformers @u@, @v@, @w@ and @x@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w (x m)))@.
+defaultResume4 :: CE(DMTC4(m), EDMTC4(m))
+    => LayerEffects t a -> t m a
+defaultResume4 (ComposeResult4 xr, (_, _, _, xs)) =
+    from1 $ lift (lift (lift (resume (xr, xs)))) >>= lift . lift . resume
+        >>= lift . resume >>= resume
+{-# INLINE defaultResume4 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl4' t u v w x m@ essentially
+-- requires that @t@ be G(morphism,isomorphic) to a composition of four monad
+-- transformers @u@, @v@, @w@ and @x@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w (x m)))@.
+defaultCapture4 :: CE(DMTC4(m), EDMTC4(m)) => t m (LayerState t)
+defaultCapture4 = from1 $ liftM4 (,,,)
+    capture (lift capture) (lift (lift capture)) (lift (lift (lift capture)))
+{-# INLINE defaultCapture4 #-}
+
+
+------------------------------------------------------------------------------
+-- | Used when defining an instance of 'MonadTransControl' @t@.
+--
+-- The constraint @'DefaultMonadTransControl4' t u v w x m@ essentially
+-- requires that @t@ be G(morphism,isomorphic) to a composition of four monad
+-- transformers @u@, @v@, @w@ and @x@ which are already instances of
+-- 'MonadTransControl'. This isomorphism is given by making @t m@ an instance
+-- of 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (w (x m)))@.
+defaultExtract4
+    :: forall t u v w x a b proxy. CE(DMTC4(Identity), EDMTC4(Identity))
+    => proxy t -> LayerResult t a -> Either (LayerResult t b) a
+defaultExtract4 _ (ComposeResult4 xr) = case extract (Pt :: Pt x) xr of
+    Left xre -> Left $ ComposeResult4 xre
+    Right (wr, ws) -> case extract (Pt :: Pt w) wr of
+        Left wre -> Left $ ComposeResult4 $ fmap (const (wre, ws)) xr
+        Right (vr, vs) -> case extract (Pt :: Pt v) vr of
+            Left vre -> Left $ ComposeResult4 $
+                fmap (first (fmap (const (vre, vs)))) xr
+            Right (ur, us) -> case extract (Pt :: Pt u) ur of
+                Left ure -> Left $ ComposeResult4 $
+                    fmap (first (fmap (first (fmap (const (ure, us)))))) xr
+                Right a -> Right a
+{-# INLINE defaultExtract4 #-}
 
 
 ------------------------------------------------------------------------------
@@ -1696,6 +1824,41 @@ defaultHoistiso3 f g = from1
 
 ------------------------------------------------------------------------------
 -- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoistiso4'.
+#define DMI4 DefaultMInvariant4 t u v w x m n
+#define CDMI4 MInvariant u, MInvariant v, MInvariant w, MInvariant x\
+    , Monad m, Monad (x m), Monad (w (x m)), Monad (v (w (x m)))\
+    , Monad n, Monad (x n), Monad (w (x n)), Monad (v (w (x n)))\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMI4 Codomain1 (t m) ~ u (v (w (x m)))\
+    , Codomain1 (t n) ~ u (v (w (x n)))
+newtypeCE(DMI4, CDMI4, EDMI4)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MInvariant' @t@.
+--
+-- The constraint @'DefaultMInvariant4' t u v w x m n@ essentially requires
+-- that @t@ be G(morphism,isomorphic) to a composition of four monad
+-- transformers @u@, @v@, @w@ and @x@ which are already instances of
+-- 'MInvariant'. This isomorphism is given by making @t m@ an instance of
+-- 'Iso1' for all @m@ such that @'Codomain1' (t m) = u (v (x m))@.
+defaultHoistiso4 :: CE(DMI4, EDMI4)
+    => (forall b. m b -> n b) -> (forall b. n b -> m b) -> t m a -> t n a
+defaultHoistiso4 f g = from1
+    . hoistiso
+        (hoistiso
+            (hoistiso (hoistiso f g) (hoistiso g f))
+            (hoistiso (hoistiso g f) (hoistiso f g)))
+        (hoistiso
+            (hoistiso (hoistiso g f) (hoistiso f g))
+            (hoistiso (hoistiso f g) (hoistiso g f)))
+    . to1
+{-# INLINE defaultHoistiso4 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
 -- us write the type signature of 'defaultHoist2'.
 #define DMF DefaultMFunctor t u m n
 #define CDMF MFunctor u\
@@ -1766,6 +1929,32 @@ defaultHoist3 :: CE(DMF3, EDMF3)
     => (forall b. m b -> n b) -> t m a -> t n a
 defaultHoist3 f = from1 . hoist (hoist (hoist f)) . to1
 {-# INLINE defaultHoist3 #-}
+
+
+------------------------------------------------------------------------------
+-- | A UG(glasgow_exts.html#the-constraint-kind,constraint synonym) that helps
+-- us write the type signature of 'defaultHoist4'.
+#define DMF4 DefaultMFunctor4 t u v w x m n
+#define CDMF4 MFunctor u, MFunctor v, MFunctor w, MFunctor x\
+    , Monad m, Monad (x m), Monad (w (x m)), Monad (v (w (x m)))\
+    , Iso1 (t m), Iso1 (t n)
+#define EDMF4 Codomain1 (t m) ~ u (v (w (x m)))\
+    , Codomain1 (t n) ~ u (v (w (x n)))
+newtypeCE(DMF4, CDMF4, EDMF4)
+
+
+------------------------------------------------------------------------------
+-- | Used defining an instance 'MFunctor' @t@.
+--
+-- The constraint @'DefaultMFunctor4' t u v w x m n@ essentially requires that
+-- @t@ be G(morphism,isomorphic) to a composition of four monad transformers
+-- @u@, @v@, @w@ and @x@ which are already instances of 'MFunctor'. This
+-- isomorphism is given by making @t m@ an instance of 'Iso1' for all @m@ such
+-- that @'Codomain1' (t m) = u (v (x m))@.
+defaultHoist4 :: CE(DMF4, EDMF4)
+    => (forall b. m b -> n b) -> t m a -> t n a
+defaultHoist4 f = from1 . hoist (hoist (hoist (hoist f))) . to1
+{-# INLINE defaultHoist4 #-}
 
 
 ------------------------------------------------------------------------------

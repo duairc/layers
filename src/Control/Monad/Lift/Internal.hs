@@ -22,6 +22,7 @@
 module Control.Monad.Lift.Internal
     ( LayerEffects, LayerResult, LayerState, coercePeel
     , ComposeResult2 (ComposeResult2), ComposeResult3 (ComposeResult3)
+    , ComposeResult4 (ComposeResult4)
     , OuterEffects, OuterResult, OuterState, coercePeelI
     , ComposeResult (ComposeResult), fromR, toR, fromS, toS
     , Iso1, Codomain1, from1, to1
@@ -121,7 +122,7 @@ type instance LayerState (ComposeT f g) = (LayerState f, LayerState g)
 
 ------------------------------------------------------------------------------
 newtype ComposeResult2 u v a = ComposeResult2
-    (LayerResult v (LayerResult u a, LayerState u))
+    (LayerResult v (LayerEffects u a))
 
 
 ------------------------------------------------------------------------------
@@ -129,12 +130,12 @@ instance (Functor (LayerResult u), Functor (LayerResult v)) =>
     Functor (ComposeResult2 u v)
   where
     fmap f (ComposeResult2 a) = ComposeResult2 (fmap (first (fmap f)) a)
+    {-# INLINE fmap #-}
 
 
 ------------------------------------------------------------------------------
 newtype ComposeResult3 u v w a = ComposeResult3
-    (LayerResult w
-        (LayerResult v (LayerResult u a, LayerState u), LayerState v))
+    (LayerResult w (LayerEffects v (LayerEffects u a)))
 
 
 ------------------------------------------------------------------------------
@@ -147,6 +148,25 @@ instance
   where
     fmap f (ComposeResult3 a) = ComposeResult3
         (fmap (first (fmap (first (fmap f)))) a)
+    {-# INLINE fmap #-}
+
+
+------------------------------------------------------------------------------
+newtype ComposeResult4 u v w x a = ComposeResult4
+    (LayerResult x (LayerEffects w (LayerEffects v (LayerEffects u a))))
+
+
+------------------------------------------------------------------------------
+instance
+    ( Functor (LayerResult u), Functor (LayerResult v)
+    , Functor (LayerResult w), Functor (LayerResult x)
+    )
+  =>
+    Functor (ComposeResult4 u v w x)
+  where
+    fmap f (ComposeResult4 a) = ComposeResult4
+        (fmap (first (fmap (first (fmap (first (fmap f)))))) a)
+    {-# INLINE fmap #-}
 
 
 ------------------------------------------------------------------------------
