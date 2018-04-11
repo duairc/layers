@@ -230,7 +230,7 @@ instance __OVERLAPPABLE__ (MonadTransControl t, MonadMask (t m), MonadTry m)
         state <- capture
         ma <- lift . mtry $ suspend m state
         case ma of
-            Left m' -> lift m'
+            Left m' -> return . Left $ lift m'
             Right (result, state') -> case extract (Pt :: Pt t) result of
                 Left result' -> return . Left $ resume (result', state')
                 Right _ -> liftM Right $ resume (result, state')
