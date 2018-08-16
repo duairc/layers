@@ -7,7 +7,7 @@ author:         Shane O'Brien
 maintainer:     shane@duairc.com
 stability:      Experimental
 category:       Control
-cabal-version:  >= 1.4
+cabal-version:  >= 1.6
 homepage:       https://github.com/duairc/layers
 bug-reports:    https://github.com/duairc/layers/issues
 build-type:     Simple
@@ -81,9 +81,8 @@ description:
   @<https://hackage.haskell.org/package/mtl mtl>@ package.
 
 extra-source-files:
-  CHANGELOG
-  CONTRIBUTORS
-  README
+  include/*.h
+  LICENSE
 
 Library
   hs-source-dirs:
